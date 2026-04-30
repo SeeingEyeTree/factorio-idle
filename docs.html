@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Factorio Idle — Scripting Reference</title>
+  <style>
+    :root {
+      --bg:      #1a1a1f;
+      --surf:    #23232b;
+      --surf2:   #2a2a35;
+      --accent:  #f4a83a;
+      --accent2: #e8881a;
+      --text:    #e8e8e8;
+      --text2:   #aaa;
+      --dim:     #666;
+      --green:   #4caf50;
+      --red:     #e05050;
+      --blue:    #4a9eff;
+      --border:  #3a3a45;
+      --border2: #4a4a58;
+      --font:    'Segoe UI', system-ui, sans-serif;
+      --mono:    'Consolas', 'Cascadia Code', monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* Layout */
+    .page { max-width: 900px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+
+    /* Header */
+    .page-header {
+      border-bottom: 2px solid var(--accent);
+      padding-bottom: 1rem;
+      margin-bottom: 2rem;
+    }
+    .page-header h1 { font-size: 1.8rem; color: var(--accent); letter-spacing: .04em; }
+    .page-header p  { color: var(--text2); margin-top: .3rem; }
+
+    /* Sections */
+    .section { margin-bottom: 2.5rem; }
+    .section-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--accent);
+      border-bottom: 1px solid var(--border2);
+      padding-bottom: .4rem;
+      margin-bottom: 1rem;
+      letter-spacing: .03em;
+    }
+
+    /* Tables */
+    table { width: 100%; border-collapse: collapse; }
+    th {
+      text-align: left;
+      color: var(--text2);
+      font-weight: 600;
+      font-size: .8rem;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      padding: .4rem .6rem;
+      border-bottom: 1px solid var(--border2);
+    }
+    td {
+      padding: .35rem .6rem;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    tr:hover td { background: var(--surf2); }
+    td code, th code { font-family: var(--mono); }
+
+    /* Code */
+    code {
+      font-family: var(--mono);
+      font-size: .9em;
+      background: var(--surf2);
+      color: var(--accent);
+      padding: .1em .3em;
+      border-radius: 3px;
+    }
+    pre {
+      background: var(--surf);
+      border: 1px solid var(--border2);
+      border-left: 3px solid var(--accent);
+      border-radius: 4px;
+      padding: 1rem 1.2rem;
+      overflow-x: auto;
+      font-family: var(--mono);
+      font-size: .88em;
+      line-height: 1.5;
+      margin: .8rem 0;
+      color: var(--text);
+    }
+    pre .cmt  { color: var(--dim); }
+    pre .kw   { color: #c792ea; }
+    pre .str  { color: #c3e88d; }
+    pre .num  { color: #f78c6c; }
+    pre .fn   { color: var(--accent); }
+    pre .var  { color: var(--blue); }
+
+    /* Note boxes */
+    .note {
+      background: var(--surf);
+      border: 1px solid var(--border2);
+      border-left: 3px solid var(--blue);
+      border-radius: 4px;
+      padding: .7rem 1rem;
+      margin: .8rem 0;
+      color: var(--text2);
+      font-size: .9em;
+    }
+    .note strong { color: var(--text); }
+
+    /* Nav */
+    .toc {
+      background: var(--surf);
+      border: 1px solid var(--border2);
+      border-radius: 6px;
+      padding: 1rem 1.2rem;
+      margin-bottom: 2rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: .4rem .8rem;
+    }
+    .toc a {
+      color: var(--text2);
+      font-size: .85rem;
+    }
+    .toc a:hover { color: var(--accent); }
+
+    /* Tag pills */
+    .tag {
+      display: inline-block;
+      font-size: .7rem;
+      padding: .1em .4em;
+      border-radius: 3px;
+      font-weight: 600;
+      vertical-align: middle;
+      margin-left: .3em;
+    }
+    .tag-new  { background: #1b4a2a; color: #4caf50; }
+    .tag-inf  { background: #2a2a1a; color: var(--accent); }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <div class="page-header">
+    <h1>Factorio Idle — Scripting Reference</h1>
+    <p>Python-like automation scripts for your factory. Press <strong>▶ Run</strong> to execute manually, or enable <strong>Auto</strong> to run every 10 seconds.</p>
+  </div>
+
+  <nav class="toc">
+    <a href="#language">Language</a>
+    <a href="#commands">Commands</a>
+    <a href="#place-types">place() types</a>
+    <a href="#place-resources">place() resources</a>
+    <a href="#place-recipes">place() recipes</a>
+    <a href="#craft-items">craft() items</a>
+    <a href="#fortify">fortify()</a>
+    <a href="#research">research()</a>
+    <a href="#inventory">Inventory vars</a>
+    <a href="#delta">Delta vars</a>
+    <a href="#buildings">Building counts</a>
+    <a href="#power">Power vars</a>
+    <a href="#perimeter">Perimeter vars</a>
+    <a href="#queue">Queue vars</a>
+    <a href="#memory">Persistent memory</a>
+    <a href="#math">Math helpers</a>
+    <a href="#examples">Examples</a>
+  </nav>
+
+  <!-- ── Language ───────────────────────────────────────────── -->
+  <div class="section" id="language">
+    <div class="section-title">Language</div>
+    <p style="color:var(--text2);margin-bottom:.8rem">
+      Scripts use a Python-like syntax. Indentation is significant. Comments start with <code>#</code>.
+    </p>
+    <table>
+      <tr><th>Construct</th><th>Example</th></tr>
+      <tr><td>Assignment</td><td><code>x = 10</code></td></tr>
+      <tr><td>Augmented assignment</td><td><code>x += 5</code> · <code>x -= 1</code> · <code>x *= 2</code> · <code>x /= 4</code></td></tr>
+      <tr><td>If / elif / else</td><td><code>if x &gt; 0:</code> / <code>elif x == 0:</code> / <code>else:</code></td></tr>
+      <tr><td>While loop</td><td><code>while IRON_ORE &lt; 1000:</code></td></tr>
+      <tr><td>For loop</td><td><code>for i in range(5):</code></td></tr>
+      <tr><td>range()</td><td><code>range(n)</code> · <code>range(a, b)</code> · <code>range(a, b, step)</code></td></tr>
+      <tr><td>Boolean ops</td><td><code>and</code> · <code>or</code> · <code>not</code></td></tr>
+      <tr><td>Comparison</td><td><code>== != &lt; &gt; &lt;= &gt;=</code></td></tr>
+      <tr><td>Arithmetic</td><td><code>+ - * / // % **</code></td></tr>
+      <tr><td>Literals</td><td><code>True</code> · <code>False</code> · <code>None</code> · numbers · strings</td></tr>
+      <tr><td>Control</td><td><code>break</code> · <code>continue</code> · <code>pass</code></td></tr>
+    </table>
+  </div>
+
+  <!-- ── Commands ───────────────────────────────────────────── -->
+  <div class="section" id="commands">
+    <div class="section-title">Commands</div>
+    <table>
+      <tr><th>Command</th><th>Description</th></tr>
+      <tr>
+        <td><code>place(type, arg, n=1)</code></td>
+        <td>Queue <code>n</code> buildings of <code>type</code>. <code>arg</code> is the resource (miners) or recipe (assembly/furnace). Costs are deducted from inventory immediately.</td>
+      </tr>
+      <tr>
+        <td><code>craft(item, n=1)</code></td>
+        <td><span class="tag tag-new">NEW</span> Add <code>n</code> copies of <code>item</code> to the manual craft queue. Items craft one at a time in order.</td>
+      </tr>
+      <tr>
+        <td><code>research("name")</code></td>
+        <td>Start researching a technology. Pass the display name, key, or colon-separated infinite tech key. Silently ignored if already researched.</td>
+      </tr>
+      <tr>
+        <td><code>fortify(type, n=1)</code></td>
+        <td><span class="tag tag-new">NEW</span> Add <code>n</code> walls or turrets to the perimeter. Deducts from inventory. Types: <code>walls</code>, <code>gun</code>, <code>laser</code>.</td>
+      </tr>
+      <tr>
+        <td><code>limit(type, n)</code></td>
+        <td><span class="tag tag-new">NEW</span> Set the inventory output limit for all buildings of <code>type</code> to <code>n</code>. Example: <code>limit("am2", 200)</code> stops all AM2s once the output item reaches 200.</td>
+      </tr>
+      <tr>
+        <td><code>limit(type, recipe, n)</code></td>
+        <td>Set the limit for a specific building+recipe pair. Example: <code>limit("assembly", "iron_gear", 500)</code>.</td>
+      </tr>
+      <tr>
+        <td><code>print(value, ...)</code></td>
+        <td>Log a value to the script output panel. Multiple arguments are joined with a space.</td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- ── place() types ─────────────────────────────────────── -->
+  <div class="section" id="place-types">
+    <div class="section-title">place() — Building Types (1st argument)</div>
+    <table>
+      <tr><th>Alias(es)</th><th>Building</th></tr>
+      <tr><td><code>miner</code> · <code>burner_miner</code> · <code>burner</code></td><td>Burner Mining Drill</td></tr>
+      <tr><td><code>e_drill</code> · <code>electric_miner</code> · <code>electric_drill</code> · <code>e_miner</code></td><td>Electric Mining Drill</td></tr>
+      <tr><td><code>furnace</code> · <code>stone_furnace</code></td><td>Stone Furnace</td></tr>
+      <tr><td><code>steel_furnace</code></td><td>Steel Furnace</td></tr>
+      <tr><td><code>electric_furnace</code></td><td>Electric Furnace</td></tr>
+      <tr><td><code>assembly</code> · <code>assembler</code> · <code>assembly1</code> · <code>am1</code></td><td>Assembly Machine Mk1</td></tr>
+      <tr><td><code>assembly2</code> · <code>assembler2</code> · <code>am2</code></td><td>Assembly Machine Mk2</td></tr>
+      <tr><td><code>assembly3</code> · <code>assembler3</code> · <code>am3</code></td><td>Assembly Machine Mk3</td></tr>
+      <tr><td><code>lab</code></td><td>Lab</td></tr>
+      <tr><td><code>boiler</code></td><td>Boiler</td></tr>
+      <tr><td><code>steam_engine</code> · <code>steamengine</code></td><td>Steam Engine</td></tr>
+      <tr><td><code>solar_panel</code> · <code>solar</code></td><td>Solar Panel</td></tr>
+      <tr><td><code>accumulator</code> · <code>acc</code></td><td>Accumulator</td></tr>
+      <tr><td><code>offshore_pump</code> · <code>offshore</code> · <code>pump</code></td><td>Offshore Pump</td></tr>
+      <tr><td><code>radar</code></td><td>Radar</td></tr>
+      <tr><td><code>pumpjack</code> · <code>oil_pump</code></td><td>Pumpjack</td></tr>
+      <tr><td><code>oil_refinery</code> · <code>refinery</code></td><td>Oil Refinery</td></tr>
+      <tr><td><code>chemical_plant</code> · <code>chem_plant</code></td><td>Chemical Plant</td></tr>
+      <tr><td><code>centrifuge</code></td><td>Centrifuge</td></tr>
+      <tr><td><code>rocket_silo</code> · <code>silo</code></td><td>Rocket Silo</td></tr>
+      <tr><td><code>nuclear_reactor</code> · <code>nuclear</code> · <code>reactor</code></td><td>Nuclear Reactor complex</td></tr>
+    </table>
+  </div>
+
+  <!-- ── place() resources ─────────────────────────────────── -->
+  <div class="section" id="place-resources">
+    <div class="section-title">place() — Resources (2nd argument for miners)</div>
+    <table>
+      <tr><th>Alias(es)</th><th>Resource</th></tr>
+      <tr><td><code>iron</code> · <code>iron_ore</code></td><td>Iron Ore</td></tr>
+      <tr><td><code>copper</code> · <code>copper_ore</code></td><td>Copper Ore</td></tr>
+      <tr><td><code>coal</code></td><td>Coal</td></tr>
+      <tr><td><code>stone</code></td><td>Stone</td></tr>
+      <tr><td><code>oil</code> · <code>crude_oil</code></td><td>Crude Oil (pumpjack)</td></tr>
+      <tr><td><code>uranium</code> · <code>uranium_ore</code></td><td>Uranium Ore</td></tr>
+    </table>
+    <div class="note">If the resource argument is omitted, the building's currently selected recipe/resource is used.</div>
+  </div>
+
+  <!-- ── place() recipes ───────────────────────────────────── -->
+  <div class="section" id="place-recipes">
+    <div class="section-title">place() — Recipes (2nd argument for furnace / assembly / refinery / chemical plant)</div>
+    <table>
+      <tr><th>Alias(es)</th><th>Recipe</th></tr>
+      <tr><td><code>iron_plate</code></td><td>Iron Plate</td></tr>
+      <tr><td><code>copper_plate</code></td><td>Copper Plate</td></tr>
+      <tr><td><code>stone_brick</code></td><td>Stone Brick</td></tr>
+      <tr><td><code>steel</code></td><td>Steel Plate</td></tr>
+      <tr><td><code>iron_gear</code> · <code>gear</code></td><td>Iron Gear Wheel</td></tr>
+      <tr><td><code>copper_cable</code> · <code>cable</code></td><td>Copper Cable</td></tr>
+      <tr><td><code>pipe</code></td><td>Pipe</td></tr>
+      <tr><td><code>iron_stick</code></td><td>Iron Stick</td></tr>
+      <tr><td><code>circuit</code> · <code>green_circuit</code> · <code>electronic_circuit</code></td><td>Electronic Circuit</td></tr>
+      <tr><td><code>advanced_circuit</code> · <code>red_circuit</code></td><td>Advanced Circuit</td></tr>
+      <tr><td><code>processing_unit</code> · <code>blue_circuit</code></td><td>Processing Unit</td></tr>
+      <tr><td><code>inserter</code></td><td>Inserter</td></tr>
+      <tr><td><code>transport_belt</code> · <code>belt</code></td><td>Transport Belt</td></tr>
+      <tr><td><code>engine_unit</code> · <code>engine</code></td><td>Engine Unit</td></tr>
+      <tr><td><code>electric_engine</code> · <code>electric_engine_unit</code></td><td>Electric Engine Unit</td></tr>
+      <tr><td><code>flying_robot_frame</code></td><td>Flying Robot Frame</td></tr>
+      <tr><td><code>red_science</code></td><td>Automation Science Pack</td></tr>
+      <tr><td><code>green_science</code></td><td>Logistic Science Pack</td></tr>
+      <tr><td><code>blue_science</code></td><td>Chemical Science Pack</td></tr>
+      <tr><td><code>black_science</code></td><td>Military Science Pack</td></tr>
+      <tr><td><code>purple_science</code></td><td>Production Science Pack</td></tr>
+      <tr><td><code>yellow_science</code></td><td>Utility Science Pack</td></tr>
+      <tr><td><code>plastic</code> · <code>plastic_bar</code></td><td>Plastic Bar (chemical plant)</td></tr>
+      <tr><td><code>sulfur</code></td><td>Sulfur (chemical plant)</td></tr>
+      <tr><td><code>sulfuric_acid</code></td><td>Sulfuric Acid (chemical plant)</td></tr>
+      <tr><td><code>battery</code></td><td>Battery (chemical plant)</td></tr>
+      <tr><td><code>lubricant</code></td><td>Lubricant (chemical plant)</td></tr>
+      <tr><td><code>solid_fuel</code></td><td>Solid Fuel from Light Oil (chemical plant)</td></tr>
+      <tr><td><code>rocket_fuel</code></td><td>Rocket Fuel (chemical plant)</td></tr>
+      <tr><td><code>low_density_structure</code> · <code>lds</code></td><td>Low Density Structure</td></tr>
+      <tr><td><code>basic_oil</code></td><td>Basic Oil Processing (refinery)</td></tr>
+      <tr><td><code>advanced_oil</code></td><td>Advanced Oil Processing (refinery)</td></tr>
+      <tr><td><code>heavy_oil_cracking</code></td><td>Heavy Oil Cracking (chemical plant)</td></tr>
+      <tr><td><code>light_oil_cracking</code></td><td>Light Oil Cracking (chemical plant)</td></tr>
+      <tr><td><code>uranium_processing</code></td><td>Uranium Processing (centrifuge)</td></tr>
+      <tr><td><code>kovarex</code></td><td>Kovarex Enrichment (centrifuge)</td></tr>
+      <tr><td><code>uranium_fuel_cell</code></td><td>Uranium Fuel Cell</td></tr>
+      <tr><td><code>nuclear_fuel</code></td><td>Nuclear Fuel (centrifuge)</td></tr>
+      <tr><td><code>concrete</code></td><td>Concrete</td></tr>
+    </table>
+  </div>
+
+  <!-- ── craft() items ─────────────────────────────────────── -->
+  <div class="section" id="craft-items">
+    <div class="section-title">craft() — Item Aliases <span class="tag tag-new">NEW</span></div>
+    <p style="color:var(--text2);margin-bottom:.8rem">
+      <code>craft(item, n)</code> adds <code>n</code> copies to the unified manual craft queue. Items are crafted one at a time in order; ingredients are consumed when crafting begins.
+    </p>
+    <table>
+      <tr><th>Alias(es)</th><th>Item</th></tr>
+      <tr><td><code>iron_gear</code> · <code>gear</code></td><td>Iron Gear Wheel</td></tr>
+      <tr><td><code>copper_cable</code> · <code>cable</code></td><td>Copper Cable</td></tr>
+      <tr><td><code>pipe</code></td><td>Pipe</td></tr>
+      <tr><td><code>iron_stick</code></td><td>Iron Stick</td></tr>
+      <tr><td><code>circuit</code> · <code>green_circuit</code> · <code>electronic_circuit</code></td><td>Electronic Circuit</td></tr>
+      <tr><td><code>advanced_circuit</code> · <code>red_circuit</code></td><td>Advanced Circuit</td></tr>
+      <tr><td><code>processing_unit</code> · <code>blue_circuit</code></td><td>Processing Unit</td></tr>
+      <tr><td><code>engine_unit</code> · <code>engine</code></td><td>Engine Unit</td></tr>
+      <tr><td><code>electric_engine</code> · <code>electric_engine_unit</code></td><td>Electric Engine Unit</td></tr>
+      <tr><td><code>flying_robot_frame</code> · <code>robot_frame</code></td><td>Flying Robot Frame</td></tr>
+      <tr><td><code>construction_robot</code></td><td>Construction Robot</td></tr>
+      <tr><td><code>inserter</code></td><td>Inserter</td></tr>
+      <tr><td><code>transport_belt</code> · <code>belt</code></td><td>Transport Belt</td></tr>
+      <tr><td><code>red_science</code></td><td>Automation Science Pack</td></tr>
+      <tr><td><code>green_science</code></td><td>Logistic Science Pack</td></tr>
+      <tr><td><code>blue_science</code></td><td>Chemical Science Pack</td></tr>
+      <tr><td><code>black_science</code></td><td>Military Science Pack</td></tr>
+      <tr><td><code>purple_science</code></td><td>Production Science Pack</td></tr>
+      <tr><td><code>yellow_science</code></td><td>Utility Science Pack</td></tr>
+      <tr><td><code>low_density_structure</code> · <code>lds</code></td><td>Low Density Structure</td></tr>
+      <tr><td><code>concrete</code></td><td>Concrete</td></tr>
+      <tr><td><code>rail</code></td><td>Rail</td></tr>
+      <tr><td><code>repair_pack</code></td><td>Repair Pack</td></tr>
+      <tr><td><code>landfill</code></td><td>Landfill</td></tr>
+      <tr><td><code>stone_furnace</code></td><td>Stone Furnace item</td></tr>
+      <tr><td><code>steel_furnace</code></td><td>Steel Furnace item</td></tr>
+      <tr><td><code>electric_furnace</code></td><td>Electric Furnace item</td></tr>
+      <tr><td><code>burner_miner</code></td><td>Burner Mining Drill item</td></tr>
+      <tr><td><code>electric_miner</code></td><td>Electric Mining Drill item</td></tr>
+      <tr><td><code>assembly_machine</code> · <code>am1</code></td><td>Assembly Machine Mk1 item</td></tr>
+      <tr><td><code>assembly_machine2</code> · <code>am2</code></td><td>Assembly Machine Mk2 item</td></tr>
+      <tr><td><code>assembly_machine3</code> · <code>am3</code></td><td>Assembly Machine Mk3 item</td></tr>
+      <tr><td><code>lab</code></td><td>Lab item</td></tr>
+      <tr><td><code>offshore_pump</code></td><td>Offshore Pump item</td></tr>
+      <tr><td><code>boiler</code></td><td>Boiler item</td></tr>
+      <tr><td><code>steam_engine</code></td><td>Steam Engine item</td></tr>
+      <tr><td><code>solar_panel</code></td><td>Solar Panel item</td></tr>
+      <tr><td><code>accumulator</code></td><td>Accumulator item</td></tr>
+      <tr><td><code>radar</code></td><td>Radar item</td></tr>
+      <tr><td><code>pumpjack</code></td><td>Pumpjack item</td></tr>
+      <tr><td><code>oil_refinery</code></td><td>Oil Refinery item</td></tr>
+      <tr><td><code>chemical_plant</code></td><td>Chemical Plant item</td></tr>
+      <tr><td><code>centrifuge</code></td><td>Centrifuge item</td></tr>
+      <tr><td><code>rocket_silo</code></td><td>Rocket Silo item</td></tr>
+      <tr><td><code>nuclear_reactor</code></td><td>Nuclear Reactor item</td></tr>
+      <tr><td><code>heat_pipe</code></td><td>Heat Pipe item</td></tr>
+      <tr><td><code>heat_exchanger</code></td><td>Heat Exchanger item</td></tr>
+      <tr><td><code>steam_turbine</code></td><td>Steam Turbine item</td></tr>
+      <tr><td><code>speed_module</code></td><td>Speed Module</td></tr>
+      <tr><td><code>productivity_module</code></td><td>Productivity Module</td></tr>
+      <tr><td><code>beacon</code></td><td>Beacon item</td></tr>
+      <tr><td><code>firearm_magazine</code> · <code>ammo</code></td><td>Firearm Magazine</td></tr>
+      <tr><td><code>piercing_rounds</code> · <code>piercing</code></td><td>Piercing Rounds Magazine</td></tr>
+      <tr><td><code>uranium_rounds</code></td><td>Uranium Rounds Magazine</td></tr>
+      <tr><td><code>uranium_fuel_cell</code></td><td>Uranium Fuel Cell</td></tr>
+      <tr><td><code>grenade</code></td><td>Grenade</td></tr>
+      <tr><td><code>artillery_shell</code></td><td>Artillery Shell</td></tr>
+      <tr><td><code>atomic_bomb</code></td><td>Atomic Bomb</td></tr>
+      <tr><td><code>satellite</code></td><td>Satellite</td></tr>
+      <tr><td><code>spidertron</code></td><td>Spidertron</td></tr>
+      <tr><td><code>locomotive</code></td><td>Locomotive</td></tr>
+      <tr><td><code>gun_turret</code></td><td>Gun Turret item</td></tr>
+      <tr><td><code>laser_turret</code></td><td>Laser Turret item</td></tr>
+      <tr><td><code>stone_wall</code></td><td>Stone Wall</td></tr>
+    </table>
+  </div>
+
+  <!-- ── fortify() ─────────────────────────────────────────── -->
+  <div class="section" id="fortify">
+    <div class="section-title">fortify() — Perimeter Defense Types <span class="tag tag-new">NEW</span></div>
+    <p style="color:var(--text2);margin-bottom:.8rem">
+      <code>fortify(type, n)</code> transfers items from inventory to the perimeter. Will not exceed perimeter capacity.
+    </p>
+    <table>
+      <tr><th>Alias(es)</th><th>Defense</th></tr>
+      <tr><td><code>walls</code> · <code>wall</code> · <code>stone_wall</code></td><td>Stone Walls</td></tr>
+      <tr><td><code>gun</code> · <code>gun_turret</code> · <code>gun_turrets</code></td><td>Gun Turrets</td></tr>
+      <tr><td><code>laser</code> · <code>laser_turret</code> · <code>laser_turrets</code></td><td>Laser Turrets</td></tr>
+    </table>
+  </div>
+
+  <!-- ── research() ────────────────────────────────────────── -->
+  <div class="section" id="research">
+    <div class="section-title">research() — Technology Names</div>
+    <p style="color:var(--text2);margin-bottom:.8rem">
+      Pass the exact display name or internal key. Infinite techs use the colon format.
+    </p>
+    <table>
+      <tr><th>Argument</th><th>Technology</th><th>Notes</th></tr>
+      <tr><td><code>"automation"</code></td><td>Automation</td><td>Prerequisites: none</td></tr>
+      <tr><td><code>"logistics"</code></td><td>Logistics</td><td></td></tr>
+      <tr><td><code>"steelProcessing"</code></td><td>Steel Processing</td><td></td></tr>
+      <tr><td><code>"electricMiningDrill"</code></td><td>Electric Mining Drill</td><td></td></tr>
+      <tr><td><code>"oilProcessing"</code></td><td>Oil Processing</td><td></td></tr>
+      <tr><td><code>"advancedOilProcessing"</code></td><td>Advanced Oil Processing</td><td></td></tr>
+      <tr><td><code>"plastics"</code></td><td>Plastics</td><td></td></tr>
+      <tr><td><code>"sulfurProcessing"</code></td><td>Sulfur Processing</td><td></td></tr>
+      <tr><td><code>"batteryTech"</code></td><td>Battery</td><td></td></tr>
+      <tr><td><code>"lubricant"</code></td><td>Lubricant</td><td></td></tr>
+      <tr><td><code>"flammables"</code></td><td>Flammables</td><td></td></tr>
+      <tr><td><code>"rocketFuelTech"</code></td><td>Rocket Fuel</td><td></td></tr>
+      <tr><td><code>"robotics"</code></td><td>Robotics</td><td></td></tr>
+      <tr><td><code>"constructionRobots"</code></td><td>Construction Robots</td><td></td></tr>
+      <tr><td><code>"gunTurret"</code></td><td>Gun Turret</td><td></td></tr>
+      <tr><td><code>"laserTurretTech"</code></td><td>Laser Turret</td><td></td></tr>
+      <tr><td><code>"nuclearPower"</code></td><td>Nuclear Power</td><td></td></tr>
+      <tr><td><code>"kovarex"</code></td><td>Kovarex Enrichment</td><td></td></tr>
+      <tr><td><code>"rocketSiloTech"</code></td><td>Rocket Silo</td><td></td></tr>
+      <tr><td colspan="3" style="color:var(--dim);font-style:italic">Infinite Technologies (repeatable)</td></tr>
+      <tr><td><code>"robot:speed"</code></td><td>Worker Robot Speed (infinite)</td><td><span class="tag tag-inf">∞</span> requires Robotics</td></tr>
+      <tr><td><code>"robot:cargo"</code></td><td>Worker Robot Cargo Size (infinite, max 3)</td><td><span class="tag tag-inf">∞</span> requires Robotics</td></tr>
+      <tr><td><code>"mining:productivity"</code></td><td>Mining Productivity (infinite)</td><td><span class="tag tag-inf">∞</span> requires Electric Mining Drill</td></tr>
+      <tr><td><code>"gun:damage"</code></td><td>Physical Projectile Damage (infinite)</td><td><span class="tag tag-inf">∞</span> requires Gun Turret</td></tr>
+      <tr><td><code>"laser:damage"</code></td><td>Laser Weapons Damage (infinite)</td><td><span class="tag tag-inf">∞</span> requires Laser Turret</td></tr>
+    </table>
+    <div class="note">You can also use display names: <code>research("Automation")</code>, <code>research("Nuclear Power")</code>, etc.</div>
+  </div>
+
+  <!-- ── Inventory vars ─────────────────────────────────────── -->
+  <div class="section" id="inventory">
+    <div class="section-title">Inventory Variables (read-only integers)</div>
+    <p style="color:var(--text2);margin-bottom:.8rem">All item counts are floored to integers. The variable name is the camelCase item key converted to SCREAMING_SNAKE_CASE.</p>
+    <table>
+      <tr><th>Variable</th><th>Item</th></tr>
+      <tr><td><code>IRON_ORE</code></td><td>Iron Ore</td></tr>
+      <tr><td><code>COPPER_ORE</code></td><td>Copper Ore</td></tr>
+      <tr><td><code>COAL</code></td><td>Coal</td></tr>
+      <tr><td><code>STONE</code></td><td>Stone</td></tr>
+      <tr><td><code>URANIUM_ORE</code></td><td>Uranium Ore</td></tr>
+      <tr><td><code>IRON_PLATE</code></td><td>Iron Plate</td></tr>
+      <tr><td><code>COPPER_PLATE</code></td><td>Copper Plate</td></tr>
+      <tr><td><code>STONE_BRICK</code></td><td>Stone Brick</td></tr>
+      <tr><td><code>STEEL</code></td><td>Steel Plate</td></tr>
+      <tr><td><code>IRON_GEAR</code></td><td>Iron Gear Wheel</td></tr>
+      <tr><td><code>COPPER_CABLE</code></td><td>Copper Cable</td></tr>
+      <tr><td><code>PIPE</code></td><td>Pipe</td></tr>
+      <tr><td><code>IRON_STICK</code></td><td>Iron Stick</td></tr>
+      <tr><td><code>ELECTRONIC_CIRCUIT</code></td><td>Electronic Circuit</td></tr>
+      <tr><td><code>ADVANCED_CIRCUIT</code></td><td>Advanced Circuit</td></tr>
+      <tr><td><code>PROCESSING_UNIT</code></td><td>Processing Unit</td></tr>
+      <tr><td><code>PETROLEUM_GAS</code></td><td>Petroleum Gas</td></tr>
+      <tr><td><code>HEAVY_OIL</code></td><td>Heavy Oil</td></tr>
+      <tr><td><code>LIGHT_OIL</code></td><td>Light Oil</td></tr>
+      <tr><td><code>SULFUR</code></td><td>Sulfur</td></tr>
+      <tr><td><code>SULFURIC_ACID</code></td><td>Sulfuric Acid</td></tr>
+      <tr><td><code>PLASTIC_BAR</code></td><td>Plastic Bar</td></tr>
+      <tr><td><code>BATTERY</code></td><td>Battery</td></tr>
+      <tr><td><code>LUBRICANT</code></td><td>Lubricant</td></tr>
+      <tr><td><code>EXPLOSIVES</code></td><td>Explosives</td></tr>
+      <tr><td><code>SOLID_FUEL</code></td><td>Solid Fuel</td></tr>
+      <tr><td><code>ENGINE_UNIT</code></td><td>Engine Unit</td></tr>
+      <tr><td><code>ELECTRIC_ENGINE_UNIT</code></td><td>Electric Engine Unit</td></tr>
+      <tr><td><code>FLYING_ROBOT_FRAME</code></td><td>Flying Robot Frame</td></tr>
+      <tr><td><code>CONSTRUCTION_ROBOT_ITEM</code></td><td>Construction Robot</td></tr>
+      <tr><td><code>ROCKET_FUEL</code></td><td>Rocket Fuel</td></tr>
+      <tr><td><code>LOW_DENSITY_STRUCTURE</code></td><td>Low Density Structure</td></tr>
+      <tr><td><code>URANIUM235</code></td><td>Uranium-235</td></tr>
+      <tr><td><code>URANIUM238</code></td><td>Uranium-238</td></tr>
+      <tr><td><code>URANIUM_FUEL_CELL</code></td><td>Uranium Fuel Cell</td></tr>
+      <tr><td><code>NUCLEAR_FUEL</code></td><td>Nuclear Fuel</td></tr>
+      <tr><td><code>CONCRETE</code></td><td>Concrete</td></tr>
+      <tr><td><code>LANDFILL</code></td><td>Landfill</td></tr>
+      <tr><td><code>INSERTER</code></td><td>Inserter</td></tr>
+      <tr><td><code>TRANSPORT_BELT</code></td><td>Transport Belt</td></tr>
+      <tr><td><code>REPAIR_PACK</code></td><td>Repair Pack</td></tr>
+      <tr><td><code>RAIL</code></td><td>Rail</td></tr>
+      <tr><td><code>RED_SCIENCE</code></td><td>Automation Science Pack</td></tr>
+      <tr><td><code>GREEN_SCIENCE</code></td><td>Logistic Science Pack</td></tr>
+      <tr><td><code>BLUE_SCIENCE</code></td><td>Chemical Science Pack</td></tr>
+      <tr><td><code>BLACK_SCIENCE</code></td><td>Military Science Pack</td></tr>
+      <tr><td><code>PURPLE_SCIENCE</code></td><td>Production Science Pack</td></tr>
+      <tr><td><code>YELLOW_SCIENCE</code></td><td>Utility Science Pack</td></tr>
+      <tr><td><code>SPACE_SCIENCE</code></td><td>Space Science Pack</td></tr>
+      <tr><td><code>SPEED_MODULE</code> · <code>SPEED_MODULE2</code> · <code>SPEED_MODULE3</code></td><td>Speed Modules</td></tr>
+      <tr><td><code>PRODUCTIVITY_MODULE</code> · <code>PRODUCTIVITY_MODULE2</code> · <code>PRODUCTIVITY_MODULE3</code></td><td>Productivity Modules</td></tr>
+      <tr><td><code>FIREARM_MAGAZINE</code> · <code>PIERCING_ROUNDS_MAG</code> · <code>URANIUM_ROUNDS_MAG</code></td><td>Ammunition</td></tr>
+      <tr><td><code>STONE_WALL</code> · <code>GUN_TURRET_ITEM</code> · <code>LASER_TURRET_ITEM</code></td><td>Defense items</td></tr>
+      <tr><td><code>SATELLITE</code> · <code>SPIDERTRON</code> · <code>LOCOMOTIVE</code></td><td>Late-game items</td></tr>
+    </table>
+  </div>
+
+  <!-- ── Delta vars ─────────────────────────────────────────── -->
+  <div class="section" id="delta">
+    <div class="section-title">Delta Variables — Production Rates (per second)</div>
+    <p style="color:var(--text2);margin-bottom:.8rem">
+      Every inventory variable has a corresponding <code>DELTA_*</code> version that shows the rate of change per second (updated every 1 second). Negative values mean consumption.
+    </p>
+    <table>
+      <tr><th>Variable</th><th>Meaning</th></tr>
+      <tr><td><code>DELTA_IRON_ORE</code></td><td>Iron Ore per second (mining rate)</td></tr>
+      <tr><td><code>DELTA_COPPER_ORE</code></td><td>Copper Ore per second</td></tr>
+      <tr><td><code>DELTA_IRON_PLATE</code></td><td>Iron Plate per second</td></tr>
+      <tr><td><code>DELTA_COPPER_PLATE</code></td><td>Copper Plate per second</td></tr>
+      <tr><td><code>DELTA_STEEL</code></td><td>Steel per second</td></tr>
+      <tr><td><code>DELTA_IRON_GEAR</code></td><td>Iron Gear per second</td></tr>
+      <tr><td><code>DELTA_RED_SCIENCE</code></td><td>Red Science per second</td></tr>
+      <tr><td colspan="2" style="color:var(--dim);font-style:italic">… and DELTA_ prefix for every other inventory variable</td></tr>
+    </table>
+  </div>
+
+  <!-- ── Building counts ───────────────────────────────────── -->
+  <div class="section" id="buildings">
+    <div class="section-title">Building Count Variables (read-only)</div>
+    <table>
+      <tr><th>Variable</th><th>Counts</th></tr>
+      <tr><td><code>MINERS_IRON</code></td><td>Burner miners on Iron Ore</td></tr>
+      <tr><td><code>MINERS_COPPER</code></td><td>Burner miners on Copper Ore</td></tr>
+      <tr><td><code>MINERS_COAL</code></td><td>Burner miners on Coal</td></tr>
+      <tr><td><code>MINERS_STONE</code></td><td>Burner miners on Stone</td></tr>
+      <tr><td><code>E_MINERS_IRON</code></td><td>Electric miners on Iron Ore</td></tr>
+      <tr><td><code>E_MINERS_COPPER</code></td><td>Electric miners on Copper Ore</td></tr>
+      <tr><td><code>E_MINERS_COAL</code></td><td>Electric miners on Coal</td></tr>
+      <tr><td><code>E_MINERS_STONE</code></td><td>Electric miners on Stone</td></tr>
+      <tr><td><code>FURNACES</code></td><td>Stone Furnaces</td></tr>
+      <tr><td><code>STEEL_FURNACES</code></td><td>Steel Furnaces</td></tr>
+      <tr><td><code>ELECTRIC_FURNACES</code></td><td>Electric Furnaces</td></tr>
+      <tr><td><code>ASSEMBLERS</code></td><td>Assembly Machine Mk1</td></tr>
+      <tr><td><code>ASSEMBLERS2</code></td><td>Assembly Machine Mk2</td></tr>
+      <tr><td><code>ASSEMBLERS3</code></td><td>Assembly Machine Mk3</td></tr>
+      <tr><td><code>LABS</code></td><td>Labs</td></tr>
+      <tr><td><code>BOILERS</code></td><td>Boilers</td></tr>
+      <tr><td><code>STEAM_ENGINES</code></td><td>Steam Engines</td></tr>
+      <tr><td><code>PUMPS</code></td><td>Offshore Pumps</td></tr>
+      <tr><td><code>RADARS</code></td><td>Radars</td></tr>
+      <tr><td><code>SOLAR_PANELS</code></td><td>Solar Panels</td></tr>
+      <tr><td><code>ACCUMULATORS</code></td><td>Accumulators</td></tr>
+      <tr><td><code>PUMPJACKS</code></td><td>Pumpjacks</td></tr>
+      <tr><td><code>OIL_REFINERIES</code></td><td>Oil Refineries</td></tr>
+      <tr><td><code>CHEMICAL_PLANTS</code></td><td>Chemical Plants</td></tr>
+      <tr><td><code>CENTRIFUGES</code></td><td>Centrifuges</td></tr>
+      <tr><td><code>ROCKET_SILOS</code></td><td>Rocket Silos</td></tr>
+      <tr><td><code>NUCLEAR_REACTORS</code></td><td>Nuclear Reactor complexes</td></tr>
+      <tr><td><code>CHUNKS_EXPLORED</code></td><td>Radar chunks explored</td></tr>
+    </table>
+  </div>
+
+  <!-- ── Power ─────────────────────────────────────────────── -->
+  <div class="section" id="power">
+    <div class="section-title">Power Variables (read-only)</div>
+    <table>
+      <tr><th>Variable</th><th>Meaning</th></tr>
+      <tr><td><code>POWER_GEN</code></td><td>Total power generation in kW</td></tr>
+      <tr><td><code>POWER_DEMAND</code></td><td>Total power demand in kW</td></tr>
+      <tr><td><code>POWER_RATIO</code></td><td>Generation ÷ demand (1.0 = full power)</td></tr>
+      <tr><td><code>ACCUMULATOR_CHARGE</code></td><td>Stored energy in kJ</td></tr>
+      <tr><td><code>ACCUMULATOR_MAX</code></td><td>Maximum accumulator capacity in kJ</td></tr>
+      <tr><td><code>WATER</code></td><td>Stored water (units)</td></tr>
+      <tr><td><code>STEAM</code></td><td>Stored steam (units)</td></tr>
+    </table>
+  </div>
+
+  <!-- ── Perimeter ──────────────────────────────────────────── -->
+  <div class="section" id="perimeter">
+    <div class="section-title">Perimeter &amp; Biter Variables <span class="tag tag-new">NEW</span></div>
+    <table>
+      <tr><th>Variable</th><th>Meaning</th></tr>
+      <tr><td><code>BITER_WAVE</code></td><td>Current wave number (last wave that attacked)</td></tr>
+      <tr><td><code>BITER_TIMER</code></td><td>Seconds elapsed since last wave (resets at 120)</td></tr>
+      <tr><td><code>PERIMETER_SIDE</code></td><td>Perimeter side length in tiles</td></tr>
+      <tr><td><code>PERIMETER_TILES</code></td><td>Total perimeter tiles (4 × side length)</td></tr>
+      <tr><td><code>PERIMETER_WALLS</code></td><td>Stone walls currently placed</td></tr>
+      <tr><td><code>PERIMETER_MAX_WALLS</code></td><td>Maximum walls the perimeter can hold</td></tr>
+      <tr><td><code>PERIMETER_GUN_TURRETS</code></td><td>Gun turrets placed</td></tr>
+      <tr><td><code>PERIMETER_LASER_TURRETS</code></td><td>Laser turrets placed</td></tr>
+      <tr><td><code>PERIMETER_MAX_TURRETS</code></td><td>Maximum turrets (gun + laser combined)</td></tr>
+    </table>
+  </div>
+
+  <!-- ── Queue vars ─────────────────────────────────────────── -->
+  <div class="section" id="queue">
+    <div class="section-title">Queue Variables <span class="tag tag-new">NEW</span></div>
+    <table>
+      <tr><th>Variable</th><th>Meaning</th></tr>
+      <tr><td><code>Q_len</code></td><td>Total items in the manual craft queue (including active item)</td></tr>
+      <tr><td><code>Q_miners</code></td><td>Miners / electric drills waiting in the placement queue</td></tr>
+    </table>
+  </div>
+
+  <!-- ── Persistent memory ─────────────────────────────────── -->
+  <div class="section" id="memory">
+    <div class="section-title">Persistent Memory (MEM_*) <span class="tag tag-new">NEW</span></div>
+    <p style="color:var(--text2);margin-bottom:.8rem">
+      Variables whose names start with <code>MEM_</code> are automatically saved to the game state and persist between script executions (including Auto runs). Use them to track state across runs.
+    </p>
+    <div class="note">
+      <strong>Any MEM_* name works</strong> — <code>MEM_A</code> through <code>MEM_Z</code>, or descriptive names like <code>MEM_LAST_WAVE</code> or <code>MEM_IRON_GOAL</code>. Values are numbers or strings.
+    </div>
+    <pre><span class="cmt"># Count how many times this script has run</span>
+<span class="var">MEM_RUNS</span> = <span class="var">MEM_RUNS</span> + <span class="num">1</span>
+<span class="fn">print</span>(<span class="str">"Run #"</span>, <span class="var">MEM_RUNS</span>)
+
+<span class="cmt"># Remember when we last needed iron</span>
+<span class="kw">if</span> <span class="var">IRON_ORE</span> &lt; <span class="num">500</span>:
+    <span class="var">MEM_IRON_LOW_WAVE</span> = <span class="var">BITER_WAVE</span>
+    <span class="fn">place</span>(<span class="str">"miner"</span>, <span class="str">"iron"</span>)</pre>
+  </div>
+
+  <!-- ── Math helpers ───────────────────────────────────────── -->
+  <div class="section" id="math">
+    <div class="section-title">Math Helpers</div>
+    <table>
+      <tr><th>Function</th><th>Description</th></tr>
+      <tr><td><code>floor(x)</code></td><td>Round down to integer</td></tr>
+      <tr><td><code>ceil(x)</code></td><td>Round up to integer</td></tr>
+      <tr><td><code>round(x)</code></td><td>Round to nearest integer</td></tr>
+      <tr><td><code>abs(x)</code></td><td>Absolute value</td></tr>
+      <tr><td><code>min(a, b)</code></td><td>Smaller of two values</td></tr>
+      <tr><td><code>max(a, b)</code></td><td>Larger of two values</td></tr>
+      <tr><td><code>sqrt(x)</code></td><td>Square root</td></tr>
+      <tr><td><code>pow(base, exp)</code></td><td>Exponentiation</td></tr>
+      <tr><td><code>range(n)</code></td><td>List 0 … n−1</td></tr>
+      <tr><td><code>range(a, b)</code></td><td>List a … b−1</td></tr>
+      <tr><td><code>range(a, b, step)</code></td><td>List with custom step</td></tr>
+    </table>
+  </div>
+
+  <!-- ── Examples ──────────────────────────────────────────── -->
+  <div class="section" id="examples">
+    <div class="section-title">Examples</div>
+
+    <p style="color:var(--text2);margin-bottom:.5rem"><strong>Keep coal stocked and iron miners running</strong></p>
+    <pre><span class="cmt"># Auto script — runs every 10 seconds</span>
+<span class="kw">if</span> <span class="var">COAL</span> &lt; <span class="num">200</span>:
+    <span class="fn">place</span>(<span class="str">"miner"</span>, <span class="str">"coal"</span>)
+
+<span class="kw">if</span> <span class="var">MINERS_IRON</span> &lt; <span class="num">5</span> <span class="kw">and</span> <span class="var">Q_miners</span> == <span class="num">0</span>:
+    <span class="fn">place</span>(<span class="str">"miner"</span>, <span class="str">"iron"</span>, <span class="num">5</span> - <span class="var">MINERS_IRON</span>)</pre>
+
+    <p style="color:var(--text2);margin-bottom:.5rem;margin-top:1.2rem"><strong>Research chain automation</strong></p>
+    <pre><span class="cmt"># Unlock automation path automatically</span>
+<span class="kw">if</span> <span class="var">RED_SCIENCE</span> &gt; <span class="num">100</span>:
+    <span class="fn">research</span>(<span class="str">"automation"</span>)
+<span class="kw">if</span> <span class="var">GREEN_SCIENCE</span> &gt; <span class="num">50</span>:
+    <span class="fn">research</span>(<span class="str">"logistics"</span>)
+<span class="fn">research</span>(<span class="str">"robot:speed"</span>)  <span class="cmt"># queues infinite tech</span></pre>
+
+    <p style="color:var(--text2);margin-bottom:.5rem;margin-top:1.2rem"><strong>Defend with walls and turrets</strong></p>
+    <pre><span class="cmt"># Fill perimeter walls first, then add gun turrets</span>
+<span class="var">walls_needed</span> = <span class="var">PERIMETER_MAX_WALLS</span> - <span class="var">PERIMETER_WALLS</span>
+<span class="kw">if</span> <span class="var">walls_needed</span> &gt; <span class="num">0</span> <span class="kw">and</span> <span class="var">STONE_WALL</span> &gt;= <span class="var">walls_needed</span>:
+    <span class="fn">fortify</span>(<span class="str">"walls"</span>, <span class="var">walls_needed</span>)
+
+<span class="var">turrets_free</span> = <span class="var">PERIMETER_MAX_TURRETS</span> - <span class="var">PERIMETER_GUN_TURRETS</span> - <span class="var">PERIMETER_LASER_TURRETS</span>
+<span class="kw">if</span> <span class="var">turrets_free</span> &gt; <span class="num">0</span> <span class="kw">and</span> <span class="var">GUN_TURRET_ITEM</span> &gt; <span class="num">0</span>:
+    <span class="fn">fortify</span>(<span class="str">"gun"</span>, <span class="var">turrets_free</span>)</pre>
+
+    <p style="color:var(--text2);margin-bottom:.5rem;margin-top:1.2rem"><strong>Persistent crafting tracker</strong></p>
+    <pre><span class="cmt"># Craft 10 circuits, but only if queue is empty</span>
+<span class="kw">if</span> <span class="var">Q_len</span> == <span class="num">0</span>:
+    <span class="fn">craft</span>(<span class="str">"circuit"</span>, <span class="num">10</span>)
+    <span class="var">MEM_CRAFT_RUNS</span> = <span class="var">MEM_CRAFT_RUNS</span> + <span class="num">1</span>
+    <span class="fn">print</span>(<span class="str">"Craft batch"</span>, <span class="var">MEM_CRAFT_RUNS</span>)
+<span class="kw">else</span>:
+    <span class="fn">print</span>(<span class="str">"Queue busy:"</span>, <span class="var">Q_len</span>, <span class="str">"items"</span>)</pre>
+
+    <p style="color:var(--text2);margin-bottom:.5rem;margin-top:1.2rem"><strong>Scale mining to demand</strong></p>
+    <pre><span class="cmt"># If iron is dropping, add a miner</span>
+<span class="kw">if</span> <span class="var">DELTA_IRON_ORE</span> &lt; <span class="num">0</span> <span class="kw">and</span> <span class="var">IRON_ORE</span> &lt; <span class="num">2000</span>:
+    <span class="fn">place</span>(<span class="str">"e_drill"</span>, <span class="str">"iron"</span>)
+    <span class="fn">print</span>(<span class="str">"Added electric miner — iron rate:"</span>, <span class="var">DELTA_IRON_ORE</span>)</pre>
+
+    <p style="color:var(--text2);margin-bottom:.5rem;margin-top:1.2rem"><strong>Power shortage response</strong></p>
+    <pre><span class="kw">if</span> <span class="var">POWER_RATIO</span> &lt; <span class="num">0.8</span>:
+    <span class="fn">print</span>(<span class="str">"Low power!"</span>, <span class="fn">round</span>(<span class="var">POWER_RATIO</span> * <span class="num">100</span>), <span class="str">"%"</span>)
+    <span class="kw">if</span> <span class="var">SOLAR_PANEL_ITEM</span> &gt; <span class="num">0</span>:
+        <span class="fn">place</span>(<span class="str">"solar_panel"</span>)
+    <span class="kw">elif</span> <span class="var">STEAM_ENGINE_ITEM</span> &gt; <span class="num">0</span>:
+        <span class="fn">place</span>(<span class="str">"steam_engine"</span>)</pre>
+  </div>
+
+</div>
+</body>
+</html>

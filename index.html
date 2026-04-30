@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Factorio Idle</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ── Start Screen ─────────────────────────────────────── -->
+<div id="start-screen">
+  <div class="start-content">
+    <h1 class="title">FACTORIO IDLE</h1>
+    <p class="subtitle">Exponential Line Go Up</p>
+    <button class="btn-primary" style="margin-bottom:1.5rem" onclick="openNewGameModal()">New Game</button>
+    <div class="save-panel">
+      <div class="save-panel-header">
+        <span class="save-panel-title">Saves</span>
+      </div>
+      <div id="save-list" class="save-list">
+        <div class="save-empty">Loading saves…</div>
+      </div>
+      <div class="save-import-row">
+        <button class="btn-sm" onclick="importSaveFromFile()">Import Save from File…</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── New Game Modal ───────────────────────────────────── -->
+<div id="new-game-modal" class="modal hidden">
+  <div class="modal-box">
+    <h2>World Settings</h2>
+
+    <div class="field">
+      <label>Resource Density</label>
+      <div class="btn-group">
+        <button class="density-btn" data-density="low">Low</button>
+        <button class="density-btn active" data-density="medium">Medium</button>
+        <button class="density-btn" data-density="high">High</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Biters</label>
+      <div class="toggle-row">
+        <input type="checkbox" id="biters-toggle" class="sr-only" onchange="toggleBitersField(this.checked); document.getElementById('biters-status').textContent = this.checked ? 'Enabled' : 'Disabled'">
+        <label for="biters-toggle" class="toggle"></label>
+        <span id="biters-status">Disabled</span>
+      </div>
+    </div>
+
+    <div class="field hidden biters-option-field">
+      <label>Grace Period (minutes before first attack)</label>
+      <input type="number" id="grace-period-input" class="modal-number-input" value="7" min="0" max="120" step="1">
+    </div>
+
+    <div class="field hidden biters-option-field">
+      <label>Wave Frequency</label>
+      <select id="wave-interval-select" class="modal-number-input" style="width:auto">
+        <option value="240">Rare (every 4 min)</option>
+        <option value="120" selected>Normal (every 2 min)</option>
+        <option value="60">Frequent (every 1 min)</option>
+        <option value="30">Intense (every 30 sec)</option>
+      </select>
+    </div>
+
+    <div class="btn-row modal-actions">
+      <button class="btn-secondary" onclick="closeNewGameModal()">Cancel</button>
+      <button class="btn-primary" onclick="startNewGame()">Start Game</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Game Screen ──────────────────────────────────────── -->
+<div id="game-screen" class="hidden">
+
+  <header class="game-header">
+    <span class="header-title">FACTORIO IDLE</span>
+    <div class="header-right">
+      <span id="biter-indicator" class="biter-indicator hidden"></span>
+      <span id="save-filename" class="save-filename"></span>
+      <button class="btn-save" onclick="saveGame()">Save</button>
+      <button class="btn-save-as" onclick="saveGameAs()">Save As</button>
+    </div>
+  </header>
+
+  <div class="power-bar" id="power-bar"></div>
+
+  <div id="starred-bar" class="starred-bar hidden"></div>
+
+  <nav class="tab-nav">
+    <button class="tab-btn active" onclick="switchTab('mining', this)">⛏ Mining</button>
+    <button class="tab-btn"        onclick="switchTab('inventory', this)">🎒 Inventory</button>
+    <button class="tab-btn"        onclick="switchTab('crafting', this)">🔧 Crafting</button>
+    <button class="tab-btn"        onclick="switchTab('buildings', this)">🏭 Buildings</button>
+    <button class="tab-btn"        onclick="switchTab('research', this)">🔬 Research</button>
+    <button class="tab-btn"        onclick="switchTab('defense', this)">🛡️ Defense</button>
+    <button class="tab-btn"        onclick="switchTab('recipes', this)">📖 Recipes</button>
+    <button class="tab-btn"        onclick="switchTab('graph', this)">📈 Graph</button>
+    <button class="tab-btn"        onclick="switchTab('script', this)">📜 Script</button>
+    <button class="tab-btn"        onclick="switchTab('settings', this)">⚙ Settings</button>
+  </nav>
+
+  <main class="tab-content">
+
+    <!-- Mining Tab -->
+    <section id="tab-mining" class="tab-panel">
+      <h3 class="section-label">Resource Patches</h3>
+      <p id="chunk-info"></p>
+      <div id="resource-patches" class="patch-grid"></div>
+    </section>
+
+    <!-- Inventory Tab -->
+    <section id="tab-inventory" class="tab-panel hidden">
+      <h3 class="section-label">Inventory</h3>
+      <input type="text" id="inventory-search" class="recipe-search-input" placeholder="Search items…" oninput="renderInventory()">
+      <div id="inventory-list" class="inventory-tab-grid"></div>
+    </section>
+
+    <!-- Crafting Tab -->
+    <section id="tab-crafting" class="tab-panel hidden">
+      <h3 class="section-label">Hand Crafting</h3>
+      <p class="craft-hint-text">Click to craft 1 · Shift+click to queue 5</p>
+      <div id="craft-recipes"></div>
+    </section>
+
+    <!-- Buildings Tab -->
+    <section id="tab-buildings" class="tab-panel hidden">
+      <div class="buildings-layout">
+
+        <div class="placement-col">
+          <h3 class="section-label">Place Buildings</h3>
+
+          <!-- Always-visible build queue status -->
+          <div id="placement-status" class="placement-status">
+            <div class="placement-status-row">
+              <span id="placement-label">Build Queue</span>
+              <span id="place-queue-info" class="place-queue-info">empty</span>
+            </div>
+            <div class="progress-bar">
+              <div class="progress-fill" id="place-progress"></div>
+            </div>
+          </div>
+
+          <div class="buildable-card">
+            <span class="card-icon">⛏️</span>
+            <div class="card-body">
+              <h4>Burner Mining Drill</h4>
+              <p>Mines at 0.25/sec · requires coal to operate</p>
+              <p class="card-cost">Cost: 1 × Burner Mining Drill</p>
+              <div class="recipe-picker-host" data-ptype="miner"></div>
+              <div class="place-row">
+                <input type="number" class="place-count" min="1" value="1">
+                <button class="btn-place" data-type="miner" onclick="placeBuilding('miner',this)">Place</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="buildable-card">
+            <span class="card-icon">🔥</span>
+            <div class="card-body">
+              <h4>Stone Furnace</h4>
+              <p>Smelts ores into plates at 3.2 sec/item · requires coal to operate</p>
+              <p class="card-cost">Cost: 1 × Stone Furnace</p>
+              <div class="recipe-picker-host" data-ptype="furnace"></div>
+              <div class="place-row">
+                <input type="number" class="place-count" min="1" value="1">
+                <button class="btn-place" data-type="furnace" onclick="placeBuilding('furnace',this)">Place</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="buildable-card" data-requires-tech="advancedMaterialProcessing">
+            <span class="card-icon">🟧</span>
+            <div class="card-body">
+              <h4>Steel Furnace</h4>
+              <p>Smelts at 2× speed · requires coal to operate</p>
+              <p class="card-cost">Cost: 1 × Steel Furnace</p>
+              <div class="recipe-picker-host" data-ptype="steelFurnace"></div>
+              <div class="place-row">
+                <input type="number" class="place-count" min="1" value="1">
+                <button class="btn-place" data-type="steelFurnace" onclick="placeBuilding('steelFurnace',this)">Place</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="buildable-card" data-requires-tech="automation2">
+            <span class="card-icon">🏗️</span>
+            <div class="card-body">
+              <h4>Assembly Machine Mk2</h4>
+              <p>Auto-crafts items · 150 kW · speed ×0.75</p>
+              <p class="card-cost">Cost: 1 × Assembly Machine Mk2</p>
+              <input class="picker-search" type="text" placeholder="Search recipes…" oninput="onPickerSearch('assembly2', this.value)">
+              <div class="recipe-picker-host" data-ptype="assembly2"></div>
+              <div class="place-row">
+                <input type="number" class="place-count" min="1" value="1">
+                <button class="btn-place" data-type="assembly2" onclick="placeBuilding('assembly2',this)">Place</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="buildable-card" data-requires-tech="automation3">
+            <span class="card-icon">🏗️</span>
+            <div class="card-body">
+              <h4>Assembly Machine Mk3</h4>
+              <p>Auto-crafts items · 375 kW · speed ×1.25</p>
+              <p class="card-cost">Cost: 1 × Assembly Machine Mk3</p>
+              <input class="picker-search" type="text" placeholder="Search recipes…" oninput="onPickerSearch('assembly3', this.value)">
+              <div class="recipe-picker-host" data-ptype="assembly3"></div>
+              <div class="place-row">
+                <input type="number" class="place-count" min="1" value="1">
+                <button class="btn-place" data-type="assembly3" onclick="placeBuilding('assembly3',this)">Place</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="buildable-card" data-requires-tech="electricFurnaceTech">
+            <span class="card-icon">⚡</span>
+            <div class="card-body">
+              <h4>Electric Furnace</h4>
+              <p>Smelts at 2× speed · 180 kW · no coal</p>
+              <p class="card-cost">Cost: 1 × Electric Furnace</p>
+              <div class="recipe-picker-host" data-ptype="electricFurnace"></div>
+              <div class="place-row">
+                <input type="number" class="place-count" min="1" value="1">
+                <button class="btn-place" data-type="electricFurnace" onclick="placeBuilding('electricFurnace',this)">Place</button>
+              </div>
+            </div>
+          </div>
+
+          <p class="section-label" style="margin-top:.5rem">Power Generation</p>
+
+          <div class="buildable-card">
+            <span class="card-icon">💧</span>
+            <div class="card-body">
+              <h4>Offshore Pump</h4>
+              <p>Pumps 1,200 water/sec into storage · no fuel cost</p>
+              <p class="card-cost">Cost: 1 × Offshore Pump</p>
+              <div class="place-row">
+                <input type="number" class="place-count" min="1" value="1">
+                <button class="btn-place" data-type="offshoreP" onclick="placeBuilding('offshoreP',this)">Place</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="buildable-card">
+            <span class="card-icon">♨️</span>
+            <div class="card-body">
+              <h4>Boiler</h4>
+              <p>Burns coal to heat water → steam 165°C · 60 steam/sec · 6 water/sec</p>
+              <p class="card-cost">Cost: 1 × Boiler</p>
+              <div class="place-row">
+                <input type="number" class="place-count" min="1" value="1">
+                <button class="btn-place" data-type="boiler" onclick="placeBuilding('boiler',this)">Place</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="buildable-card">
+            <span class="card-icon">⚡</span>
+            <div class="card-body">
+              <h4>Steam Engine</h4>
+              <p>Converts steam → 900 kW of electricity · 30 steam/sec</p>
+              <p class="card-cost">Cost: 1 × Steam Engine</p>
+              <div class="place-row">
+                <input type="number" class="place-count" min="1" value="1">
+                <button class="btn-place" data-type="steamEngine" onclick="placeBuilding('steamEngine',this)">Place</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="buildable-card" data-requires-tech="solarEnergy">
+            <span class="card-icon">☀️</span>
+            <div class="card-body">
+              <h4>Solar Panel</h4>
+              <p>Generates 60 kW · no fuel required</p>
+              <p class="card-cost">Cost: 1 × Solar Panel</p>
+              <div class="place-row">
+                <input type="number" class="place-count" min="1" value="1">
+                <button class="btn-place" data-type="solarPanel" onclick="placeBuilding('solarPanel',this)">Place</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="buildable-card" data-requires-tech="electricDistribution1">
+            <span class="card-icon">🔋</span>
+            <div class="card-body">
+              <h4>Accumulator</h4>
+              <p>Stores 5 MJ · charges from surplus power · discharges when demand exceeds supply</p>
+              <p class="card-cost">Cost: 1 × Accumulator</p>
+              <div class="place-row">
+                <input type="number" class="place-count" min="1" value="1">
+                <button class="btn-place" data-type="accumulator" onclick="placeBuilding('accumulator',this)">Place</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="buildable-card" data-requires-tech="nuclearReactorTech">
+            <span class="card-icon">⚛️</span>
+            <div class="card-body">
+              <h4>Nuclear Reactor</h4>
+              <p>Burns uranium fuel cells to generate 488.88 MW · 1 fuel cell per 50s per reactor</p>
+              <p class="card-cost">Cost: 4 × Nuclear Reactor + 4 × Offshore Pump + 180 × Pipe + 68 × Heat Pipe + 48 × Heat Exchanger + 84 × Steam Turbine</p>
+              <div class="place-row">
+                <input type="number" class="place-count" min="1" value="1">
+                <button class="btn-place" data-type="nuclearReactor" onclick="placeBuilding('nuclearReactor',this)">Place</button>
+              </div>
+            </div>
+          </div>
+
+          <p class="section-label" style="margin-top:.5rem">Production</p>
+
+          <div class="buildable-card" data-requires-tech="automation">
+            <span class="card-icon">🏭</span>
+            <div class="card-body">
+              <h4>Assembly Machine Mk1</h4>
+              <p>Auto-crafts intermediate and building items · 75 kW · speed ×0.5</p>
+              <p class="card-cost">Cost: 1 × Assembly Machine Mk1</p>
+              <input class="picker-search" type="text" placeholder="Search recipes…" oninput="onPickerSearch('assembly', this.value)">
+              <div class="recipe-picker-host" data-ptype="assembly"></div>
+              <div class="place-row">
+                <input type="number" class="place-count" min="1" value="1">
+                <button class="btn-place" data-type="assembly" onclick="placeBuilding('assembly',this)">Place</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="buildable-card" data-requires-tech="electricMiningDrill">
+            <span class="card-icon">🔌</span>
+            <div class="card-body">
+              <h4>Electric Mining Drill</h4>
+              <p>Mines at 0.5/sec · 90 kW · no coal needed</p>
+              <p class="card-cost">Cost: 1 × Electric Mining Drill</p>
+              <div class="recipe-picker-host" data-ptype="electricMiner"></div>
+              <div class="place-row">
+                <input type="number" class="place-count" min="1" value="1">
+                <button class="btn-place" data-type="electricMiner" onclick="placeBuilding('electricMiner',this)">Place</button>
+              </div>
+            </div>
+          </div>
+
+          <p class="section-label" style="margin-top:.5rem">Oil &amp; Chemicals</p>
+
+          <div class="buildable-card" data-requires-tech="oilGathering">
+            <span class="card-icon">🛢️</span>
+            <div class="card-body">
+              <h4>Pumpjack</h4>
+              <p>Extracts crude oil from oil patches · 90 kW</p>
+              <p class="card-cost">Cost: 1 × Pumpjack</p>
+              <div class="place-row">
+                <input type="number" class="place-count" min="1" value="1">
+                <button class="btn-place" data-type="pumpjack" onclick="placeBuilding('pumpjack',this)">Place</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="buildable-card" data-requires-tech="oilRefineryTech">
+            <span class="card-icon">🏭</span>
+            <div class="card-body">
+              <h4>Oil Refinery</h4>
+              <p>Processes crude oil into fuel products · 420 kW</p>
+              <p class="card-cost">Cost: 1 × Oil Refinery</p>
+              <div class="recipe-picker-host" data-ptype="oilRefinery"></div>
+              <div class="place-row">
+                <input type="number" class="place-count" min="1" value="1">
+                <button class="btn-place" data-type="oilRefinery" onclick="placeBuilding('oilRefinery',this)">Place</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="buildable-card" data-requires-tech="chemicalPlantTech">
+            <span class="card-icon">🧫</span>
+            <div class="card-body">
+              <h4>Chemical Plant</h4>
+              <p>Produces chemicals from oil products · 210 kW</p>
+              <p class="card-cost">Cost: 1 × Chemical Plant</p>
+              <div class="recipe-picker-host" data-ptype="chemicalPlant"></div>
+              <div class="place-row">
+                <input type="number" class="place-count" min="1" value="1">
+                <button class="btn-place" data-type="chemicalPlant" onclick="placeBuilding('chemicalPlant',this)">Place</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="buildable-card" data-requires-tech="centrifugeTech">
+            <span class="card-icon">⭕</span>
+            <div class="card-body">
+              <h4>Centrifuge</h4>
+              <p>Processes uranium ore · 350 kW</p>
+              <p class="card-cost">Cost: 1 × Centrifuge</p>
+              <div class="recipe-picker-host" data-ptype="centrifuge"></div>
+              <div class="place-row">
+                <input type="number" class="place-count" min="1" value="1">
+                <button class="btn-place" data-type="centrifuge" onclick="placeBuilding('centrifuge',this)">Place</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="buildable-card" data-requires-tech="rocketSiloTech">
+            <span class="card-icon">🚀</span>
+            <div class="card-body">
+              <h4>Rocket Silo</h4>
+              <p>Assembles rocket parts and launches satellites · 4000 kW</p>
+              <p class="card-cost">Cost: 1 × Rocket Silo</p>
+              <div class="recipe-picker-host" data-ptype="rocketSilo"></div>
+              <div class="place-row">
+                <input type="number" class="place-count" min="1" value="1">
+                <button class="btn-place" data-type="rocketSilo" onclick="placeBuilding('rocketSilo',this)">Place</button>
+              </div>
+            </div>
+          </div>
+
+          <p class="section-label" style="margin-top:.5rem">Exploration</p>
+
+          <div class="buildable-card" data-requires-tech="radarTech">
+            <span class="card-icon">📡</span>
+            <div class="card-body">
+              <h4>Radar</h4>
+              <p>Explores the map · uncovers 1 chunk/min · richer patches as you explore more</p>
+              <p class="card-cost">Cost: 1 × Radar</p>
+              <div class="place-row">
+                <input type="number" class="place-count" min="1" value="1">
+                <button class="btn-place" data-type="radar" onclick="placeBuilding('radar',this)">Place</button>
+              </div>
+            </div>
+          </div>
+
+          <p class="section-label" style="margin-top:.5rem">Science</p>
+
+          <div class="buildable-card">
+            <span class="card-icon">🔬</span>
+            <div class="card-body">
+              <h4>Lab</h4>
+              <p>Processes science packs to research technologies · 1 pack per 10s</p>
+              <p class="card-cost">Cost: 1 × Lab</p>
+              <div class="place-row">
+                <input type="number" class="place-count" min="1" value="1">
+                <button class="btn-place" data-type="lab" onclick="placeBuilding('lab',this)">Place</button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="active-col">
+          <h3 class="section-label">Active Buildings</h3>
+          <div class="buildings-search-row">
+            <input type="text" id="buildings-search" class="buildings-search" placeholder="Search buildings...">
+          </div>
+          <div id="active-buildings" class="buildings-list"></div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Research Tab -->
+    <section id="tab-research" class="tab-panel hidden">
+      <h3 class="section-label">Research</h3>
+      <div id="research-status"></div>
+      <div id="tech-tree-wrap" class="tech-tree-wrap"></div>
+      <div id="robot-tech-section"></div>
+    </section>
+
+    <!-- Defense Tab -->
+    <section id="tab-defense" class="tab-panel hidden">
+      <h3 class="section-label">Perimeter Defense</h3>
+      <div id="perimeter-content"></div>
+    </section>
+
+    <!-- Recipes Tab -->
+    <section id="tab-recipes" class="tab-panel hidden">
+      <h3 class="section-label">Recipe Reference</h3>
+      <input type="text" id="recipe-search" class="recipe-search-input" placeholder="Search recipes…" oninput="renderRecipes()">
+      <div id="recipe-list" class="recipe-list"></div>
+    </section>
+
+    <!-- Graph Tab -->
+    <section id="tab-graph" class="tab-panel hidden">
+      <h3 class="section-label">Production Graph</h3>
+      <p class="graph-hint">Shows per-second rates for starred items (★ in the Inventory tab). Up to 120 seconds of history.</p>
+      <div class="graph-container">
+        <canvas id="graph-canvas" class="graph-canvas"></canvas>
+      </div>
+    </section>
+
+    <!-- Settings Tab -->
+    <section id="tab-settings" class="tab-panel hidden">
+      <div class="settings-layout">
+        <h3 class="section-label">Settings</h3>
+        <div class="settings-section">
+          <div class="settings-group">
+            <div class="settings-row">
+              <div>
+                <div class="settings-row-label">Radar Discovery Notifications</div>
+                <div class="settings-row-desc">Show a notification when the radar finds a new resource patch.</div>
+              </div>
+              <div class="toggle-row">
+                <input type="checkbox" id="settings-radar-notif" class="sr-only" checked onchange="setRadarNotif(this.checked)">
+                <label for="settings-radar-notif" class="toggle"></label>
+              </div>
+            </div>
+            <div class="settings-row">
+              <div>
+                <div class="settings-row-label">Default Limit — Building Assemblers</div>
+                <div class="settings-row-desc">Output limit applied when placing an assembler whose recipe produces a building item.</div>
+              </div>
+              <div class="default-limit-row">
+                <input type="number" id="settings-dlb-num" class="limit-input" min="1" value="10"
+                  oninput="setDefaultLimit('defaultLimitBuilding', this.value, false)">
+                <label class="default-limit-inf-label">
+                  <input type="checkbox" id="settings-dlb-inf" onchange="setDefaultLimit('defaultLimitBuilding', 0, this.checked)"> ∞
+                </label>
+              </div>
+            </div>
+            <div class="settings-row">
+              <div>
+                <div class="settings-row-label">Default Limit — Other Assemblers</div>
+                <div class="settings-row-desc">Output limit applied when placing all other assemblers.</div>
+              </div>
+              <div class="default-limit-row">
+                <input type="number" id="settings-dlo-num" class="limit-input" min="1" value=""
+                  oninput="setDefaultLimit('defaultLimitOther', this.value, false)">
+                <label class="default-limit-inf-label">
+                  <input type="checkbox" id="settings-dlo-inf" checked onchange="setDefaultLimit('defaultLimitOther', 0, this.checked)"> ∞
+                </label>
+              </div>
+            </div>
+            <div class="settings-row">
+              <div>
+                <div class="settings-row-label">Return to Main Menu</div>
+                <div class="settings-row-desc">Go back to the start screen. You will be prompted to save if unsaved for more than 30 seconds.</div>
+              </div>
+              <button class="btn-secondary" onclick="returnToMainMenu()">Return to Menu</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Script Tab -->
+    <section id="tab-script" class="tab-panel hidden">
+      <div class="script-layout">
+
+        <div class="script-editor-col">
+          <div class="script-toolbar">
+            <h3 class="section-label" style="margin:0;flex:1">Script Editor</h3>
+            <button class="script-file-btn" onclick="importScript()">↑ Import</button>
+            <button class="script-file-btn" onclick="saveScript()">↓ Save</button>
+            <button class="btn-primary script-btn" onclick="runScriptOnce()">&#9654; Run</button>
+            <button id="script-auto-btn" class="btn-secondary script-btn" onclick="toggleScriptAuto()">Auto OFF</button>
+          </div>
+          <div class="script-tab-bar">
+            <button id="script-tab-manual" class="script-tab-btn script-tab-active" onclick="switchScriptTab('manual')">Manual</button>
+            <button id="script-tab-auto" class="script-tab-btn" onclick="switchScriptTab('auto')">Auto (10s)</button>
+          </div>
+          <textarea id="script-manual-editor" class="script-textarea" spellcheck="false"
+            placeholder="# Run manually with the ▶ Run button&#10;# Example:&#10;# if IRON_ORE &lt; 500:&#10;#     place(e_drill, iron)"></textarea>
+          <textarea id="script-auto-editor" class="script-textarea hidden" spellcheck="false"
+            placeholder="# Runs automatically every 10 seconds&#10;# Example:&#10;# if IRON_ORE &lt; 1000:&#10;#     place(e_drill, iron)"></textarea>
+          <div class="script-output-header">Output</div>
+          <div id="script-output" class="script-output">
+            <div class="script-empty">Run a script to see output</div>
+          </div>
+        </div>
+
+        <div class="script-docs-col">
+          <h3 class="section-label">Reference</h3>
+          <div class="docs-section">
+            <div class="docs-header">Quick Reference</div>
+            <div class="docs-item"><code>place(type, arg, n)</code> — queue a building</div>
+            <div class="docs-item"><code>craft(item, n)</code> — add to craft queue</div>
+            <div class="docs-item"><code>research("name")</code> — start research</div>
+            <div class="docs-item"><code>fortify(type, n)</code> — add walls / turrets</div>
+            <div class="docs-item"><code>limit(type, n)</code> — set output limit</div>
+            <div class="docs-item"><code>print(value)</code> — log to output</div>
+          </div>
+          <div class="docs-section">
+            <div class="docs-header">Control Flow</div>
+            <div class="docs-item"><code>if / elif / else</code></div>
+            <div class="docs-item"><code>while condition:</code></div>
+            <div class="docs-item"><code>for i in range(n):</code></div>
+            <div class="docs-item"><code>x = value</code> · <code>x += n</code></div>
+            <div class="docs-item"><code>break</code> · <code>continue</code> · <code>pass</code></div>
+            <div class="docs-item"><code>and</code> · <code>or</code> · <code>not</code></div>
+          </div>
+          <div class="docs-section">
+            <div class="docs-header">Memory (persists between runs)</div>
+            <div class="docs-item"><code>MEM_A = 0</code> — write persistent value</div>
+            <div class="docs-item"><code>x = MEM_A</code> — read persistent value</div>
+            <div class="docs-item">Any <code>MEM_*</code> name works (A–Z or custom)</div>
+          </div>
+          <div class="docs-section">
+            <div class="docs-header">Key Variables</div>
+            <div class="docs-item"><code>IRON_ORE</code> · <code>IRON_PLATE</code> · <code>STEEL</code> · <code>COAL</code></div>
+            <div class="docs-item"><code>Q_len</code> — total craft queue length</div>
+            <div class="docs-item"><code>Q_miners</code> — miners in place queue</div>
+            <div class="docs-item"><code>BITER_WAVE</code> · <code>BITER_TIMER</code></div>
+            <div class="docs-item"><code>PERIMETER_WALLS</code> · <code>PERIMETER_MAX_WALLS</code></div>
+            <div class="docs-item"><code>POWER_GEN</code> · <code>POWER_DEMAND</code></div>
+          </div>
+          <div class="docs-section" style="margin-top:auto;padding-top:1rem">
+            <a href="docs.html" target="_blank" class="btn-primary" style="display:block;text-align:center;text-decoration:none;padding:.5rem 1rem">
+              Full Documentation ↗
+            </a>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="data/recipes.js"></script>
+<script src="data/technologies.js"></script>
+<script src="game.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
