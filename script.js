@@ -859,8 +859,10 @@ function scriptPlaceBuilding(type, arg, n) {
     placed++;
   }
 
-  if (placed > 0)
+  if (placed > 0) {
     scriptOutput.push({ type: 'info', text: `Queued ${placed}× ${DISPLAY[realType] ?? realType}` });
+    if (!placing) processNextPlacement();
+  }
 }
 
 // ── scriptDoResearch ──────────────────────────────────────────
@@ -984,9 +986,29 @@ function runScriptOnce() {
 
 function runAutoScript() {
   const src = document.getElementById('script-auto-editor')?.value ?? '';
-  if (!src.trim()) return;
-  _executeScript(src);
-  renderScript();
+  if (src.trim()) {
+    _executeScript(src);
+    renderScript();
+  }
+  // AI bridge — silently ignored if server is not running
+  try {
+    const ctx = buildScriptContext();
+    fetch('http://localhost:5001/action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...ctx,
+        _research:  state.research,
+        _inventory: state.inventory,
+        _buildings: state.buildings,
+        _patches:   state.patches,
+        _perimeter: state.perimeter,
+        _chunks:    state.chunksRevealed,
+      }),
+    }).then(r => r.json())
+      .then(({ cmd }) => { if (cmd) { _executeScript(cmd); renderScript(); } })
+      .catch(() => {});
+  } catch(e) {}
 }
 
 // ── Script UI ─────────────────────────────────────────────────

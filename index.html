@@ -445,7 +445,10 @@
         </div>
 
         <div class="active-col">
-          <h3 class="section-label">Active Buildings</h3>
+          <div class="active-col-header">
+            <h3 class="section-label" style="margin:0">Active Buildings</h3>
+            <button id="pause-all-btn" class="btn-sm" onclick="toggleAllPaused()">⏸ Pause All</button>
+          </div>
           <div class="buildings-search-row">
             <input type="text" id="buildings-search" class="buildings-search" placeholder="Search buildings...">
           </div>

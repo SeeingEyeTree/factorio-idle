@@ -567,6 +567,7 @@ button {
 @media (max-width: 680px) { .buildings-layout { grid-template-columns: 1fr; } }
 
 .placement-col, .active-col { display: flex; flex-direction: column; gap: .6rem; }
+.active-col-header { display: flex; align-items: center; justify-content: space-between; }
 
 .placement-status {
   padding: .55rem .9rem;

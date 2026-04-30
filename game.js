@@ -301,7 +301,7 @@ function createState(settings) {
       ...settings,
     },
     placementRecipes: defaultPlacementRecipes(),
-    inventory: Object.fromEntries(Object.keys(ITEMS).map(k => [k, 0])),
+    inventory: { ...Object.fromEntries(Object.keys(ITEMS).map(k => [k, 0])), coal: 50 },
     patches:   Object.fromEntries(
       Object.entries(PATCHES).map(([k, v]) => {
         const base = Math.floor(v.base * mult);
@@ -359,6 +359,7 @@ function createState(settings) {
     starredItems: [],
     productionHistory: { samples: [] },
     seen: {},
+    allPaused: false,
   };
 }
 
@@ -429,6 +430,7 @@ function applyStateFromEnvelope(envelope) {
   if (state.craftActive === undefined) state.craftActive = null;
   if (!state.scriptMemory) state.scriptMemory = {};
   if (!state.starredItems) state.starredItems = [];
+  if (state.allPaused == null) state.allPaused = false;
   if (!state.productionHistory) state.productionHistory = { samples: [] };
   if (state.settings?.biterGracePeriod  == null) state.settings.biterGracePeriod  = 420;
   if (state.settings?.biterIntervalSecs == null) state.settings.biterIntervalSecs = 120;
@@ -841,7 +843,7 @@ function addPatchFind(resource, amount, nodes) {
   const patch      = state.patches[resource];
   if (!patch) return;
   if (!patch.pendingFinds) patch.pendingFinds = [];
-  if (chunkIndex < maxChunk) {
+  if (!state.settings.biters || chunkIndex < maxChunk) {
     patch.remaining += amount;
     patch.nodes     += nodes;
   } else {
@@ -891,6 +893,10 @@ function revealChunk() {
 function patchInPerimeter(resource) {
   const patch = state.patches[resource];
   if (!patch) return false;
+  if (!state.settings.biters) {
+    const total = patch.remaining + (patch.pendingFinds ?? []).reduce((s, f) => s + f.remaining, 0);
+    return total > 0 || patch.nodes > 0;
+  }
   return (patch.remaining > 0 || patch.nodes > 0);
 }
 
@@ -918,9 +924,12 @@ function tick() {
     if (b.type === 'lab')             totalDemand += LAB_KW;
     if (b.type === 'radar')           totalDemand += RADAR_KW;
   }
+  if (state.allPaused) totalDemand = 0;
   state.powerDemandKw = totalDemand;
   const powerRatio = totalDemand > 0 ? Math.min(1, state.powerKw / totalDemand) : 1;
   state.powerRatio = powerRatio;
+
+  if (!state.allPaused) { // ── Production ──
 
   // ── Coal for miners, furnaces & steel furnaces ──
   for (const [key, group] of Object.entries(groups)) {
@@ -1391,6 +1400,8 @@ function tick() {
       state.craftActive = null;
     }
   }
+
+  } // end if (!state.allPaused)
 
   // ── Mark seen items ──
   for (const [k, v] of Object.entries(state.inventory)) {
@@ -2083,6 +2094,12 @@ function getMissingInputs(recipe) {
 
 function renderBuildings() {
   if (mouseHeld) return;
+  const pauseBtn = document.getElementById('pause-all-btn');
+  if (pauseBtn) {
+    pauseBtn.textContent = state.allPaused ? '▶ Resume All' : '⏸ Pause All';
+    pauseBtn.classList.toggle('btn-danger-sm', state.allPaused);
+    pauseBtn.classList.toggle('btn-sm', true);
+  }
   const focused = document.activeElement;
   if (focused && focused.closest('#active-buildings') &&
       (focused.classList.contains('limit-input') || focused.classList.contains('add-count-input'))) return;
@@ -3235,6 +3252,11 @@ function renderBiterIndicator() {
   }
 }
 
+function toggleAllPaused() {
+  state.allPaused = !state.allPaused;
+  renderUI();
+}
+
 function toggleStarItem(key) {
   if (!state.starredItems) state.starredItems = [];
   const idx = state.starredItems.indexOf(key);
@@ -3483,7 +3505,12 @@ function showGame() {
   if (gameLoopId) clearInterval(gameLoopId);
   gameLoopId = setInterval(tick, TICK_MS);
   buildingSearchQuery = '';
-  lastTechHash = '';
+  mouseHeld          = false;
+  lastTechHash       = '';
+  lastInventoryHtml  = '';
+  lastStarredBarHtml = '';
+  lastRobotTechHtml  = '';
+  lastPerimeterHtml  = '';
   const searchEl = document.getElementById('buildings-search');
   if (searchEl) searchEl.value = '';
   setupEventDelegation();
@@ -3521,8 +3548,16 @@ function setupEventDelegation() {
   delegationSetUp = true;
 
   // Block re-render during mouse interactions (fixes click registration)
-  document.addEventListener('mousedown', () => { mouseHeld = true; }, true);
-  document.addEventListener('mouseup',   () => { mouseHeld = false; }, true);
+  let mouseHeldTimer = null;
+  document.addEventListener('mousedown', () => {
+    mouseHeld = true;
+    clearTimeout(mouseHeldTimer);
+    mouseHeldTimer = setTimeout(() => { mouseHeld = false; }, 500);
+  }, true);
+  document.addEventListener('mouseup', () => {
+    mouseHeld = false;
+    clearTimeout(mouseHeldTimer);
+  }, true);
 
   document.getElementById('resource-patches').addEventListener('click', e => {
     const btn = e.target.closest('[data-mine]');
