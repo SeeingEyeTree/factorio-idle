@@ -1355,8 +1355,9 @@ button {
 .robot-tech-card:first-of-type { border-top: none; }
 .robot-tech-card:hover { background: rgba(255,255,255,.02); }
 
-.robot-tech-card.rcard-done   { opacity: .55; }
+.robot-tech-card.rcard-done    { opacity: .55; }
 .robot-tech-card.rcard-current { background: rgba(244,168,58,.05); }
+.robot-tech-card.rcard-queued  { background: rgba(58,143,214,.06); border-color: rgba(58,143,214,.3); }
 
 .rcard-name {
   font-size: .82rem; font-weight: 600; min-width: 4.5rem; color: var(--text2);
@@ -1566,18 +1567,95 @@ button {
   margin-bottom: .75rem;
 }
 
+.graph-tabs {
+  display: flex;
+  gap: .25rem;
+  margin: .35rem 0 .4rem;
+}
+.graph-tab {
+  background: var(--surf);
+  border: 1px solid var(--border);
+  color: var(--text2);
+  padding: .35rem .9rem;
+  border-radius: 4px 4px 0 0;
+  font-size: .8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.graph-tab:hover { background: var(--surf2); color: var(--text); }
+.graph-tab.graph-tab-active {
+  background: var(--surf2);
+  border-color: var(--accent);
+  color: var(--accent);
+  border-bottom-color: var(--surf2);
+}
+
+.graph-layout {
+  display: grid;
+  grid-template-columns: 1fr 220px;
+  gap: .5rem;
+  align-items: stretch;
+}
+
 .graph-container {
   background: var(--surf2);
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: .5rem;
   height: 320px;
+  min-width: 0;
 }
 
 .graph-canvas {
   width: 100%;
   height: 100%;
   display: block;
+}
+
+.graph-legend {
+  background: var(--surf2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: .5rem .55rem;
+  height: 320px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: .25rem;
+}
+.graph-legend-row {
+  display: grid;
+  grid-template-columns: 14px 18px 1fr auto;
+  align-items: center;
+  gap: .35rem;
+  font-size: .76rem;
+  color: var(--text2);
+  padding: .15rem .1rem;
+  border-radius: 3px;
+}
+.graph-legend-row:hover { background: rgba(255,255,255,0.03); }
+.graph-legend-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  display: inline-block;
+}
+.graph-legend-icon {
+  font-size: .95rem;
+  line-height: 1;
+  text-align: center;
+}
+.graph-legend-icon img { width: 16px; height: 16px; vertical-align: middle; }
+.graph-legend-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.graph-legend-rate {
+  font-family: monospace;
+  font-size: .72rem;
+  color: var(--dim);
 }
 
 /* ── Biter warning state ────────────────────────────────────── */

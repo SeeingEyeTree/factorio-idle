@@ -1,0 +1,19 @@
+
+The Q_len variable doesn't seem to actually track the queue. Q_miners seem to work though. 
+
+Late game packs. 
+Add one more pack that is used for inf research. It costs 1 of every pack. It is a rainbow pack. 
+
+
+Bitter mechanics update
+Have the player start with a perimeter with side length 10. Have some basic display that shows a map and wall sections. The number of turrets you can add to the perimeter is incorrect. You should be able to add a max of 5(4)(perimeter.sideLength) turrets. Laser,gun,and flame turrets(added later) share the same cap. The number of walls you can add is 20(4)(perimeter.sideLength). How bitter fights are down should be slightly different. Bitter groups fight wall sections. A wall section’s stats are based on the average. Sum all turrets stats and divide by the length they cover(4)(perimeter.sideLength) to get the wall section stats. 
+
+Bitters stats are based on points. The points should be mapped to the biter stats. Before you get a rainbow pack the bitters attack 5%, 10%,15% of the wall sections based on the player progression. After a rainbow pack is made they attack every section of every wave. The points should control the total stats that you fight. 
+
+Make it so you can add artillery to the perimeter, by default you can add 4(perimeter_side_lengh - 1) artillery; they have a separate cap from the other turrets. There should be two infinite upgrades for artillery, range and damage. Range lets you add another layer where you can add arty. 4(per_len - 1) + 4(per_len - 2) ect. They also have exponential cost scaling. Make it so you can add spidertrons to the defence. They are needed to launch atomic bombs. An atomic bomb deals 1e9 damage to one pack of bitters. Each spidertron allows you to use 5 atomic bombs per wave. They should only automatically use atomic bombs if the bitters get through the wall. When a bomb causes some irradiation which slightly increases the bitters scaling rate. Bitters killed by bombs only give a fraction of the points for meta progression calculations. There should be two main differences in bitter scaling, they start out linear to a cap normally. For the linear scaling before rainbow packs have the scaling be piecewise it should be very low before you make a redpack, then slightly faster with green ect. It should still have the same cap; it just scales with player progression, so it is harder to die. Then once you make a rainbow pack they start scaling exponentially, slowly at first but the base exponent should increase over time. 
+
+Point out constants used to control bitter scaling so I can tweak it to be more balanced. Have a way to change them when making a save.
+
+Meta progression
+When starting a save you should give an option to enable or disable it. There should also be a button on the home page that takes you to the meta progression. The amount of points you get is based on how many bitters you have killed, bitters killed by atomic bombs give way less points. * 1e-4. You can use meta progression points. The amount should be scaled so you get 1-10 kinds of numbers. Try to use some log formula for now. The points can be spent to increase the stats of one building. You can spend one point on an electric miner and it mines 25% faster and uses 25% less e. Can do that twice for most buildings. There should also be skill trees you can spend points on to get unique bonuses. Just add a quick start perk for now. You get to start with an extra lab, boiler, steam engine, 5 burner miners for coal, and 5 miners and furnaces for iron and copper. Add one more tab where you can spend points on a “gamermodule” you can put infinite points into. You can spend points to increase its productivity, or speed. 
+

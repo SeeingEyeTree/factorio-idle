@@ -8,7 +8,7 @@ const ELECTRIC_MINER_SPEED = 0.5;   // ore/sec per electric miner
 const ELECTRIC_MINER_KW    = 90;    // kW each
 const ASSEMBLY_SPEED       = 0.5;   // recipe.time / ASSEMBLY_SPEED = actual seconds
 const ASSEMBLY_KW          = 75;    // kW each
-const PLACE_TIME           = 2;   // seconds to place one building (base)
+const PLACE_TIME           = 2; // seconds to place one building (base)
 const ROBOT_BONUS_PER_UNIT   = 0.008;  // placement speed contribution per robot×effectiveness
 const WORKER_SPEED_PER_LEVEL = 0.25;   // robot effectiveness gain per speed research level
 const WORKER_CARGO_PER_LEVEL = 0.25;   // robot effectiveness gain per cargo size level
@@ -69,6 +69,7 @@ const MODULE_DATA = {
   prodMk1:  { name: 'Prod 1',  prodBonus: 0.04, speedPenalty: -0.05, energyBonus: 0.40 },
   prodMk2:  { name: 'Prod 2',  prodBonus: 0.06, speedPenalty: -0.10, energyBonus: 0.60 },
   prodMk3:  { name: 'Prod 3',  prodBonus: 0.10, speedPenalty: -0.15, energyBonus: 0.80 },
+  gamerModule: { name: 'Gamer Module', speedBonus: 0, prodBonus: 0 },
 };
 // Recipes whose output is a placeable building — productivity modules not allowed.
 // Add recipe output item keys here as needed (e.g., 'inserter', 'transportBelt').
@@ -85,10 +86,26 @@ const GUN_TURRET_STATS = {
 const GUN_DPS_BASIC        = 60;       // 5×12
 const GUN_DPS_PIERCING     = 100;      // 5×20
 const GUN_DPS_URANIUM      = 250;      // 5×50
-const LASER_DPS_PER_TURRET = 35;       // DPS per laser turret (ignores armor)
+const LASER_SHOTS_PER_SEC  = 1.5;      // shots per second per laser turret
+const LASER_DMG_PER_SHOT   = 20;       // damage per shot (ignores armor)
+const LASER_DPS_PER_TURRET = LASER_SHOTS_PER_SEC * LASER_DMG_PER_SHOT; // 30 DPS
+const LASER_KW_PER_TURRET  = LASER_SHOTS_PER_SEC * 800; // 1200 kW (800kJ/shot)
 const BUILDING_TOUGHNESS   = 2000;     // overflow damage to destroy 1 building
-const WALLS_PER_TILE       = 1;        // max stone walls per perimeter tile
-const TURRETS_PER_2TILES   = 1;        // max turrets per 2 perimeter tiles
+const WALLS_PER_TILE       = 20;  // max stone walls per perimeter tile  → total = 20 * 4 * sideLength
+const TURRETS_PER_TILE     = 5;   // max turrets per perimeter tile       → total = 5 * 4 * sideLength
+const ARTILLERY_BASE_DAMAGE     = 500;    // base damage per artillery piece per wave
+const ATOMIC_BOMB_DAMAGE        = 1e9;    // damage dealt by one atomic bomb to one section
+const ATOMIC_BOMBS_PER_SPIDER   = 5;      // bombs available per spidertron per wave
+const IRRADIATION_SCALING_RATE  = 0.001;  // how much each bomb use increases biter threat scaling
+
+// ── Biter Scaling Constants (tweak for balance) ────────────────
+const BITER_POINTS_PRE_RED    = 0.5;   // threat points gained per wave before red science
+const BITER_POINTS_POST_RED   = 1.0;   // threat points gained per wave after red science
+const BITER_POINTS_POST_GREEN = 2.0;   // threat points gained per wave after green science
+const BITER_POINTS_POST_BLUE  = 4.0;   // threat points gained per wave after blue science (and above, pre-rainbow)
+const BITER_POINTS_CAP_LINEAR = 500.0; // max threat points in linear phase
+const BITER_POINTS_EXP_BASE_INITIAL = 1.01;  // initial exponential base (per wave) after rainbow
+const BITER_POINTS_EXP_BASE_GROWTH  = 0.0001; // how much the base increases per wave after rainbow
 
 // ITEMS, ALWAYS_SHOW, FURNACE_RECIPES, PLAYER_RECIPES, CRAFT_SECTIONS loaded from data/recipes.js
 // TECHNOLOGIES loaded from data/technologies.js
@@ -164,6 +181,48 @@ const BUILDING_ITEM_KEYS = new Set(
   Object.values(BUILDING_COSTS).flatMap(cost => Object.keys(cost))
 );
 
+// ── Meta Progression State ────────────────────────────────────
+
+function defaultMetaState() {
+  return {
+    totalPoints: 0,
+    rawKills: 0,
+    buildingUpgrades: {},
+    perks: {
+      quickStart: false,
+    },
+    gamerModule: {
+      speedPoints: 0,
+      prodPoints: 0,
+    },
+  };
+}
+
+let metaState = defaultMetaState();
+
+function loadMetaState() {
+  try {
+    const saved = localStorage.getItem('fi_meta');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      const def = defaultMetaState();
+      metaState = {
+        ...def,
+        ...parsed,
+        perks: { ...def.perks, ...(parsed.perks ?? {}) },
+        gamerModule: { ...def.gamerModule, ...(parsed.gamerModule ?? {}) },
+        buildingUpgrades: { ...(parsed.buildingUpgrades ?? {}) },
+      };
+    }
+  } catch (e) {
+    metaState = defaultMetaState();
+  }
+}
+
+function saveMetaState() {
+  localStorage.setItem('fi_meta', JSON.stringify(metaState));
+}
+
 // ── Runtime State ─────────────────────────────────────────────
 
 let state           = null;
@@ -191,14 +250,20 @@ const pickerSearches = {};
 // Delta tracking
 let inventorySnapshot = null;
 let snapshotTimer     = 0;
+let prodAccum = {};      // gross items produced this snapshot window
+let consAccum = {};      // gross items consumed this snapshot window
+let tickPrevInv = null;  // inventory snapshot at start of each tick (for prod/cons split)
 
 // UI state
+let graphMode = 'production'; // 'production' | 'consumption' | 'net'
 let buildingSearchQuery = '';
 let lastTechHash = '';
 let lastRobotTechHtml = '';
 let lastPerimeterHtml = '';
 let lastInventoryHtml  = '';
 let lastStarredBarHtml = '';
+let lastMetaHtml = '';
+let metaSubTab = 'buildings';
 let currentSaveFile = null;
 let _pendingScriptRestore = null;
 let lastSaveMs = 0;
@@ -226,7 +291,7 @@ function getRobotSpeedTechData(level) {
   else if (level === 3) { totalNeeded = 150;                             packs = ['redScience','greenScience','blueScience','yellowScience'];                               timePerPack = 60; }
   else if (level === 4) { totalNeeded = 250;                             packs = ['redScience','greenScience','blueScience','yellowScience'];                               timePerPack = 60; }
   else if (level === 5) { totalNeeded = 500;                             packs = ['redScience','greenScience','blueScience','purpleScience','yellowScience'];               timePerPack = 60; }
-  else                  { totalNeeded = Math.pow(2, level - 6) * 1000;  packs = ['redScience','greenScience','blueScience','purpleScience','yellowScience','spaceScience']; timePerPack = 60; }
+  else                  { totalNeeded = Math.pow(2, level - 6) * 1000;  packs = ['redScience','greenScience','blueScience','purpleScience','yellowScience','spaceScience','rainbowScience']; timePerPack = 60; }
   return { cost: Object.fromEntries(packs.map(p => [p, 1])), timePerPack, totalNeeded };
 }
 
@@ -235,7 +300,7 @@ function getMiningProdData(level) {
   if (level <= 1)      packs = ['redScience','greenScience'];
   else if (level <= 2) packs = ['redScience','greenScience','blueScience'];
   else if (level <= 3) packs = ['redScience','greenScience','blueScience','purpleScience','yellowScience'];
-  else                 packs = ['redScience','greenScience','blueScience','purpleScience','yellowScience','spaceScience'];
+  else                 packs = ['redScience','greenScience','blueScience','purpleScience','yellowScience','spaceScience','rainbowScience'];
   const totalNeeded = level <= 3 ? level * 250 : 2500 * (level - 3);
   return { cost: Object.fromEntries(packs.map(p => [p, 1])), timePerPack: 60, totalNeeded };
 }
@@ -246,7 +311,7 @@ function getGunDamageData(level) {
   else if (level <= 4) { packs = ['redScience','greenScience','blackScience']; totalNeeded = level * 100; }
   else if (level <= 5) { packs = ['redScience','greenScience','blackScience','blueScience']; totalNeeded = 500; }
   else if (level <= 6) { packs = ['redScience','greenScience','blackScience','blueScience','yellowScience']; totalNeeded = 600; }
-  else                 { packs = ['redScience','greenScience','blackScience','blueScience','yellowScience','spaceScience']; totalNeeded = Math.pow(2, level - 7) * 1000; }
+  else                 { packs = ['redScience','greenScience','blackScience','blueScience','yellowScience','spaceScience','rainbowScience']; totalNeeded = Math.pow(2, level - 7) * 1000; }
   return { cost: Object.fromEntries(packs.map(p => [p, 1])), timePerPack: t, totalNeeded };
 }
 
@@ -255,7 +320,7 @@ function getLaserDamageData(level) {
   if (level <= 2)      { packs = ['redScience','greenScience','blueScience','blackScience']; t = 30; totalNeeded = level * 100; }
   else if (level <= 4) { packs = ['redScience','greenScience','blueScience','blackScience']; totalNeeded = level * 100; }
   else if (level <= 6) { packs = ['redScience','greenScience','blueScience','blackScience','yellowScience']; totalNeeded = level * 100; }
-  else                 { packs = ['redScience','greenScience','blueScience','blackScience','yellowScience','spaceScience']; totalNeeded = Math.pow(2, level - 7) * 1000; }
+  else                 { packs = ['redScience','greenScience','blueScience','blackScience','yellowScience','spaceScience','rainbowScience']; totalNeeded = Math.pow(2, level - 7) * 1000; }
   return { cost: Object.fromEntries(packs.map(p => [p, 1])), timePerPack: t, totalNeeded };
 }
 
@@ -269,6 +334,26 @@ function laserDamageMult(level) {
   return 1 + Math.min(l, 6) * 0.20 + Math.max(0, l - 6) * 0.70;
 }
 
+function artilleryDamageMult(level) {
+  return 1 + (level ?? 0) * 0.25;
+}
+
+function getArtilleryRangeTechData(level) {
+  const totalNeeded = Math.round(Math.pow(2, level - 1) * 200);
+  const packs = level <= 3
+    ? ['redScience','greenScience','blueScience','yellowScience']
+    : ['redScience','greenScience','blueScience','yellowScience','spaceScience','rainbowScience'];
+  return { cost: Object.fromEntries(packs.map(p => [p, 1])), timePerPack: 60, totalNeeded };
+}
+
+function getArtilleryDamageTechData(level) {
+  const totalNeeded = Math.round(Math.pow(2, level - 1) * 300);
+  const packs = level <= 3
+    ? ['redScience','greenScience','blueScience','yellowScience']
+    : ['redScience','greenScience','blueScience','yellowScience','spaceScience','rainbowScience'];
+  return { cost: Object.fromEntries(packs.map(p => [p, 1])), timePerPack: 60, totalNeeded };
+}
+
 function miningProdMult() {
   return 1 + (state.research?.miningProdLevel ?? 0) * 0.10;
 }
@@ -280,11 +365,13 @@ function currentRobotTechData() {
   if (cur === 'mining:productivity') return getMiningProdData((state.research.miningProdLevel ?? 0) + 1);
   if (cur === 'gun:damage')          return getGunDamageData((state.research.gunDamageLevel ?? 0) + 1);
   if (cur === 'laser:damage')        return getLaserDamageData((state.research.laserDamageLevel ?? 0) + 1);
+  if (cur === 'artillery:range')     return getArtilleryRangeTechData((state.research.artilleryRangeLevel ?? 0) + 1);
+  if (cur === 'artillery:damage')    return getArtilleryDamageTechData((state.research.artilleryDamageLevel ?? 0) + 1);
   return null;
 }
 
 function computePlaceTimeSec() {
-  const logisticsBonus = (state?.research?.done?.logistics ? 0.25 : 0) + (state?.research?.done?.logistics2 ? 0.25 : 0);
+  const logisticsBonus = (state?.research?.done?.logistics ? 0.5 : 0) + (state?.research?.done?.logistics2 ? 0.5 : 0);
   const baseTime = PLACE_TIME - logisticsBonus;
   const robotCount = Math.floor(state?.inventory?.constructionRobotItem ?? 0);
   if (robotCount === 0) return { time: baseTime, batch: 1 };
@@ -316,12 +403,13 @@ function defaultPlacementRecipes() {
 function createState(settings) {
   const mult = DENSITY_MULT[settings.density] ?? 1.0;
   const gracePeriod = settings.biterGracePeriod ?? 420;
-  return {
+  const st = {
     settings: {
       defaultLimitBuilding: 10,
       defaultLimitOther: Infinity,
       biterGracePeriod:    420,
       biterIntervalSecs:   120,
+      metaProgEnabled: false,
       ...settings,
     },
     placementRecipes: defaultPlacementRecipes(),
@@ -348,12 +436,21 @@ function createState(settings) {
     biterWaveNumber: 0,
     lastBiterWave:  null,
     perimeter: {
-      sideLength: 3,
+      sideLength: 10,
       walls: 0,
       gunTurrets: 0,
       laserTurrets: 0,
       ammoType: 'firearmMagazine',
+      artillery: 0,
+      artilleryRangeLevel: 0,
+      artilleryDamageLevel: 0,
+      spidertrons: 0,
+      atomicBombsUsedThisWave: 0,
+      irradiationLevel: 0,
     },
+    biterThreatPoints: 0,
+    biterWavesAfterRainbow: 0,
+    bitersKilled: 0,
     groupSettings:  {},
     water:          0,
     steam:          0,
@@ -371,23 +468,49 @@ function createState(settings) {
       queue:             [],
       savedKey:          null,
       savedProgress:     0,
-      robotSpeedLevel:   0,
-      robotCargoLevel:   0,
-      miningProdLevel:   0,
-      gunDamageLevel:    0,
-      laserDamageLevel:  0,
+      robotSpeedLevel:      0,
+      robotCargoLevel:      0,
+      miningProdLevel:      0,
+      gunDamageLevel:       0,
+      laserDamageLevel:     0,
+      artilleryRangeLevel:  0,
+      artilleryDamageLevel: 0,
     },
     craftQueue:  [],
     craftActive: null,
     scriptMemory: {},
     starredItems: [],
-    productionHistory: { samples: [] },
+    productionHistory: { samples: [], prodSamples: [], consSamples: [] },
     seen: {},
     allPaused: false,
     devMode: false,
     devFreeResearch: false,
     devTickSpeed: 1,
   };
+
+  // Apply Quick Start perk if purchased and meta prog is enabled
+  if (metaState?.perks?.quickStart && st.settings.metaProgEnabled) {
+    let nid = st.nextId;
+    // 1 extra lab
+    st.buildings.push({ id: nid++, type: 'lab', acc: 0, active: false, progress: 0 });
+    // 1 boiler
+    st.buildings.push({ id: nid++, type: 'boiler', acc: 0, active: false, progress: 0 });
+    // 1 steam engine
+    st.buildings.push({ id: nid++, type: 'steamEngine', acc: 0, active: false, progress: 0 });
+    // 5 coal miners
+    for (let i = 0; i < 5; i++) st.buildings.push({ id: nid++, type: 'miner', resource: 'coal', acc: 0 });
+    // 5 iron miners
+    for (let i = 0; i < 5; i++) st.buildings.push({ id: nid++, type: 'miner', resource: 'ironOre', acc: 0 });
+    // 5 iron furnaces
+    for (let i = 0; i < 5; i++) st.buildings.push({ id: nid++, type: 'furnace', recipe: 'ironPlate', active: false, progress: 0 });
+    // 5 copper miners
+    for (let i = 0; i < 5; i++) st.buildings.push({ id: nid++, type: 'miner', resource: 'copperOre', acc: 0 });
+    // 5 copper furnaces
+    for (let i = 0; i < 5; i++) st.buildings.push({ id: nid++, type: 'furnace', recipe: 'copperPlate', active: false, progress: 0 });
+    st.nextId = nid;
+  }
+
+  return st;
 }
 
 // ── Save / Load ───────────────────────────────────────────────
@@ -397,6 +520,7 @@ function buildSaveEnvelope() {
     version: 1,
     savedAt: new Date().toISOString(),
     state,
+    meta: metaState,
     placeQueue: [...placeQueue],
     scriptContent:     document.getElementById('script-manual-editor')?.value ?? '',
     scriptAutoContent: document.getElementById('script-auto-editor')?.value ?? '',
@@ -421,8 +545,16 @@ function applyStateFromEnvelope(envelope) {
   if (state.accumulatorCharge == null) state.accumulatorCharge = 0;
   if (state.biterWaveNumber == null) state.biterWaveNumber = 0;
   if (state.lastBiterWave  == null) state.lastBiterWave  = null;
-  if (!state.perimeter) state.perimeter = { sideLength: 3, walls: 0, gunTurrets: 0, laserTurrets: 0, ammoType: 'firearmMagazine' };
-  if (state.perimeter.ammoType == null) state.perimeter.ammoType = 'firearmMagazine';
+  if (!state.perimeter) state.perimeter = { sideLength: 10, walls: 0, gunTurrets: 0, laserTurrets: 0, ammoType: 'firearmMagazine' };
+  if (state.perimeter.ammoType          == null) state.perimeter.ammoType          = 'firearmMagazine';
+  if (state.perimeter.artillery         == null) state.perimeter.artillery         = 0;
+  if (state.perimeter.artilleryRangeLevel  == null) state.perimeter.artilleryRangeLevel  = 0;
+  if (state.perimeter.artilleryDamageLevel == null) state.perimeter.artilleryDamageLevel = 0;
+  if (state.perimeter.spidertrons       == null) state.perimeter.spidertrons       = 0;
+  if (state.perimeter.atomicBombsUsedThisWave == null) state.perimeter.atomicBombsUsedThisWave = 0;
+  if (state.perimeter.irradiationLevel  == null) state.perimeter.irradiationLevel  = 0;
+  if (state.biterThreatPoints == null) state.biterThreatPoints = 0;
+  if (state.biterWavesAfterRainbow == null) state.biterWavesAfterRainbow = 0;
   if (!state.inventoryDelta)           state.inventoryDelta   = {};
   if (!state.placementRecipes)         state.placementRecipes = defaultPlacementRecipes();
   if (state.devMode         == null)   state.devMode          = false;
@@ -444,8 +576,10 @@ function applyStateFromEnvelope(envelope) {
   if (state.research.robotSpeedLevel  == null) state.research.robotSpeedLevel  = 0;
   if (state.research.robotCargoLevel  == null) state.research.robotCargoLevel  = 0;
   if (state.research.miningProdLevel  == null) state.research.miningProdLevel  = 0;
-  if (state.research.gunDamageLevel   == null) state.research.gunDamageLevel   = 0;
-  if (state.research.laserDamageLevel == null) state.research.laserDamageLevel = 0;
+  if (state.research.gunDamageLevel      == null) state.research.gunDamageLevel      = 0;
+  if (state.research.laserDamageLevel   == null) state.research.laserDamageLevel   = 0;
+  if (state.research.artilleryRangeLevel  == null) state.research.artilleryRangeLevel  = 0;
+  if (state.research.artilleryDamageLevel == null) state.research.artilleryDamageLevel = 0;
   // Migrate old per-recipe craftJobs to unified craftQueue
   if (state.craftJobs && !state.craftQueue) {
     state.craftQueue  = [];
@@ -461,10 +595,30 @@ function applyStateFromEnvelope(envelope) {
   if (!state.scriptMemory) state.scriptMemory = {};
   if (!state.starredItems) state.starredItems = [];
   if (state.allPaused == null) state.allPaused = false;
-  if (!state.productionHistory) state.productionHistory = { samples: [] };
+  if (!state.productionHistory) state.productionHistory = { samples: [], prodSamples: [], consSamples: [] };
+  if (!state.productionHistory.prodSamples) state.productionHistory.prodSamples = [];
+  if (!state.productionHistory.consSamples) state.productionHistory.consSamples = [];
   if (state.settings?.biterGracePeriod  == null) state.settings.biterGracePeriod  = 420;
   if (state.settings?.biterIntervalSecs == null) state.settings.biterIntervalSecs = 120;
   if (!state.seen) state.seen = {};
+  if (state.bitersKilled == null) state.bitersKilled = 0;
+  if (state.settings?.metaProgEnabled == null) {
+    if (state.settings) state.settings.metaProgEnabled = false;
+  }
+
+  // Merge meta state from save envelope
+  if (isEnvelope && envelope.meta) {
+    const def = defaultMetaState();
+    const em  = envelope.meta;
+    metaState = {
+      ...def,
+      ...em,
+      perks: { ...def.perks, ...(em.perks ?? {}) },
+      gamerModule: { ...def.gamerModule, ...(em.gamerModule ?? {}) },
+      buildingUpgrades: { ...(em.buildingUpgrades ?? {}) },
+    };
+    saveMetaState();
+  }
 
   // Restore transient placement state
   if (placeRafId) cancelAnimationFrame(placeRafId);
@@ -709,22 +863,53 @@ function howManyCanAfford(inputs, maxCycles) {
   return Math.max(0, n);
 }
 
+function metaEnergyMult(type) {
+  if (!state?.settings?.metaProgEnabled) return 1;
+  const pts = metaState?.buildingUpgrades?.[type] ?? 0;
+  return Math.max(0.1, 1 - pts * 0.25);
+}
+
+function getGamerModuleSpeedBonus() {
+  const pts = metaState?.gamerModule?.speedPoints ?? 0;
+  return pts * 0.05;
+}
+
+function getGamerModuleProdBonus() {
+  const pts = metaState?.gamerModule?.prodPoints ?? 0;
+  return pts * 0.02;
+}
+
 function calcGroupModifiers(type, buildingCount, modules) {
   const slotsPerBuilding = MODULE_SLOTS[type] ?? 0;
-  if (slotsPerBuilding === 0 || buildingCount === 0) return { speedMult: 1, prodBonus: 0 };
+  if (buildingCount === 0) return { speedMult: 1, prodBonus: 0 };
   const totalSlots = buildingCount * slotsPerBuilding;
   let speedBonus = 0, prodBonus = 0, usedSlots = 0;
-  for (const [mtype, cnt] of Object.entries(modules ?? {})) {
-    if (!cnt || cnt <= 0) continue;
-    const mod = MODULE_DATA[mtype];
-    if (!mod) continue;
-    const actual = Math.min(cnt, totalSlots - usedSlots);
-    usedSlots += actual;
-    const perBuilding = actual / buildingCount;
-    speedBonus += perBuilding * ((mod.speedBonus ?? 0) + (mod.speedPenalty ?? 0));
-    prodBonus  += perBuilding * (mod.prodBonus ?? 0);
+  if (slotsPerBuilding > 0) {
+    for (const [mtype, cnt] of Object.entries(modules ?? {})) {
+      if (!cnt || cnt <= 0) continue;
+      if (mtype === 'gamerModule') continue; // handled separately below
+      const mod = MODULE_DATA[mtype];
+      if (!mod) continue;
+      const actual = Math.min(cnt, totalSlots - usedSlots);
+      usedSlots += actual;
+      const perBuilding = actual / buildingCount;
+      speedBonus += perBuilding * ((mod.speedBonus ?? 0) + (mod.speedPenalty ?? 0));
+      prodBonus  += perBuilding * (mod.prodBonus ?? 0);
+    }
+    // Gamer module bonus
+    const gamerCount = modules?.gamerModule ?? 0;
+    if (gamerCount > 0) {
+      const gamerSpeedPerSlot = getGamerModuleSpeedBonus() / Math.max(1, slotsPerBuilding);
+      const gamerProdPerSlot  = getGamerModuleProdBonus()  / Math.max(1, slotsPerBuilding);
+      const actual = Math.min(gamerCount, totalSlots - usedSlots);
+      speedBonus += (actual / buildingCount) * gamerSpeedPerSlot;
+      prodBonus  += (actual / buildingCount) * gamerProdPerSlot;
+    }
   }
-  return { speedMult: Math.max(0.2, 1 + speedBonus), prodBonus };
+  // Meta building upgrade speed bonus
+  const metaUpgrade = (metaState?.buildingUpgrades?.[type] ?? 0);
+  const metaSpeedBonus = state?.settings?.metaProgEnabled ? metaUpgrade * 0.25 : 0;
+  return { speedMult: Math.max(0.2, 1 + speedBonus + metaSpeedBonus), prodBonus };
 }
 
 // ── Tech Helpers ──────────────────────────────────────────────
@@ -850,7 +1035,6 @@ const INFINITE_TECH_PREREQS = {
 };
 
 function startInfiniteTech(type) {
-  if (state.research.current) { notify('Cancel current research first.', 'warning'); return; }
   if (state.buildings.filter(b => b.type === 'lab').length === 0) {
     notify('Place a Lab to conduct research.', 'warning'); return;
   }
@@ -861,11 +1045,26 @@ function startInfiniteTech(type) {
   if (type === 'robot:cargo' && (state.research.robotCargoLevel ?? 0) >= 3) {
     notify('Worker Robot Cargo Size is already maxed out.', 'warning'); return;
   }
-  state.research.current = type;
-  state.research.totalConsumed = 0;
-  const gs = getGS('lab');
-  gs.packAcc = 0;
-  gs.starved = false;
+  const queue = state.research.queue ?? (state.research.queue = []);
+  // Toggle off if already active
+  if (state.research.current === type) { cancelResearch(); return; }
+  // Toggle off if already in queue
+  if (queue.includes(type)) {
+    state.research.queue = queue.filter(k => k !== type);
+    lastRobotTechHtml = '';
+    renderResearch();
+    return;
+  }
+  // Start immediately if nothing active, else queue
+  if (!state.research.current) {
+    state.research.current = type;
+    state.research.totalConsumed = 0;
+    const gs = getGS('lab');
+    gs.packAcc = 0;
+    gs.starved = false;
+  } else {
+    queue.push(type);
+  }
   lastRobotTechHtml = '';
   renderResearch();
 }
@@ -888,12 +1087,47 @@ function completeRobotResearch(type) {
   } else if (type === 'laser:damage') {
     state.research.laserDamageLevel = (state.research.laserDamageLevel ?? 0) + 1;
     notify(`✅ Laser Weapons Damage Level ${state.research.laserDamageLevel}! (${((laserDamageMult(state.research.laserDamageLevel) - 1) * 100).toFixed(0)}% total bonus)`, 'info');
+  } else if (type === 'artillery:range') {
+    state.research.artilleryRangeLevel = (state.research.artilleryRangeLevel ?? 0) + 1;
+    // Sync perimeter range level with research level
+    if (state.perimeter) state.perimeter.artilleryRangeLevel = state.research.artilleryRangeLevel;
+    notify(`✅ Artillery Range Level ${state.research.artilleryRangeLevel}!`, 'info');
+  } else if (type === 'artillery:damage') {
+    state.research.artilleryDamageLevel = (state.research.artilleryDamageLevel ?? 0) + 1;
+    // Sync perimeter damage level with research level
+    if (state.perimeter) state.perimeter.artilleryDamageLevel = state.research.artilleryDamageLevel;
+    notify(`✅ Artillery Damage Level ${state.research.artilleryDamageLevel}! (+${Math.round((artilleryDamageMult(state.research.artilleryDamageLevel) - 1) * 100)}% damage)`, 'info');
   }
   state.research.current = null;
   state.research.totalConsumed = 0;
   getGS('lab').packAcc = 0;
   lastTechHash = '';
   lastRobotTechHtml = '';
+
+  // Auto-start next queued item (regular or infinite tech)
+  const queue = state.research.queue ?? [];
+  while (queue.length > 0) {
+    const next = queue.shift();
+    if (next.includes(':')) {
+      // Infinite tech — start directly
+      state.research.current = next;
+      state.research.totalConsumed = 0;
+      getGS('lab').starved = false;
+      notify(`🔬 Auto-started: ${next}`, 'info');
+      break;
+    } else if (!state.research.done[next]) {
+      state.research.current = next;
+      if (state.research.savedKey === next) {
+        state.research.totalConsumed = state.research.savedProgress ?? 0;
+      } else {
+        state.research.totalConsumed = 0;
+      }
+      getGS('lab').starved = false;
+      notify(`🔬 Auto-started: ${TECHNOLOGIES[next]?.name ?? next}`, 'info');
+      break;
+    }
+  }
+  state.research.queue = queue;
   renderUI();
 }
 
@@ -968,24 +1202,29 @@ function tick() {
   const dt     = TICK_MS / 1000 * (state?.devTickSpeed ?? 1);
   const groups = buildGroupMap();
 
+  // Snapshot inventory at start of tick — used to split deltas into gross
+  // production/consumption for the production graph.
+  tickPrevInv = { ...state.inventory };
+
   // ── Compute total power demand (uses last tick's powerKw) ──
   let totalDemand = 0;
   for (const b of state.buildings) {
     const gs = getGS(groupKey(b));
     if (!gs.enabled) continue;
-    if (b.type === 'assembly')        totalDemand += ASSEMBLY_KW;
-    if (b.type === 'assembly2')       totalDemand += ASSEMBLY2_KW;
-    if (b.type === 'assembly3')       totalDemand += ASSEMBLY3_KW;
-    if (b.type === 'electricMiner')   totalDemand += ELECTRIC_MINER_KW;
-    if (b.type === 'electricFurnace') totalDemand += ELECTRIC_FURNACE_KW;
-    if (b.type === 'pumpjack')        totalDemand += PUMPJACK_KW;
-    if (b.type === 'oilRefinery')     totalDemand += OIL_REFINERY_KW;
-    if (b.type === 'chemicalPlant')   totalDemand += CHEMICAL_PLANT_KW;
-    if (b.type === 'centrifuge')      totalDemand += CENTRIFUGE_KW;
-    if (b.type === 'rocketSilo')      totalDemand += ROCKET_SILO_KW;
-    if (b.type === 'lab')             totalDemand += LAB_KW;
+    if (b.type === 'assembly')        totalDemand += ASSEMBLY_KW        * metaEnergyMult('assembly');
+    if (b.type === 'assembly2')       totalDemand += ASSEMBLY2_KW       * metaEnergyMult('assembly2');
+    if (b.type === 'assembly3')       totalDemand += ASSEMBLY3_KW       * metaEnergyMult('assembly3');
+    if (b.type === 'electricMiner')   totalDemand += ELECTRIC_MINER_KW  * metaEnergyMult('electricMiner');
+    if (b.type === 'electricFurnace') totalDemand += ELECTRIC_FURNACE_KW* metaEnergyMult('electricFurnace');
+    if (b.type === 'pumpjack')        totalDemand += PUMPJACK_KW        * metaEnergyMult('pumpjack');
+    if (b.type === 'oilRefinery')     totalDemand += OIL_REFINERY_KW    * metaEnergyMult('oilRefinery');
+    if (b.type === 'chemicalPlant')   totalDemand += CHEMICAL_PLANT_KW  * metaEnergyMult('chemicalPlant');
+    if (b.type === 'centrifuge')      totalDemand += CENTRIFUGE_KW      * metaEnergyMult('centrifuge');
+    if (b.type === 'rocketSilo')      totalDemand += ROCKET_SILO_KW     * metaEnergyMult('rocketSilo');
+    if (b.type === 'lab')             totalDemand += LAB_KW             * metaEnergyMult('lab');
     if (b.type === 'radar')           totalDemand += RADAR_KW;
   }
+  totalDemand += (state.perimeter?.laserTurrets ?? 0) * LASER_KW_PER_TURRET;
   if (state.allPaused) totalDemand = 0;
   state.powerDemandKw = totalDemand;
   const powerRatio = totalDemand > 0 ? Math.min(1, state.powerKw / totalDemand) : 1;
@@ -1499,30 +1738,17 @@ function tick() {
     } else { gs.starved = true; }
   }
 
-  // ── Steam Engines ──
-  const engineGroup = groups['steamEngine'];
-  if (engineGroup) {
-    const gs = getGS('steamEngine');
-    const count = engineGroup.buildings.length;
-    const steamNeeded = count * 30 * dt;
-    if (gs.enabled && state.steam > 0) {
-      if (state.steam >= steamNeeded) {
-        state.steam -= steamNeeded; state.powerKw = count * 900; gs.starved = false;
-      } else {
-        state.powerKw = count * 900 * (state.steam / steamNeeded);
-        state.steam = 0; gs.starved = false;
-      }
-    } else { state.powerKw = 0; gs.starved = !gs.enabled || state.steam <= 0; }
-  } else { state.powerKw = 0; }
+  // ── Power generation: Solar → Nuclear → Steam (fills gap) → Accumulators ──
+  state.powerKw = 0;
 
-  // ── Solar Panels ──
+  // Solar (unconditional, no fuel cost)
   const solarGroup = groups['solarPanel'];
   if (solarGroup) {
     const gs = getGS('solarPanel');
     if (gs.enabled) state.powerKw += solarGroup.buildings.length * SOLAR_PANEL_KW;
   }
 
-  // ── Nuclear Reactors ──
+  // Nuclear (fuel-gated)
   const nuclearGroup = groups['nuclearReactor'];
   if (nuclearGroup) {
     const gs    = getGS('nuclearReactor');
@@ -1545,7 +1771,39 @@ function tick() {
     } else { gs.starved = true; }
   }
 
-  // ── Accumulators ──
+  // Steam engines: only produce what solar+nuclear didn't already cover
+  const engineGroup = groups['steamEngine'];
+  if (engineGroup) {
+    const gs        = getGS('steamEngine');
+    const count     = engineGroup.buildings.length;
+    const maxKw     = count * 900;
+    const shortfall = Math.max(0, totalDemand - state.powerKw);
+    if (!gs.enabled) {
+      gs.starved = false; gs.standby = false;
+    } else if (shortfall === 0) {
+      // Solar/nuclear already meets all demand — engines idle, no steam consumed
+      gs.starved = false; gs.standby = true;
+    } else if (state.steam <= 0) {
+      gs.starved = true; gs.standby = false;
+    } else {
+      gs.standby = false;
+      const fraction      = Math.min(1, shortfall / maxKw);
+      const steamToUse    = fraction * count * 30 * dt;
+      if (state.steam >= steamToUse) {
+        state.steam    -= steamToUse;
+        state.powerKw  += fraction * maxKw;
+      } else {
+        const partFrac  = state.steam / (count * 30 * dt);
+        state.powerKw  += partFrac * maxKw;
+        state.steam     = 0;
+      }
+      gs.starved = false;
+    }
+  } else {
+    // No steam engines — powerKw stays as solar+nuclear
+  }
+
+  // Accumulators: discharge deficit, charge surplus
   const accGroup = groups['accumulator'];
   if (accGroup) {
     const gs = getGS('accumulator');
@@ -1635,6 +1893,18 @@ function tick() {
     if (v > 0) state.seen[k] = true;
   }
 
+  // ── Per-tick gross production / consumption tracking ──
+  // Compare current inventory to the snapshot taken at start of tick.
+  // Positive deltas accumulate as gross production, negative as consumption.
+  if (tickPrevInv) {
+    const allKeys = new Set([...Object.keys(state.inventory), ...Object.keys(tickPrevInv)]);
+    for (const k of allKeys) {
+      const d = (state.inventory[k] ?? 0) - (tickPrevInv[k] ?? 0);
+      if (d > 0) prodAccum[k] = (prodAccum[k] ?? 0) + d;
+      else if (d < 0) consAccum[k] = (consAccum[k] ?? 0) + (-d);
+    }
+  }
+
   // ── Inventory delta tracking ──
   snapshotTimer += dt;
   if (snapshotTimer >= 1.0) {
@@ -1643,12 +1913,27 @@ function tick() {
       state.inventoryDelta = {};
       for (const k of Object.keys(state.inventory))
         state.inventoryDelta[k] = ((snap[k] ?? 0) - (inventorySnapshot[k] ?? 0)) / snapshotTimer;
-      // Collect production history sample
-      if (!state.productionHistory) state.productionHistory = { samples: [] };
-      const sample = {};
-      for (const k of Object.keys(state.inventoryDelta)) sample[k] = state.inventoryDelta[k];
-      state.productionHistory.samples.push(sample);
-      if (state.productionHistory.samples.length > 120) state.productionHistory.samples.shift();
+      // Collect production history samples (net + gross production + gross consumption)
+      if (!state.productionHistory) state.productionHistory = { samples: [], prodSamples: [], consSamples: [] };
+      if (!state.productionHistory.prodSamples) state.productionHistory.prodSamples = [];
+      if (!state.productionHistory.consSamples) state.productionHistory.consSamples = [];
+
+      const netSample  = { ...state.inventoryDelta };
+      const prodSample = {};
+      const consSample = {};
+      for (const k of Object.keys(prodAccum)) prodSample[k] = prodAccum[k] / snapshotTimer;
+      for (const k of Object.keys(consAccum)) consSample[k] = consAccum[k] / snapshotTimer;
+
+      state.productionHistory.samples.push(netSample);
+      state.productionHistory.prodSamples.push(prodSample);
+      state.productionHistory.consSamples.push(consSample);
+      if (state.productionHistory.samples.length     > 120) state.productionHistory.samples.shift();
+      if (state.productionHistory.prodSamples.length > 120) state.productionHistory.prodSamples.shift();
+      if (state.productionHistory.consSamples.length > 120) state.productionHistory.consSamples.shift();
+
+      // Reset gross accumulators for the next window
+      prodAccum = {};
+      consAccum = {};
     }
     inventorySnapshot = snap;
     snapshotTimer = 0;
@@ -1870,8 +2155,12 @@ function changeGroupRecipe(oldKey, recipe, type) {
   renderBuildings();
 }
 
-function setGroupLimit(key, value) {
-  getGS(key).limit = Math.max(0, isNaN(value) ? 50 : value);
+function setGroupLimit(key, rawValue) {
+  const s = String(rawValue).trim().toLowerCase();
+  const v = (s === '' || s === 'inf' || s === 'infinity' || s === '∞')
+    ? Infinity
+    : parseFloat(s);
+  getGS(key).limit = isNaN(v) ? 50 : Math.max(0, v);
 }
 
 // ── Rendering ─────────────────────────────────────────────────
@@ -1921,7 +2210,8 @@ function renderUI() {
   if (active.id === 'tab-script')    renderScript();
   if (active.id === 'tab-settings')  renderSettings();
   if (active.id === 'tab-defense')   renderPerimeter();
-  if (active.id === 'tab-graph')     renderGraph();
+  if (active.id === 'tab-meta')      renderMetaProgression();
+  if (active.id === 'tab-graph')     { renderGraph(); renderGraphLegend(); }
 }
 
 function renderInventory() {
@@ -2506,6 +2796,8 @@ function renderBuildings() {
           'mining:productivity': `Mining Prod Lvl ${(res.miningProdLevel ?? 0) + 1}`,
           'gun:damage':          `Gun Damage Lvl ${(res.gunDamageLevel ?? 0) + 1}`,
           'laser:damage':        `Laser Damage Lvl ${(res.laserDamageLevel ?? 0) + 1}`,
+          'artillery:range':     `Artillery Range Lvl ${(res.artilleryRangeLevel ?? 0) + 1}`,
+          'artillery:damage':    `Artillery Damage Lvl ${(res.artilleryDamageLevel ?? 0) + 1}`,
         };
         techName = nameMap[res.current] ?? res.current;
       } else if (res.current) {
@@ -2539,10 +2831,13 @@ function renderBuildings() {
 
     if (type === 'steamEngine') {
       const pw = Math.floor(state.powerKw).toLocaleString();
+      const steamStatus = !gs.enabled ? 'Disabled'
+                        : gs.standby  ? '☀️ Standby (solar/nuclear priority)'
+                        : gs.starved  ? '♨️ No Steam'
+                                      : `${pw} kW`;
       return buildingCard('⚡', 'Steam Engine', count,
         `${count * 30} steam/sec → ${count * 900} kW max`,
-        !gs.enabled ? 'Disabled' : gs.starved ? '♨️ No Steam' : `${pw} kW`,
-        gs.enabled && state.steam > 0, state.steam / STEAM_MAX, key);
+        steamStatus, gs.enabled && !gs.standby && state.steam > 0, state.steam / STEAM_MAX, key);
     }
 
     if (type === 'radar') {
@@ -2777,8 +3072,9 @@ function buildingCard(icon, name, count, meta, statusTxt, isActive, barFill, key
   const gs      = getGS(key);
   const stClass = isActive ? 'status-ok' : 'status-warn';
   const fillPct = (Math.min(1, Math.max(0, barFill)) * 100).toFixed(1);
+  const limitVal = gs.limit === Infinity ? '∞' : gs.limit;
   const limitRow = showLimit
-    ? `<div class="building-limit-row">Stop if output ≥ <input type="number" class="limit-input" data-limit="${key}" value="${gs.limit}" min="0" max="99999" step="10"></div>`
+    ? `<div class="building-limit-row">Stop if output ≥ <input type="text" class="limit-input" data-limit="${key}" value="${limitVal}" placeholder="∞ = no limit"></div>`
     : '';
 
   let moduleRow = '';
@@ -2945,24 +3241,91 @@ function drawTechLines() {
   if (!svg || !inner) return;
 
   const innerRect = inner.getBoundingClientRect();
-  let paths = '';
 
-  for (const [key, tech] of Object.entries(TECHNOLOGIES)) {
-    const childEl = inner.querySelector(`[data-node-key="${key}"]`);
-    if (!childEl) continue;
-    const childRect = childEl.getBoundingClientRect();
-    const cx = childRect.left - innerRect.left;
-    const cy = childRect.top - innerRect.top + childRect.height / 2;
+  // Collect node positions
+  const pos = {};
+  for (const key of Object.keys(TECHNOLOGIES)) {
+    const el = inner.querySelector(`[data-node-key="${key}"]`);
+    if (!el) continue;
+    const r = el.getBoundingClientRect();
+    pos[key] = {
+      left:   r.left   - innerRect.left,
+      right:  r.right  - innerRect.left,
+      top:    r.top    - innerRect.top,
+      bottom: r.bottom - innerRect.top,
+      cy:     (r.top + r.bottom) / 2 - innerRect.top,
+    };
+  }
 
-    for (const prereq of tech.prereqs) {
-      const parentEl = inner.querySelector(`[data-node-key="${prereq}"]`);
-      if (!parentEl) continue;
-      const parentRect = parentEl.getBoundingClientRect();
-      const px = parentRect.left - innerRect.left + parentRect.width;
-      const py = parentRect.top - innerRect.top + parentRect.height / 2;
-      const dx = Math.max(20, (cx - px) * 0.45);
-      paths += `<path d="M ${px} ${py} C ${px + dx} ${py} ${cx - dx} ${cy} ${cx} ${cy}" fill="none" stroke="#3a3a3a" stroke-width="1.5"/>`;
+  // Build incoming/outgoing edge lists, sorted by the other endpoint's vertical position
+  const incoming = {}; // child -> [parents]  (sorted by parent cy)
+  const outgoing = {}; // parent -> [children] (sorted by child cy)
+  for (const [child, tech] of Object.entries(TECHNOLOGIES)) {
+    if (!pos[child]) continue;
+    const parents = (tech.prereqs ?? []).filter(p => pos[p]);
+    parents.sort((a, b) => pos[a].cy - pos[b].cy);
+    incoming[child] = parents;
+    for (const p of parents) {
+      (outgoing[p] = outgoing[p] ?? []).push(child);
     }
+  }
+  for (const p of Object.keys(outgoing)) outgoing[p].sort((a, b) => pos[a].cy - pos[b].cy);
+
+  // Allocate vertical channels per gap (rounded x-bucket of midpoint)
+  // so lines passing through the same vertical zone don't share an x.
+  const channelsByBucket = {}; // bucketKey -> next slot index
+  function takeChannel(bucketKey) {
+    const i = channelsByBucket[bucketKey] ?? 0;
+    channelsByBucket[bucketKey] = i + 1;
+    return i;
+  }
+
+  let paths = '';
+  for (const [child, parents] of Object.entries(incoming)) {
+    const c  = pos[child];
+    const inN = parents.length;
+    parents.forEach((parent, ci) => {
+      const p  = pos[parent];
+      const out = outgoing[parent];
+      const oi  = out.indexOf(child);
+      const oN  = out.length;
+
+      // Stagger entry/exit ports along each node's vertical edge so multiple
+      // lines from one node don't overlap right at its border.
+      const py = p.top + ((oi + 1) / (oN + 1)) * (p.bottom - p.top);
+      const cy = c.top + ((ci + 1) / (inN + 1)) * (c.bottom - c.top);
+      const px = p.right;
+      const cx = c.left;
+      const gap = Math.max(8, cx - px);
+
+      // Pick a vertical channel x in the gap; bucket nearby midpoints together
+      // so we can spread them out into distinct lanes.
+      const bucketX = Math.round((px + gap / 2) / 24);
+      const slot = takeChannel(bucketX);
+      const lanes = 7;
+      const laneIdx = ((slot % lanes) - Math.floor(lanes / 2));
+      const laneSpacing = Math.min(10, gap / (lanes + 1));
+      const mx = px + gap / 2 + laneIdx * laneSpacing;
+
+      // Orthogonal path with rounded corners: (px,py) → (mx,py) → (mx,cy) → (cx,cy)
+      const dy = cy - py;
+      const sgn = dy >= 0 ? 1 : -1;
+      const r = Math.min(7, Math.abs(mx - px) / 2, Math.abs(cx - mx) / 2, Math.max(1, Math.abs(dy) / 2));
+
+      let d;
+      if (Math.abs(dy) < 1.5) {
+        d = `M ${px} ${py} L ${cx} ${cy}`;
+      } else {
+        d = `M ${px} ${py}` +
+            ` L ${mx - r} ${py}` +
+            ` Q ${mx} ${py} ${mx} ${py + sgn * r}` +
+            ` L ${mx} ${cy - sgn * r}` +
+            ` Q ${mx} ${cy} ${mx + r} ${cy}` +
+            ` L ${cx} ${cy}`;
+      }
+
+      paths += `<path d="${d}" fill="none" stroke="#3a3a3a" stroke-width="1.4" opacity="0.85" stroke-linejoin="round"/>`;
+    });
   }
 
   svg.setAttribute('width', inner.scrollWidth);
@@ -3021,8 +3384,9 @@ function renderResearchStatus() {
     : '—';
 
   const queue = res.queue ?? [];
+  const INF_NAMES = { 'robot:speed': 'Robot Speed', 'robot:cargo': 'Robot Cargo', 'mining:productivity': 'Mining Prod', 'gun:damage': 'Gun Dmg', 'laser:damage': 'Laser Dmg' };
   const queueStr = queue.length
-    ? `<div class="research-queue-line">Queue: ${queue.map(k => TECHNOLOGIES[k]?.name ?? k).join(' → ')}</div>`
+    ? `<div class="research-queue-line">Queue: ${queue.map(k => TECHNOLOGIES[k]?.name ?? INF_NAMES[k] ?? k).join(' → ')}</div>`
     : '';
   el.innerHTML = `<div class="research-active">
     <div class="research-name">${icon} ${name}</div>
@@ -3057,12 +3421,13 @@ function renderRobotTechs() {
   const speedIsCur = cur === 'robot:speed';
   const canResearchSpeed = !cur && labCount > 0;
 
+  const speedIsQueued = (state.research.queue ?? []).includes('robot:speed');
   html += `<div class="robot-tech-group">
     <div class="robot-tech-header">
       <span>Worker Robot Speed</span>
       <span class="robot-tech-badge">Level ${speedLevel}${speedLevel > 0 ? ` · +${(speedLevel * WORKER_SPEED_PER_LEVEL * 100).toFixed(0)}% robot effectiveness` : ''}</span>
     </div>
-    <div class="robot-tech-card ${speedIsCur ? 'rcard-current' : ''}">
+    <div class="robot-tech-card ${speedIsCur ? 'rcard-current' : speedIsQueued ? 'rcard-queued' : ''}">
       <div class="rcard-name">Level ${nextSpeedLvl}</div>
       <div class="rcard-cost">${Object.keys(speedData.cost).map(pk => itemIcon(pk)).join('')} × ${speedData.totalNeeded.toLocaleString()} · ${speedData.timePerPack}s/pack</div>`;
 
@@ -3070,11 +3435,13 @@ function renderRobotTechs() {
     const pct = (state.research.totalConsumed / speedData.totalNeeded * 100).toFixed(1);
     html += `<div class="mini-bar" style="margin:.35rem 0"><div class="mini-fill fill-active" style="width:${pct}%"></div></div>
       <div class="rcard-progress">${state.research.totalConsumed.toLocaleString()} / ${speedData.totalNeeded.toLocaleString()} packs</div>
-      <button class="btn-secondary rcard-btn" onclick="cancelResearch()">Cancel</button>`;
+      <button class="btn-secondary rcard-btn" onclick="startRobotResearch('robot:speed')">Cancel</button>`;
+  } else if (speedIsQueued) {
+    html += `<div class="rcard-hint">Queued</div><button class="btn-secondary rcard-btn" onclick="startRobotResearch('robot:speed')">Dequeue</button>`;
   } else {
-    html += `<button class="btn-primary rcard-btn${canResearchSpeed ? '' : ' cant-afford'}" ${canResearchSpeed ? '' : 'disabled'} onclick="startRobotResearch('robot:speed')">Research</button>`;
+    const speedBtnLabel = cur ? 'Queue' : 'Research';
+    html += `<button class="btn-primary rcard-btn${labCount ? '' : ' cant-afford'}" ${labCount ? '' : 'disabled'} onclick="startRobotResearch('robot:speed')">${speedBtnLabel}</button>`;
     if (!labCount) html += `<div class="rcard-hint">Requires a Lab</div>`;
-    else if (cur) html += `<div class="rcard-hint">Cancel current research first</div>`;
   }
   html += `</div></div>`;
 
@@ -3085,14 +3452,15 @@ function renderRobotTechs() {
       <span class="robot-tech-badge">Level ${cargoLevel}/3${cargoLevel > 0 ? ` · +${(cargoLevel * WORKER_CARGO_PER_LEVEL * 100).toFixed(0)}% robot effectiveness` : ''}</span>
     </div>`;
 
+  const cargoIsQueued = (state.research.queue ?? []).includes('robot:cargo');
   for (let lvl = 1; lvl <= 3; lvl++) {
     const cd = ROBOT_CARGO_TECH_DATA[lvl];
     const done   = cargoLevel >= lvl;
     const isNext = cargoLevel === lvl - 1;
     const isCur  = cur === 'robot:cargo' && isNext;
-    const canRes = isNext && !cur && labCount > 0;
+    const isQ    = cargoIsQueued && isNext;
 
-    html += `<div class="robot-tech-card ${done ? 'rcard-done' : isCur ? 'rcard-current' : ''}">
+    html += `<div class="robot-tech-card ${done ? 'rcard-done' : isCur ? 'rcard-current' : isQ ? 'rcard-queued' : ''}">
       <div class="rcard-name">Level ${lvl}</div>
       <div class="rcard-cost">${Object.keys(cd.cost).map(pk => itemIcon(pk)).join('')} × ${cd.totalNeeded} · ${cd.timePerPack}s/pack</div>`;
 
@@ -3102,11 +3470,13 @@ function renderRobotTechs() {
       const pct = (state.research.totalConsumed / cd.totalNeeded * 100).toFixed(1);
       html += `<div class="mini-bar" style="margin:.35rem 0"><div class="mini-fill fill-active" style="width:${pct}%"></div></div>
         <div class="rcard-progress">${state.research.totalConsumed} / ${cd.totalNeeded} packs</div>
-        <button class="btn-secondary rcard-btn" onclick="cancelResearch()">Cancel</button>`;
+        <button class="btn-secondary rcard-btn" onclick="startRobotResearch('robot:cargo')">Cancel</button>`;
+    } else if (isQ) {
+      html += `<div class="rcard-hint">Queued</div><button class="btn-secondary rcard-btn" onclick="startRobotResearch('robot:cargo')">Dequeue</button>`;
     } else if (isNext) {
-      html += `<button class="btn-primary rcard-btn${canRes ? '' : ' cant-afford'}" ${canRes ? '' : 'disabled'} onclick="startRobotResearch('robot:cargo')">Research</button>`;
+      const cargoBtnLabel = cur ? 'Queue' : 'Research';
+      html += `<button class="btn-primary rcard-btn${labCount ? '' : ' cant-afford'}" ${labCount ? '' : 'disabled'} onclick="startRobotResearch('robot:cargo')">${cargoBtnLabel}</button>`;
       if (!labCount) html += `<div class="rcard-hint">Requires a Lab</div>`;
-      else if (cur) html += `<div class="rcard-hint">Cancel current research first</div>`;
     } else if (!done) {
       html += `<button class="btn-secondary rcard-btn" disabled>Locked</button>`;
     }
@@ -3124,24 +3494,27 @@ function renderRobotTechs() {
     const nextLvl = level + 1;
     const data    = getDataFn(nextLvl);
     const isCur   = cur === techType;
-    const canRes  = !cur && labCount > 0;
+    const isQueued = (state.research.queue ?? []).includes(techType);
     let out = `<div class="robot-tech-group">
       <div class="robot-tech-header">
         <span>${label}</span>
         <span class="robot-tech-badge">Level ${level}${level > 0 ? ' · ' + bonusLabel(level) : ''}</span>
       </div>
-      <div class="robot-tech-card ${isCur ? 'rcard-current' : ''}">
+      <div class="robot-tech-card ${isCur ? 'rcard-current' : isQueued ? 'rcard-queued' : ''}">
         <div class="rcard-name">Level ${nextLvl}</div>
         <div class="rcard-cost">${Object.keys(data.cost).map(pk => itemIcon(pk)).join('')} × ${data.totalNeeded.toLocaleString()} · ${data.timePerPack}s/pack</div>`;
     if (isCur) {
       const pct = (state.research.totalConsumed / data.totalNeeded * 100).toFixed(1);
       out += `<div class="mini-bar" style="margin:.35rem 0"><div class="mini-fill fill-active" style="width:${pct}%"></div></div>
         <div class="rcard-progress">${state.research.totalConsumed.toLocaleString()} / ${data.totalNeeded.toLocaleString()} packs</div>
-        <button class="btn-secondary rcard-btn" onclick="cancelResearch()">Cancel</button>`;
+        <button class="btn-secondary rcard-btn" onclick="startInfiniteTech('${techType}')">Cancel</button>`;
+    } else if (isQueued) {
+      out += `<div class="rcard-hint">Queued</div>
+        <button class="btn-secondary rcard-btn" onclick="startInfiniteTech('${techType}')">Dequeue</button>`;
     } else {
-      out += `<button class="btn-primary rcard-btn${canRes ? '' : ' cant-afford'}" ${canRes ? '' : 'disabled'} onclick="startInfiniteTech('${techType}')">Research</button>`;
+      const btnLabel = cur ? 'Queue' : 'Research';
+      out += `<button class="btn-primary rcard-btn${labCount ? '' : ' cant-afford'}" ${labCount ? '' : 'disabled'} onclick="startInfiniteTech('${techType}')">${btnLabel}</button>`;
       if (!labCount) out += `<div class="rcard-hint">Requires a Lab</div>`;
-      else if (cur) out += `<div class="rcard-hint">Cancel current research first</div>`;
     }
     out += `</div></div>`;
     return out;
@@ -3175,23 +3548,51 @@ function biterInterval() {
 }
 
 function perimeterTiles() {
-  return 4 * (state.perimeter?.sideLength ?? 3);
+  return 4 * (state.perimeter?.sideLength ?? 10);
 }
 
 function perimeterMaxWalls() {
-  return perimeterTiles() * WALLS_PER_TILE;
+  return perimeterTiles() * WALLS_PER_TILE;   // 20 * 4 * sideLength
 }
 
 function perimeterMaxTurrets() {
-  return Math.floor(perimeterTiles() / 2) * TURRETS_PER_2TILES;
+  return perimeterTiles() * TURRETS_PER_TILE; // 5 * 4 * sideLength
 }
 
-function getBiterWaveStats(waveNum) {
-  const w     = waveNum * BITER_RAMP;
-  const count = Math.min(BITER_COUNT_CAP, Math.round(5 + w * 2.6));
-  const hp    = Math.min(BITER_HP_CAP,    Math.round(15 + w * 39.8));
-  const armor = Math.min(BITER_ARMOR_CAP, Math.floor(w * 0.067));
-  const dps   = Math.min(BITER_DPS_CAP,   2 + w * 1.174);
+function perimeterMaxArtillery() {
+  const sl = state.perimeter?.sideLength ?? 10;
+  const rangeLevel = state.perimeter?.artilleryRangeLevel ?? 0;
+  let total = 0;
+  for (let k = 1; k <= rangeLevel + 1; k++) {
+    const ring = sl - k;
+    if (ring <= 0) break;
+    total += 4 * ring;
+  }
+  return total;
+}
+
+// Returns the player's science tier (0–4+) based on highest science pack crafted/researched.
+function getPlayerScienceTier() {
+  const inv  = state.inventory ?? {};
+  const done = state.research?.done ?? {};
+  const has  = key => (inv[key] ?? 0) > 0 || !!done[key];
+  if (has('blueScience'))  return 3;
+  if (has('greenScience')) return 2;
+  if (has('redScience'))   return 1;
+  return 0;
+}
+
+// Returns true if the rainbow science pack has ever been crafted or researched.
+function hasRainbowScience() {
+  return (state.inventory?.rainbowScience ?? 0) > 0 || !!state.research?.done?.['rainbowSciencePack'];
+}
+
+function getBiterWaveStats() {
+  const pts = state.biterThreatPoints ?? 0;
+  const count = Math.min(BITER_COUNT_CAP, Math.round(5 + pts * 0.5));
+  const hp    = Math.min(BITER_HP_CAP,   Math.round(15 + pts * 8));
+  const armor = Math.min(BITER_ARMOR_CAP, Math.floor(pts * 0.01));
+  const dps   = Math.min(BITER_DPS_CAP,  2 + pts * 0.18);
   return { count, hp, armor, dps };
 }
 
@@ -3215,7 +3616,26 @@ function calcDefenseDPS(waveArmor) {
 
 function fightBiterWave() {
   const waveNum = (state.biterWaveNumber ?? 0) + 1;
-  const base    = getBiterWaveStats(waveNum);
+
+  // ── Advance threat points ──────────────────────────────────
+  const rainbow = hasRainbowScience();
+  if (rainbow) {
+    const wavesAfterRainbow = state.biterWavesAfterRainbow ?? 0;
+    const expBase = BITER_POINTS_EXP_BASE_INITIAL + wavesAfterRainbow * BITER_POINTS_EXP_BASE_GROWTH;
+    state.biterThreatPoints = (state.biterThreatPoints ?? 0) * expBase;
+    state.biterWavesAfterRainbow = wavesAfterRainbow + 1;
+  } else {
+    const tier = getPlayerScienceTier();
+    let pointsPerWave;
+    if      (tier <= 1) pointsPerWave = state.settings?.biterPointsPreRed  ?? BITER_POINTS_PRE_RED;
+    else if (tier === 2) pointsPerWave = BITER_POINTS_POST_RED;
+    else if (tier === 3) pointsPerWave = BITER_POINTS_POST_GREEN;
+    else                 pointsPerWave = state.settings?.biterPointsPostBlue ?? BITER_POINTS_POST_BLUE;
+    const cap = state.settings?.biterPointsCap ?? BITER_POINTS_CAP_LINEAR;
+    state.biterThreatPoints = Math.min(cap, (state.biterThreatPoints ?? 0) + pointsPerWave);
+  }
+
+  const base    = getBiterWaveStats();
 
   const actualCount = Math.max(1, base.count + Math.floor((Math.random() - 0.5) * 4));
   const actualHP    = Math.max(5, base.hp    + Math.floor((Math.random() - 0.5) * 10));
@@ -3229,16 +3649,47 @@ function fightBiterWave() {
 
   const { gunDPS, laserDPS, totalDPS } = calcDefenseDPS(actualArmor);
 
-  const ammoStats = GUN_TURRET_STATS[p.ammoType ?? 'firearmMagazine'] ?? GUN_TURRET_STATS.firearmMagazine;
-  let killTime, biterDamageDealt, ammoUsed = 0;
-  if (totalDPS > 0) {
-    killTime          = totalBiterHP / totalDPS;
-    biterDamageDealt  = totalBiterDPS * killTime;
-    ammoUsed          = Math.ceil(p.gunTurrets * ammoStats.ammoCostPerSec * killTime);
+  // ── Wall section model ─────────────────────────────────────
+  const numSections = perimeterTiles();
+  let sectionsAttacked;
+  if (rainbow) {
+    sectionsAttacked = numSections;
   } else {
-    killTime         = null;
-    biterDamageDealt = totalBiterDPS * biterInterval();
+    const tier = getPlayerScienceTier();
+    const pct  = tier <= 1 ? 0.05 : tier === 2 ? 0.10 : 0.15;
+    sectionsAttacked = Math.max(1, Math.round(numSections * pct));
   }
+
+  const sectionWallHP  = totalWallHP  / numSections;
+  const sectionDefDPS  = totalDPS     / numSections;
+  const sectionBiterHP = totalBiterHP / sectionsAttacked;
+  const sectionBiterDPS= totalBiterDPS / sectionsAttacked;
+
+  // Fight each attacked section and accumulate overflow
+  let totalOverflow = 0;
+  let killTime = null;
+  let ammoUsed = 0;
+  const ammoStats = GUN_TURRET_STATS[p.ammoType ?? 'firearmMagazine'] ?? GUN_TURRET_STATS.firearmMagazine;
+
+  for (let s = 0; s < sectionsAttacked; s++) {
+    if (sectionDefDPS > 0) {
+      const kt = sectionBiterHP / sectionDefDPS;
+      if (killTime === null) killTime = kt; // use first section as representative
+      const dmg = sectionBiterDPS * kt;
+      ammoUsed += p.gunTurrets * ammoStats.ammoCostPerSec * kt / sectionsAttacked;
+      if (dmg > sectionWallHP) totalOverflow += dmg - sectionWallHP;
+    } else {
+      // No DPS: biters attack for full interval duration
+      const dmg = sectionBiterDPS * biterInterval();
+      if (dmg > sectionWallHP) totalOverflow += dmg - sectionWallHP;
+    }
+  }
+  ammoUsed = Math.ceil(ammoUsed);
+
+  // Representative damage for display: sum across sections
+  const biterDamageDealt = sectionDefDPS > 0
+    ? sectionBiterDPS * (sectionBiterHP / (sectionDefDPS || 1)) * sectionsAttacked
+    : sectionBiterDPS * biterInterval() * sectionsAttacked;
 
   // Consume ammo
   const ammoType      = p.ammoType ?? 'firearmMagazine';
@@ -3246,14 +3697,50 @@ function fightBiterWave() {
   const actualAmmoUsed= Math.min(ammoUsed, ammoAvail);
   if (actualAmmoUsed > 0) state.inventory[ammoType] -= actualAmmoUsed;
 
+  // ── Artillery fire ────────────────────────────────────────────
+  const artilleryDmgPerPiece = ARTILLERY_BASE_DAMAGE * artilleryDamageMult(p.artilleryDamageLevel ?? 0);
+  const totalArtilleryDmg    = (p.artillery ?? 0) * artilleryDmgPerPiece;
+  if (totalArtilleryDmg > 0) {
+    totalOverflow = Math.max(0, totalOverflow - totalArtilleryDmg);
+  }
+
+  // ── Atomic bomb defense ───────────────────────────────────────
+  p.atomicBombsUsedThisWave = 0;
+  let bombsUsed = 0;
+  const availableBombs = (p.spidertrons ?? 0) * ATOMIC_BOMBS_PER_SPIDER;
+  if (totalOverflow > 0 && availableBombs > 0) {
+    const bombsNeeded = Math.ceil(totalOverflow / ATOMIC_BOMB_DAMAGE);
+    bombsUsed = Math.min(bombsNeeded, availableBombs);
+    totalOverflow = Math.max(0, totalOverflow - bombsUsed * ATOMIC_BOMB_DAMAGE);
+  }
+  p.atomicBombsUsedThisWave = bombsUsed;
+  if (bombsUsed > 0) {
+    p.irradiationLevel = (p.irradiationLevel ?? 0) + bombsUsed;
+  }
+
   // Apply overflow damage to buildings
   let buildingsLost = 0;
-  if (biterDamageDealt > totalWallHP) {
-    const overflow = biterDamageDealt - totalWallHP;
-    buildingsLost  = Math.floor(overflow / BUILDING_TOUGHNESS);
+  if (totalOverflow > 0) {
+    buildingsLost = Math.floor(totalOverflow / BUILDING_TOUGHNESS);
     for (let i = 0; i < buildingsLost && state.buildings.length > 0; i++) {
       state.buildings.pop();
     }
+  }
+
+  // Apply irradiation to threat scaling (add extra threat points)
+  const irradiationBonus = (p.irradiationLevel ?? 0) * IRRADIATION_SCALING_RATE;
+  if (irradiationBonus > 0) {
+    state.biterThreatPoints = (state.biterThreatPoints ?? 0) + irradiationBonus;
+  }
+
+  // ── Meta progression: track kills and award points ───────────
+  if (state.settings?.biters) {
+    const killMult = (bombsUsed > 0) ? 0.01 : 1;
+    const weightedKills = actualCount * killMult;
+    state.bitersKilled = (state.bitersKilled ?? 0) + actualCount;
+    metaState.rawKills = (metaState.rawKills ?? 0) + weightedKills;
+    metaState.totalPoints = Math.log10(1 + metaState.rawKills * 1e-4) * 10;
+    saveMetaState();
   }
 
   state.biterWaveNumber = waveNum;
@@ -3272,6 +3759,11 @@ function fightBiterWave() {
     buildingsLost,
     ammoUsed: actualAmmoUsed,
     ammoType,
+    sectionsAttacked,
+    numSections,
+    artilleryDmg: Math.round(totalArtilleryDmg),
+    bombsUsed,
+    hadAtomicAssist: bombsUsed > 0,
     result: buildingsLost > 0 ? 'buildings_lost' : 'repelled',
   };
 
@@ -3302,6 +3794,17 @@ function addPerimeterDefense(type, amount) {
     if (toAdd <= 0) { notify('Not enough Laser Turrets or perimeter is full', 'warning'); return; }
     state.inventory.laserTurretItem -= toAdd;
     p.laserTurrets += toAdd;
+  } else if (type === 'artillery') {
+    const max   = perimeterMaxArtillery();
+    const toAdd = Math.min(amount, max - (p.artillery ?? 0), state.inventory.artilleryTurretItem ?? 0);
+    if (toAdd <= 0) { notify('Not enough Artillery Turrets or perimeter is full', 'warning'); return; }
+    state.inventory.artilleryTurretItem -= toAdd;
+    p.artillery = (p.artillery ?? 0) + toAdd;
+  } else if (type === 'spidertrons') {
+    const toAdd = Math.min(amount, state.inventory.spidertronItem ?? 0);
+    if (toAdd <= 0) { notify('Not enough Spidertrons in inventory', 'warning'); return; }
+    state.inventory.spidertronItem -= toAdd;
+    p.spidertrons = (p.spidertrons ?? 0) + toAdd;
   }
 }
 
@@ -3319,6 +3822,14 @@ function removePerimeterDefense(type, amount) {
     const n = Math.min(amount, p.laserTurrets);
     p.laserTurrets -= n;
     state.inventory.laserTurretItem = (state.inventory.laserTurretItem ?? 0) + n;
+  } else if (type === 'artillery') {
+    const n = Math.min(amount, p.artillery ?? 0);
+    p.artillery = (p.artillery ?? 0) - n;
+    state.inventory.artilleryTurretItem = (state.inventory.artilleryTurretItem ?? 0) + n;
+  } else if (type === 'spidertrons') {
+    const n = Math.min(amount, p.spidertrons ?? 0);
+    p.spidertrons = (p.spidertrons ?? 0) - n;
+    state.inventory.spidertronItem = (state.inventory.spidertronItem ?? 0) + n;
   }
 }
 
@@ -3362,6 +3873,9 @@ function setPerimeterAmmo(ammoType) {
 function renderPerimeter() {
   const el = document.getElementById('perimeter-content');
   if (!el) return;
+  // Don't re-render while user is interacting with the ammo dropdown
+  const focused = document.activeElement;
+  if (focused && focused.closest('#perimeter-content') && focused.classList.contains('perimeter-select')) return;
 
   if (!state.settings.biters) {
     el.innerHTML = '<p class="empty-msg">Biters are disabled. Enable them in New Game settings.</p>';
@@ -3373,7 +3887,7 @@ function renderPerimeter() {
   const maxWalls  = perimeterMaxWalls();
   const maxTurrets= perimeterMaxTurrets();
   const nextWave  = state.biterWaveNumber + 1;
-  const base      = getBiterWaveStats(nextWave);
+  const base      = getBiterWaveStats();
   const interval  = biterInterval();
   const timeLeft  = state.biterTimer < 0
     ? `Grace: ${Math.ceil(-state.biterTimer)}s`
@@ -3385,9 +3899,42 @@ function renderPerimeter() {
   const totalWallHP = p.walls * WALL_HP;
   const nextBiterHP = base.count * base.hp;
   const nextBiterDPS= base.count * base.dps;
-  let previewKillTime  = totalDPS > 0 ? (nextBiterHP / totalDPS).toFixed(1) : '∞';
-  let previewDamage    = totalDPS > 0 ? (nextBiterDPS * (nextBiterHP / totalDPS)).toFixed(0) : (nextBiterDPS * interval).toFixed(0);
-  const previewSurvive = totalDPS > 0 ? (parseFloat(previewDamage) <= totalWallHP ? '✅ Walls hold' : `⚠ ${Math.floor((parseFloat(previewDamage) - totalWallHP) / BUILDING_TOUGHNESS)} building(s) at risk`) : (parseFloat(previewDamage) <= totalWallHP ? '⚠ Walls may hold' : `❌ ${Math.floor((parseFloat(previewDamage) - totalWallHP) / BUILDING_TOUGHNESS)} building(s) at risk`);
+
+  // Section-based preview
+  const numSections = perimeterTiles();
+  const rainbowActive = hasRainbowScience();
+  let previewSectionsAttacked;
+  if (rainbowActive) {
+    previewSectionsAttacked = numSections;
+  } else {
+    const tier = getPlayerScienceTier();
+    const pct  = tier <= 1 ? 0.05 : tier === 2 ? 0.10 : 0.15;
+    previewSectionsAttacked = Math.max(1, Math.round(numSections * pct));
+  }
+  const previewSectionWallHP  = numSections > 0 ? totalWallHP  / numSections : 0;
+  const previewSectionDefDPS  = numSections > 0 ? totalDPS     / numSections : 0;
+  const previewSectionBiterHP = nextBiterHP / previewSectionsAttacked;
+  const previewSectionBiterDPS= nextBiterDPS / previewSectionsAttacked;
+
+  let previewKillTime  = previewSectionDefDPS > 0 ? (previewSectionBiterHP / previewSectionDefDPS).toFixed(1) : '∞';
+  let previewDamage    = previewSectionDefDPS > 0
+    ? (previewSectionBiterDPS * (previewSectionBiterHP / previewSectionDefDPS) * previewSectionsAttacked).toFixed(0)
+    : (previewSectionBiterDPS * interval * previewSectionsAttacked).toFixed(0);
+
+  // Compute total overflow for outcome
+  let previewOverflow = 0;
+  for (let s = 0; s < previewSectionsAttacked; s++) {
+    const dmg = previewSectionDefDPS > 0
+      ? previewSectionBiterDPS * (previewSectionBiterHP / previewSectionDefDPS)
+      : previewSectionBiterDPS * interval;
+    if (dmg > previewSectionWallHP) previewOverflow += dmg - previewSectionWallHP;
+  }
+  const previewBuildingsAtRisk = Math.floor(previewOverflow / BUILDING_TOUGHNESS);
+  const previewSurvive = previewOverflow <= 0
+    ? '✅ Walls hold'
+    : (totalDPS <= 0
+      ? `❌ ${previewBuildingsAtRisk} building(s) at risk`
+      : `⚠ ${previewBuildingsAtRisk} building(s) at risk`);
 
   const ammoOptions = [
     { key: 'firearmMagazine',   label: 'Firearm Magazine',          dps: GUN_DPS_BASIC    },
@@ -3401,6 +3948,16 @@ function renderPerimeter() {
   const armMult = gunStats?.armorMult ?? 1.0;
 
   const lastWave = state.lastBiterWave;
+
+  // Artillery computed values
+  const maxArtillery     = perimeterMaxArtillery();
+  const artRangeLevel    = p.artilleryRangeLevel ?? 0;
+  const artDmgLevel      = p.artilleryDamageLevel ?? 0;
+  const artDmgPerPiece   = ARTILLERY_BASE_DAMAGE * artilleryDamageMult(artDmgLevel);
+  const artTotalDmg      = (p.artillery ?? 0) * artDmgPerPiece;
+
+  // Spidertron computed values
+  const availBombs       = (p.spidertrons ?? 0) * ATOMIC_BOMBS_PER_SPIDER;
 
   const concreteCost = p.sideLength * 10;
   const newSL   = p.sideLength + 1;
@@ -3451,7 +4008,7 @@ function renderPerimeter() {
   <div class="perimeter-card">
     <div class="perimeter-card-title">🗼 Gun Turrets</div>
     <div class="perimeter-stat-row">
-      <span>Placed</span><strong>${p.gunTurrets} / ${maxTurrets - p.laserTurrets}</strong>
+      <span>Placed</span><strong>${p.gunTurrets} (${maxTurrets - p.gunTurrets - p.laserTurrets} remaining in shared pool)</strong>
     </div>
     <div class="perimeter-stat-row">
       <span>Shots/sec</span><strong>${sps}</strong>
@@ -3485,7 +4042,7 @@ function renderPerimeter() {
   <div class="perimeter-card">
     <div class="perimeter-card-title">⚡ Laser Turrets</div>
     <div class="perimeter-stat-row">
-      <span>Placed</span><strong>${p.laserTurrets} / ${maxTurrets - p.gunTurrets}</strong>
+      <span>Placed</span><strong>${p.laserTurrets} (${maxTurrets - p.gunTurrets - p.laserTurrets} remaining in shared pool)</strong>
     </div>
     <div class="perimeter-stat-row">
       <span>Damage type</span><strong>Continuous beam (ignores armor)</strong>
@@ -3502,6 +4059,63 @@ function renderPerimeter() {
       <button class="btn-sm btn-danger-sm" onclick="removePerimeterDefense('laserTurrets',1)">−1</button>
       <button class="btn-sm btn-danger-sm" onclick="removePerimeterDefense('laserTurrets',5)">−5</button>
     </div>
+  </div>
+
+  <div class="perimeter-card">
+    <div class="perimeter-card-title">💣 Artillery Turrets</div>
+    <div class="perimeter-stat-row">
+      <span>Placed / Max</span><strong>${p.artillery ?? 0} / ${maxArtillery}</strong>
+    </div>
+    <div class="perimeter-stat-row">
+      <span>Dmg per piece</span><strong>${artDmgPerPiece.toLocaleString()}</strong>
+    </div>
+    <div class="perimeter-stat-row">
+      <span>Total artillery dmg</span><strong>${artTotalDmg.toLocaleString()}</strong>
+    </div>
+    <div class="perimeter-stat-row">
+      <span>Range level</span><strong>${artRangeLevel}</strong>
+    </div>
+    <div class="perimeter-stat-row">
+      <span>Damage level</span><strong>${artDmgLevel} (+${Math.round((artilleryDamageMult(artDmgLevel) - 1) * 100)}%)</strong>
+    </div>
+    <div class="perimeter-stat-row">
+      <span>In inventory</span><strong>${Math.floor(state.inventory.artilleryTurretItem ?? 0)}</strong>
+    </div>
+    <div class="perimeter-btn-row">
+      <button class="btn-sm" onclick="addPerimeterDefense('artillery',1)">+1</button>
+      <button class="btn-sm" onclick="addPerimeterDefense('artillery',5)">+5</button>
+      <button class="btn-sm btn-danger-sm" onclick="removePerimeterDefense('artillery',1)">−1</button>
+      <button class="btn-sm btn-danger-sm" onclick="removePerimeterDefense('artillery',5)">−5</button>
+    </div>
+    <div style="margin-top:.5rem;font-size:.8rem;color:var(--text-muted)">
+      Research: Artillery Range Lvl ${artRangeLevel + 1} · Artillery Damage Lvl ${artDmgLevel + 1}
+    </div>
+  </div>
+
+  <div class="perimeter-card">
+    <div class="perimeter-card-title">🕷️ Spidertrons</div>
+    <div class="perimeter-stat-row">
+      <span>Deployed</span><strong>${p.spidertrons ?? 0}</strong>
+    </div>
+    <div class="perimeter-stat-row">
+      <span>Bombs available</span><strong>${availBombs} (${ATOMIC_BOMBS_PER_SPIDER}/spidertron)</strong>
+    </div>
+    <div class="perimeter-stat-row">
+      <span>Bomb damage each</span><strong>${ATOMIC_BOMB_DAMAGE.toExponential(0)}</strong>
+    </div>
+    <div class="perimeter-stat-row">
+      <span>Irradiation level</span><strong>${p.irradiationLevel ?? 0} (+${((p.irradiationLevel ?? 0) * IRRADIATION_SCALING_RATE).toFixed(3)} threat/wave)</strong>
+    </div>
+    <div class="perimeter-stat-row">
+      <span>In inventory</span><strong>${Math.floor(state.inventory.spidertronItem ?? 0)}</strong>
+    </div>
+    <div class="perimeter-btn-row">
+      <button class="btn-sm" onclick="addPerimeterDefense('spidertrons',1)">+1</button>
+      <button class="btn-sm" onclick="addPerimeterDefense('spidertrons',5)">+5</button>
+      <button class="btn-sm btn-danger-sm" onclick="removePerimeterDefense('spidertrons',1)">−1</button>
+      <button class="btn-sm btn-danger-sm" onclick="removePerimeterDefense('spidertrons',5)">−5</button>
+    </div>
+    ${lastWave?.bombsUsed > 0 ? `<div class="perimeter-stat-row" style="margin-top:.5rem"><span>Last wave bombs used</span><strong>${lastWave.bombsUsed}</strong></div>` : ''}
   </div>
 
   <div class="perimeter-card perimeter-card-wide">
@@ -3525,15 +4139,27 @@ function renderPerimeter() {
       </div>
     </div>
     <div class="perimeter-stat-row" style="margin-top:.5rem">
+      <span>Threat level</span><strong>${(state.biterThreatPoints ?? 0).toFixed(1)} pts${rainbowActive ? ' (exponential — rainbow active)' : ''}</strong>
+    </div>
+    <div class="perimeter-stat-row">
+      <span>Sections attacked</span><strong>${previewSectionsAttacked} / ${numSections} wall sections${rainbowActive ? ' (all — rainbow)' : ''}</strong>
+    </div>
+    <div class="perimeter-stat-row">
+      <span>HP per attacked section</span><strong>~${Math.round(previewSectionBiterHP).toLocaleString()}</strong>
+    </div>
+    <div class="perimeter-stat-row">
+      <span>Defense DPS per section</span><strong>${previewSectionDefDPS.toFixed(1)}</strong>
+    </div>
+    <div class="perimeter-stat-row">
       <span>Est. biter HP pool</span><strong>~${nextBiterHP.toLocaleString()}</strong>
     </div>
     <div class="perimeter-stat-row">
-      <span>Est. kill time</span><strong>${previewKillTime}s</strong>
+      <span>Est. kill time (per section)</span><strong>${previewKillTime}s</strong>
     </div>
     <div class="perimeter-stat-row">
-      <span>Est. biter damage</span><strong>~${parseFloat(previewDamage).toLocaleString()} · Wall HP: ${totalWallHP.toLocaleString()}</strong>
+      <span>Est. total biter damage</span><strong>~${parseFloat(previewDamage).toLocaleString()} · Wall HP: ${totalWallHP.toLocaleString()}</strong>
     </div>
-    <div class="perimeter-outcome ${parseFloat(previewDamage) > totalWallHP && totalDPS <= 0 ? 'perimeter-outcome-danger' : parseFloat(previewDamage) > totalWallHP ? 'perimeter-outcome-warn' : 'perimeter-outcome-ok'}">${previewSurvive}</div>
+    <div class="perimeter-outcome ${previewOverflow > 0 && totalDPS <= 0 ? 'perimeter-outcome-danger' : previewOverflow > 0 ? 'perimeter-outcome-warn' : 'perimeter-outcome-ok'}">${previewSurvive}</div>
   </div>
 
   ${lastWave ? `
@@ -3565,6 +4191,8 @@ function renderPerimeter() {
     <div class="perimeter-stat-row">
       <span>Ammo consumed</span><strong>${lastWave.ammoUsed} × ${ITEMS[lastWave.ammoType]?.name ?? lastWave.ammoType}</strong>
     </div>
+    ${(lastWave.artilleryDmg ?? 0) > 0 ? `<div class="perimeter-stat-row"><span>Artillery damage</span><strong>${lastWave.artilleryDmg.toLocaleString()}</strong></div>` : ''}
+    ${(lastWave.bombsUsed ?? 0) > 0 ? `<div class="perimeter-stat-row"><span>Atomic bombs used</span><strong>${lastWave.bombsUsed}</strong></div>` : ''}
   </div>` : ''}
 
 </div>`;
@@ -3636,11 +4264,54 @@ function renderStarredBar() {
   el.innerHTML = html;
 }
 
+function setGraphMode(mode) {
+  graphMode = mode;
+  document.querySelectorAll('.graph-tab').forEach(t => {
+    t.classList.toggle('graph-tab-active', t.dataset.gmode === mode);
+  });
+  renderGraph();
+  renderGraphLegend();
+}
+
+function renderGraphLegend() {
+  const host = document.getElementById('graph-legend');
+  if (!host) return;
+  const starred = state.starredItems ?? [];
+  if (starred.length === 0) { host.innerHTML = ''; return; }
+
+  // Compute "current value" for each starred item from latest sample of selected mode.
+  const ph = state.productionHistory ?? {};
+  const samples =
+      graphMode === 'production'  ? (ph.prodSamples ?? [])
+    : graphMode === 'consumption' ? (ph.consSamples ?? [])
+    :                                (ph.samples     ?? []);
+  const last = samples[samples.length - 1] ?? {};
+
+  const COLORS = ['#f4a83a','#4caf50','#3a8fd6','#e04040','#9c27b0','#00bcd4','#ff7043','#8bc34a','#cddc39','#ff5252','#7e57c2','#26a69a'];
+  const rows = starred.map((k, ci) => {
+    const color = COLORS[ci % COLORS.length];
+    const name  = ITEMS[k]?.name ?? k;
+    const rate  = last[k] ?? 0;
+    const sign  = graphMode === 'net' ? (rate >= 0 ? '+' : '') : '';
+    return `<div class="graph-legend-row" title="${name}">
+      <span class="graph-legend-swatch" style="background:${color}"></span>
+      <span class="graph-legend-icon">${itemIcon(k)}</span>
+      <span class="graph-legend-name">${name}</span>
+      <span class="graph-legend-rate">${sign}${rate.toFixed(2)}/s</span>
+    </div>`;
+  }).join('');
+  host.innerHTML = rows;
+}
+
 function renderGraph() {
   const canvas = document.getElementById('graph-canvas');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
-  const samples = state.productionHistory?.samples ?? [];
+  const ph = state.productionHistory ?? {};
+  const samples =
+      graphMode === 'production'  ? (ph.prodSamples ?? [])
+    : graphMode === 'consumption' ? (ph.consSamples ?? [])
+    :                                (ph.samples     ?? []);
   const starred = state.starredItems ?? [];
 
   const W = canvas.width  = canvas.offsetWidth  || 800;
@@ -3662,8 +4333,8 @@ function renderGraph() {
     return;
   }
 
-  const COLORS = ['#f4a83a','#4caf50','#3a8fd6','#e04040','#9c27b0','#00bcd4','#ff7043','#8bc34a'];
-  const pad = { top: 20, bottom: 42, left: 54, right: 10 };
+  const COLORS = ['#f4a83a','#4caf50','#3a8fd6','#e04040','#9c27b0','#00bcd4','#ff7043','#8bc34a','#cddc39','#ff5252','#7e57c2','#26a69a'];
+  const pad = { top: 14, bottom: 22, left: 54, right: 10 };
   const plotW = W - pad.left - pad.right;
   const plotH = H - pad.top - pad.bottom;
 
@@ -3675,10 +4346,12 @@ function renderGraph() {
       if (v > maxVal) maxVal = v;
     }
   }
+  // Production / consumption are non-negative; pin baseline at 0.
+  if (graphMode === 'production' || graphMode === 'consumption') minVal = 0;
   if (maxVal === minVal) maxVal = minVal + 1;
 
   const scaleY = v => pad.top + plotH - ((v - minVal) / (maxVal - minVal)) * plotH;
-  const scaleX = i => pad.left + (i / (samples.length - 1)) * plotW;
+  const scaleX = i => pad.left + (i / Math.max(1, samples.length - 1)) * plotW;
 
   // Grid
   ctx.strokeStyle = '#2e3847';
@@ -3711,18 +4384,6 @@ function renderGraph() {
       i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
     }
     ctx.stroke();
-  });
-
-  // Legend
-  ctx.textAlign = 'left';
-  starred.forEach((k, ci) => {
-    const legendX = pad.left + (ci % 4) * (plotW / Math.min(4, starred.length));
-    const legendY = H - pad.bottom + 18;
-    ctx.fillStyle = COLORS[ci % COLORS.length];
-    ctx.fillRect(legendX, legendY - 6, 14, 3);
-    ctx.fillStyle = '#c8cdd6';
-    ctx.font = '11px sans-serif';
-    ctx.fillText(ITEMS[k]?.name ?? k, legendX + 18, legendY);
   });
 }
 
@@ -3836,7 +4497,11 @@ function startNewGame() {
   const graceMins = parseFloat(document.getElementById('grace-period-input')?.value ?? '7') || 0;
   const biterGracePeriod = Math.round(Math.max(0, graceMins) * 60);
   const biterIntervalSecs = parseInt(document.getElementById('wave-interval-select')?.value ?? '120', 10) || 120;
-  state = createState({ density: selectedDensity, biters, biterGracePeriod, biterIntervalSecs });
+  const biterPointsPreRed  = parseFloat(document.getElementById('biter-points-pre-red-input')?.value  ?? String(BITER_POINTS_PRE_RED))  || BITER_POINTS_PRE_RED;
+  const biterPointsPostBlue= parseFloat(document.getElementById('biter-points-post-blue-input')?.value ?? String(BITER_POINTS_POST_BLUE)) || BITER_POINTS_POST_BLUE;
+  const biterPointsCap     = parseFloat(document.getElementById('biter-points-cap-input')?.value      ?? String(BITER_POINTS_CAP_LINEAR)) || BITER_POINTS_CAP_LINEAR;
+  const metaProgEnabled    = document.getElementById('meta-prog-toggle')?.checked ?? false;
+  state = createState({ density: selectedDensity, biters, biterGracePeriod, biterIntervalSecs, biterPointsPreRed, biterPointsPostBlue, biterPointsCap, metaProgEnabled });
   placeQueue = []; placing = false; currentPlacing = null;
   currentSaveFile = null;
   _pendingScriptRestore = null;
@@ -3856,6 +4521,7 @@ function showGame() {
   lastStarredBarHtml = '';
   lastRobotTechHtml  = '';
   lastPerimeterHtml  = '';
+  lastMetaHtml       = '';
   const searchEl = document.getElementById('buildings-search');
   if (searchEl) searchEl.value = '';
   setupEventDelegation();
@@ -4028,7 +4694,201 @@ function notify(msg, type = 'info', opts = {}) {
 
 // ── Init ──────────────────────────────────────────────────────
 
+// ── Meta Progression Tab ──────────────────────────────────────
+
+const META_UPGRADEABLE_TYPES = [
+  'electricMiner', 'lab', 'furnace', 'steelFurnace', 'electricFurnace',
+  'assembly', 'assembly2', 'assembly3',
+  'boiler', 'pumpjack', 'oilRefinery', 'chemicalPlant',
+  'centrifuge', 'rocketSilo',
+];
+
+const META_TYPE_NAMES = {
+  electricMiner: 'Electric Miner',
+  lab: 'Lab',
+  furnace: 'Stone Furnace',
+  steelFurnace: 'Steel Furnace',
+  electricFurnace: 'Electric Furnace',
+  assembly: 'Assembly Mk1',
+  assembly2: 'Assembly Mk2',
+  assembly3: 'Assembly Mk3',
+  boiler: 'Boiler',
+  pumpjack: 'Pumpjack',
+  oilRefinery: 'Oil Refinery',
+  chemicalPlant: 'Chemical Plant',
+  centrifuge: 'Centrifuge',
+  rocketSilo: 'Rocket Silo',
+};
+
+function setMetaSubTab(tab) {
+  metaSubTab = tab;
+  lastMetaHtml = '';
+  renderMetaProgression();
+}
+
+function metaUpgradeCost(currentLevel) {
+  return currentLevel === 0 ? 2 : 5;
+}
+
+function buyMetaBuildingUpgrade(type) {
+  const current = metaState.buildingUpgrades[type] ?? 0;
+  if (current >= 2) return;
+  const cost = metaUpgradeCost(current);
+  if (metaState.totalPoints < cost) { notify('Not enough meta points.', 'warning'); return; }
+  metaState.totalPoints -= cost;
+  metaState.buildingUpgrades[type] = current + 1;
+  saveMetaState();
+  lastMetaHtml = '';
+}
+
+function buyMetaPerk(perkKey) {
+  if (perkKey === 'quickStart') {
+    if (metaState.perks.quickStart) return;
+    const cost = 10;
+    if (metaState.totalPoints < cost) { notify('Not enough meta points.', 'warning'); return; }
+    metaState.totalPoints -= cost;
+    metaState.perks.quickStart = true;
+    saveMetaState();
+    lastMetaHtml = '';
+  }
+}
+
+function investGamerModule(type) {
+  const costMap = { speedPoints: 3, prodPoints: 5 };
+  const cost = costMap[type];
+  if (!cost) return;
+  if (metaState.totalPoints < cost) { notify('Not enough meta points.', 'warning'); return; }
+  metaState.totalPoints -= cost;
+  metaState.gamerModule[type] = (metaState.gamerModule[type] ?? 0) + 1;
+  saveMetaState();
+  lastMetaHtml = '';
+}
+
+function renderMetaProgression() {
+  const el = document.getElementById('meta-content');
+  if (!el) return;
+
+  const pts = metaState.totalPoints.toFixed(2);
+  const rawKills = Math.floor(metaState.rawKills).toLocaleString();
+  const metaEnabled = state?.settings?.metaProgEnabled ?? false;
+  const tabs = ['buildings', 'perks', 'gamerModule'];
+  const tabLabels = { buildings: 'Building Upgrades', perks: 'Skill Tree', gamerModule: 'Gamer Module' };
+
+  const subTabNav = tabs.map(t =>
+    `<button class="tab-btn${metaSubTab === t ? ' active' : ''}" onclick="setMetaSubTab('${t}')" style="margin:0 2px 6px">${tabLabels[t]}</button>`
+  ).join('');
+
+  let body = '';
+
+  if (metaSubTab === 'buildings') {
+    const rows = META_UPGRADEABLE_TYPES.map(type => {
+      const level = metaState.buildingUpgrades[type] ?? 0;
+      const cost  = metaUpgradeCost(level);
+      const maxed = level >= 2;
+      const canAffordUpg = metaState.totalPoints >= cost;
+      const btnDisabled  = maxed || !canAffordUpg;
+      const speedPct = (level * 25);
+      const energyPct = (level * 25);
+      return `<div class="stat-row">
+        <span class="stat-label">${META_TYPE_NAMES[type] ?? type}</span>
+        <span class="stat-value">Lv ${level}/2 (+${speedPct}% speed, -${energyPct}% energy)</span>
+        <button class="btn-sm" onclick="buyMetaBuildingUpgrade('${type}')" ${btnDisabled ? 'disabled' : ''}>
+          ${maxed ? 'Maxed' : `Upgrade (${cost} pts)`}
+        </button>
+      </div>`;
+    }).join('');
+    body = rows;
+  } else if (metaSubTab === 'perks') {
+    const purchased = metaState.perks.quickStart;
+    const cost = 10;
+    const canAff = metaState.totalPoints >= cost;
+    body = `<div class="stat-row">
+      <span class="stat-label">Quick Start</span>
+      <span class="stat-value">${purchased ? '✓ Purchased' : `Cost: ${cost} pts`}</span>
+    </div>
+    <div style="margin:0 0 8px;color:var(--text-muted);font-size:0.85em">
+      Start new games with: 1 extra lab, 1 boiler, 1 steam engine, 5 coal miners,
+      5 iron miners + furnaces, 5 copper miners + furnaces. Requires Meta Progression enabled on new game.
+    </div>
+    <button class="btn-sm" onclick="buyMetaPerk('quickStart')" ${purchased || !canAff ? 'disabled' : ''}>
+      ${purchased ? 'Purchased' : `Buy (${cost} pts)`}
+    </button>`;
+  } else if (metaSubTab === 'gamerModule') {
+    const spd = metaState.gamerModule.speedPoints ?? 0;
+    const prd = metaState.gamerModule.prodPoints ?? 0;
+    const spdPct = (getGamerModuleSpeedBonus() * 100).toFixed(0);
+    const prdPct = (getGamerModuleProdBonus()  * 100).toFixed(0);
+    body = `
+      <div class="stat-row"><span class="stat-label">Speed Points</span><span class="stat-value">${spd} (+${spdPct}% speed per slot)</span></div>
+      <div class="stat-row"><span class="stat-label">Prod Points</span><span class="stat-value">${prd} (+${prdPct}% prod per slot)</span></div>
+      <div style="margin:8px 0;display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn-sm" onclick="investGamerModule('speedPoints')" ${metaState.totalPoints < 3 ? 'disabled' : ''}>
+          +1 Speed Point (3 pts)
+        </button>
+        <button class="btn-sm" onclick="investGamerModule('prodPoints')" ${metaState.totalPoints < 5 ? 'disabled' : ''}>
+          +1 Prod Point (5 pts)
+        </button>
+      </div>
+      <p style="font-size:0.82em;color:var(--text-muted)">
+        Gamer Modules are craftable items that can be slotted into buildings. Each slot adds the above bonuses per slot invested.
+      </p>`;
+  }
+
+  const metaNote = metaEnabled
+    ? ''
+    : '<p style="color:var(--warn-text,#f59e0b);font-size:0.85em;margin-top:8px">⚠ Meta Progression is not enabled on the current save. Enable it when starting a new game to apply bonuses.</p>';
+
+  const html = `
+    <div class="card" style="margin-bottom:8px">
+      <div class="stat-row"><span class="stat-label">Meta Points</span><span class="stat-value" style="font-weight:700;color:var(--accent)">${pts}</span></div>
+      <div class="stat-row"><span class="stat-label">Lifetime Biters Killed</span><span class="stat-value">${rawKills}</span></div>
+      ${metaNote}
+    </div>
+    <div style="margin-bottom:8px">${subTabNav}</div>
+    <div class="card">${body}</div>
+  `;
+
+  if (html === lastMetaHtml) return;
+  lastMetaHtml = html;
+  el.innerHTML = html;
+}
+
+// ── Start-screen meta panel ───────────────────────────────────
+
+function toggleStartMetaPanel() {
+  const panel = document.getElementById('start-meta-panel');
+  if (!panel) return;
+  panel.classList.toggle('hidden');
+  if (!panel.classList.contains('hidden')) renderStartMetaPanel();
+}
+
+function renderStartMetaPanel() {
+  const panel = document.getElementById('start-meta-panel');
+  if (!panel) return;
+  const pts = metaState.totalPoints.toFixed(2);
+  const rawKills = Math.floor(metaState.rawKills).toLocaleString();
+  const upgrades = META_UPGRADEABLE_TYPES
+    .filter(t => (metaState.buildingUpgrades[t] ?? 0) > 0)
+    .map(t => `${META_TYPE_NAMES[t] ?? t} Lv${metaState.buildingUpgrades[t]}`)
+    .join(', ') || 'None';
+  panel.innerHTML = `
+    <div class="card" style="max-width:480px;margin:0 auto">
+      <h3 style="margin:0 0 8px">Meta Progression</h3>
+      <div class="stat-row"><span class="stat-label">Meta Points</span><span class="stat-value">${pts}</span></div>
+      <div class="stat-row"><span class="stat-label">Lifetime Kills</span><span class="stat-value">${rawKills}</span></div>
+      <div class="stat-row"><span class="stat-label">Quick Start</span><span class="stat-value">${metaState.perks.quickStart ? '✓ Purchased' : 'Not purchased'}</span></div>
+      <div class="stat-row"><span class="stat-label">Building Upgrades</span><span class="stat-value">${upgrades}</span></div>
+      <div class="stat-row"><span class="stat-label">Gamer Spd Pts</span><span class="stat-value">${metaState.gamerModule.speedPoints}</span></div>
+      <div class="stat-row"><span class="stat-label">Gamer Prod Pts</span><span class="stat-value">${metaState.gamerModule.prodPoints}</span></div>
+      <p style="font-size:0.82em;color:var(--text-muted);margin-top:8px">
+        Points are earned by defeating biter waves. Open the in-game Meta tab to spend points.
+      </p>
+    </div>
+  `;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+  loadMetaState();
   document.querySelectorAll('.density-btn').forEach(btn =>
     btn.addEventListener('click', () => {
       document.querySelectorAll('.density-btn').forEach(b => b.classList.remove('active'));

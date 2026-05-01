@@ -549,14 +549,14 @@ function buildScriptContext() {
   // ── Biters / perimeter
   ctx.BITER_WAVE  = state.biterWaveNumber ?? 0;
   ctx.BITER_TIMER = state.biterTimer      ?? 0;
-  const pSide = p.sideLength ?? 3;
+  const pSide = p.sideLength ?? 10;
   ctx.PERIMETER_SIDE          = pSide;
   ctx.PERIMETER_WALLS         = p.walls          ?? 0;
   ctx.PERIMETER_GUN_TURRETS   = p.gunTurrets      ?? 0;
   ctx.PERIMETER_LASER_TURRETS = p.laserTurrets    ?? 0;
   ctx.PERIMETER_TILES         = 4 * pSide;
   ctx.PERIMETER_MAX_WALLS     = 4 * pSide * WALLS_PER_TILE;
-  ctx.PERIMETER_MAX_TURRETS   = Math.floor(4 * pSide / 2) * TURRETS_PER_2TILES;
+  ctx.PERIMETER_MAX_TURRETS   = 4 * pSide * TURRETS_PER_TILE;
 
   // ── Research levels
   ctx.ROBOT_SPEED_LEVEL  = research.robotSpeedLevel  ?? 0;
@@ -568,7 +568,7 @@ function buildScriptContext() {
   // ── Queue variables
   const cq = state.craftQueue ?? [];
   const ca = state.craftActive;
-  ctx.Q_len    = cq.length + (ca ? 1 : 0);
+  ctx.Q_len    = pq.length;
   ctx.Q_miners = pq.filter(b => b.type === 'miner' || b.type === 'electricMiner').length;
 
   // ── Persistent script memory (MEM_*)

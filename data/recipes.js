@@ -67,6 +67,7 @@ const ITEMS = {
   purpleScience:        { name: 'Production Science Pack',  icon: '🟣' },
   yellowScience:        { name: 'Utility Science Pack',     icon: '🟡' },
   spaceScience:         { name: 'Space Science Pack',       icon: '🤍' },
+  rainbowScience:       { name: 'Rainbow Science Pack',     icon: '🌈' },
 
   // Modules
   speedModule:          { name: 'Speed Module',             icon: '💨' },
@@ -78,6 +79,7 @@ const ITEMS = {
   productivityModule:   { name: 'Productivity Module',      icon: '📈' },
   productivityModule2:  { name: 'Productivity Module 2',    icon: '📈' },
   productivityModule3:  { name: 'Productivity Module 3',    icon: '📈' },
+  gamerModule:          { name: 'Gamer Module',             icon: '🎮' },
 
   // ── Logistics items ───────────────────────────────────────────
   //storageTank:          { name: 'Storage Tank',             icon: '🫗' },
@@ -164,6 +166,7 @@ const ITEMS = {
   laserTurretItem:      { name: 'Laser Turret',             icon: '⚡' },
   flamethrowerTurretItem: { name: 'Flamethrower Turret',   icon: '🔥' },
   artilleryTurretItem:  { name: 'Artillery Turret',         icon: '💣' },
+  spidertronItem:       { name: 'Spidertron',               icon: '🕷️' },
   stoneWall:            { name: 'Stone Wall',               icon: '🧱' },
   //gate:                 { name: 'Gate',                     icon: '🚪' },
 };
@@ -200,6 +203,7 @@ const PLAYER_RECIPES = {
   purpleScience:        { name: 'Production Science Pack',  inputs: { electricFurnaceItem: 1, productivityModule: 1, rail: 30 }, outputs: { purpleScience: 3 },    time: 21.0 },
   yellowScience:        { name: 'Utility Science Pack',     inputs: { processingUnit: 2, flyingRobotFrame: 1, lowDensityStructure: 3 }, outputs: { yellowScience: 3 }, time: 21.0 },
   spaceScience:         { name: 'Space Science Pack',       inputs: { lowDensityStructure: 1000, processingUnit: 1000, rocketFuel: 1000, satellite: 1 }, outputs: { spaceScience: 1000 }, time: 329.0, machinery: 'rocket_silo' },
+  rainbowScience:       { name: 'Rainbow Science Pack',     inputs: { redScience: 1, greenScience: 1, blueScience: 1, blackScience: 1, purpleScience: 1, yellowScience: 1, spaceScience: 1 }, outputs: { rainbowScience: 1 }, time: 15.0 },
 
   // ── Buildings ─────────────────────────────────────────────────
   stoneFurnaceItem:     { name: 'Stone Furnace',            inputs: { stone: 5 },                                            outputs: { stoneFurnaceItem: 1 },     time: 0.5  },
@@ -279,7 +283,7 @@ const PLAYER_RECIPES = {
   // ── Oil refinery (machinery: refinery) ───────────────────────
   basicOilProcessing:   { name: 'Basic Oil Processing',     inputs: { crudeOil: 100 },                                       outputs: { petroleumGas: 45 },        time: 5.0,  machinery: 'refinery' },
   advancedOilProcessing:{ name: 'Advanced Oil Processing',  inputs: { crudeOil: 100 },                                       outputs: { heavyOil: 25, lightOil: 45, petroleumGas: 55 }, time: 5.0, machinery: 'refinery' },
-  coalLiquefaction:     { name: 'Coal Liquefaction',        inputs: { coal: 10, heavyOil: 25 },                              outputs: { heavyOil: 90, lightOil: 20, petroleumGas: 10 }, time: 5.0, machinery: 'refinery' },
+  //coalLiquefaction:     { name: 'Coal Liquefaction',        inputs: { coal: 10, heavyOil: 25 },                              outputs: { heavyOil: 90, lightOil: 20, petroleumGas: 10 }, time: 5.0, machinery: 'refinery' },
   heavyOilCracking:     { name: 'Heavy Oil Cracking',       inputs: { heavyOil: 40 },                                        outputs: { lightOil: 30 },            time: 2.0,  machinery: 'chemical' },
   lightOilCracking:     { name: 'Light Oil Cracking',       inputs: { lightOil: 30 },                                        outputs: { petroleumGas: 20 },        time: 2.0,  machinery: 'chemical' },
 
@@ -305,6 +309,7 @@ const PLAYER_RECIPES = {
   productivityModule:   { name: 'Productivity Module',      inputs: { advancedCircuit: 5, electronicCircuit: 5 },            outputs: { productivityModule: 1 },   time: 15.0 },
   productivityModule2:  { name: 'Productivity Module 2',    inputs: { advancedCircuit: 5, productivityModule: 4, processingUnit: 5 }, outputs: { productivityModule2: 1 }, time: 30.0 },
   productivityModule3:  { name: 'Productivity Module 3',    inputs: { advancedCircuit: 5, productivityModule2: 4, processingUnit: 5 }, outputs: { productivityModule3: 1 }, time: 60.0 },
+  gamerModule:          { name: 'Gamer Module',             inputs: { speedModule3: 4, productivityModule3: 4, processingUnit: 20, advancedCircuit: 10 }, outputs: { gamerModule: 1 }, time: 60.0 },
 
   // ── Military ──────────────────────────────────────────────────
   firearmMagazine:      { name: 'Firearm Magazine',         inputs: { ironPlate: 4 },                                        outputs: { firearmMagazine: 1 },      time: 1.0  },
@@ -338,6 +343,7 @@ const PLAYER_RECIPES = {
   laserTurretItem:      { name: 'Laser Turret',             inputs: { steel: 20, electronicCircuit: 20, battery: 12 },       outputs: { laserTurretItem: 1 },      time: 20.0 },
   flamethrowerTurretItem:{ name: 'Flamethrower Turret',     inputs: { steel: 30, ironGear: 15, pipe: 10, engineUnit: 5 },    outputs: { flamethrowerTurretItem: 1 }, time: 20.0 },
   artilleryTurretItem:  { name: 'Artillery Turret',         inputs: { steel: 60, concrete: 60, ironGear: 40, advancedCircuit: 20 }, outputs: { artilleryTurretItem: 1 }, time: 40.0 },
+  spidertronItem:       { name: 'Spidertron',               inputs: { processingUnit: 16, lowDensityStructure: 150, rocketFuel: 10, radarItem: 2, electricEngineUnit: 4, advancedCircuit: 20 }, outputs: { spidertronItem: 1 }, time: 30.0 },
   stoneWall:            { name: 'Stone Wall',               inputs: { stoneBrick: 5 },                                       outputs: { stoneWall: 1 },            time: 0.5  },
   //gate:                 { name: 'Gate',                     inputs: { steel: 2, electronicCircuit: 2, stoneWall: 1 },        outputs: { gate: 1 },                 time: 0.5  },
 };
@@ -351,7 +357,7 @@ const CRAFT_SECTIONS = [
     'battery', 'explosives', 'solidFuelLight', 'rocketFuel', 'lowDensityStructure', 'rocketControlUnit',
   ] },
   { label: 'Science', keys: [
-    'redScience', 'greenScience', 'blueScience', 'purpleScience', 'yellowScience', 'spaceScience',
+    'redScience', 'greenScience', 'blueScience', 'purpleScience', 'yellowScience', 'spaceScience', 'rainbowScience',
   ] },
   { label: 'Buildings', keys: [
     'stoneFurnaceItem', 'steelFurnaceItem', 'electricFurnaceItem',
@@ -363,12 +369,13 @@ const CRAFT_SECTIONS = [
     'pumpjackItem', 'oilRefineryItem', 'chemicalPlantItem', 'centrifugeItem',
     'nuclearReactorItem', 'heatPipeItem', 'heatExchangerItem', 'steamTurbineItem',
     'beaconItem', 'rocketSiloItem',
-    'gunTurretItem', 'laserTurretItem',
+    'gunTurretItem', 'laserTurretItem', 'artilleryTurretItem', 'spidertronItem',
   ] },
   { label: 'Modules', keys: [
     'speedModule', 'speedModule2', 'speedModule3',
     'efficiencyModule', 'efficiencyModule2', 'efficiencyModule3',
     'productivityModule', 'productivityModule2', 'productivityModule3',
+    'gamerModule',
   ] },
   { label: 'Rocket', keys: [
     '//rocketPart', 'satellite',

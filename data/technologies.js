@@ -438,6 +438,13 @@ const TECHNOLOGIES = {
     description: 'Unlocks Satellite for launching with the Rocket Silo to produce Space Science',
     unlockRecipes: ['satellite','spaceScience'], unlockBuildings: [],
   },
+  rainbowSciencePack: {
+    name: 'Rainbow Science Pack', icon: '🌈',
+    cost: { redScience: 1000, greenScience: 1000, blueScience: 1000, purpleScience: 1000, yellowScience: 1000, spaceScience: 1000 }, timePerPack: 60,
+    prereqs: ['satelliteTech'],
+    description: 'Unlocks Rainbow Science Pack — the ultimate science pack, crafted from all others',
+    unlockRecipes: ['rainbowScience'], unlockBuildings: [],
+  },
   utilitySciencePack: {
     name: 'Utility Science Pack', icon: '🟡',
     cost: { redScience: 100, greenScience: 100, blueScience: 100 }, timePerPack: 30,

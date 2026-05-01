@@ -14,6 +14,8 @@
     <h1 class="title">FACTORIO IDLE</h1>
     <p class="subtitle">Exponential Line Go Up</p>
     <button class="btn-primary" style="margin-bottom:1.5rem" onclick="openNewGameModal()">New Game</button>
+    <button class="btn-secondary" style="margin-bottom:1rem" onclick="toggleStartMetaPanel()">⭐ View Meta Progression</button>
+    <div id="start-meta-panel" class="hidden" style="margin-bottom:1rem"></div>
     <div class="save-panel">
       <div class="save-panel-header">
         <span class="save-panel-title">Saves</span>
@@ -51,6 +53,15 @@
       </div>
     </div>
 
+    <div class="field">
+      <label>Meta Progression</label>
+      <div class="toggle-row">
+        <input type="checkbox" id="meta-prog-toggle" class="sr-only" onchange="document.getElementById('meta-prog-status').textContent = this.checked ? 'Enabled' : 'Disabled'">
+        <label for="meta-prog-toggle" class="toggle"></label>
+        <span id="meta-prog-status">Disabled</span>
+      </div>
+    </div>
+
     <div class="field hidden biters-option-field">
       <label>Grace Period (minutes before first attack)</label>
       <input type="number" id="grace-period-input" class="modal-number-input" value="7" min="0" max="120" step="1">
@@ -64,6 +75,21 @@
         <option value="60">Frequent (every 1 min)</option>
         <option value="30">Intense (every 30 sec)</option>
       </select>
+    </div>
+
+    <div class="field hidden biters-option-field">
+      <label>Threat Points / Wave (early game)</label>
+      <input type="number" id="biter-points-pre-red-input" class="modal-number-input" value="0.5" min="0" max="100" step="0.1">
+    </div>
+
+    <div class="field hidden biters-option-field">
+      <label>Threat Points / Wave (late game, post-blue)</label>
+      <input type="number" id="biter-points-post-blue-input" class="modal-number-input" value="4" min="0" max="1000" step="0.5">
+    </div>
+
+    <div class="field hidden biters-option-field">
+      <label>Max Threat Points (linear cap)</label>
+      <input type="number" id="biter-points-cap-input" class="modal-number-input" value="500" min="1" max="100000" step="10">
     </div>
 
     <div class="btn-row modal-actions">
@@ -99,6 +125,7 @@
     <button class="tab-btn"        onclick="switchTab('buildings', this)">🏭 Buildings</button>
     <button class="tab-btn"        onclick="switchTab('research', this)">🔬 Research</button>
     <button class="tab-btn"        onclick="switchTab('defense', this)">🛡️ Defense</button>
+    <button class="tab-btn"        onclick="switchTab('meta', this)">⭐ Meta</button>
     <button class="tab-btn"        onclick="switchTab('recipes', this)">📖 Recipes</button>
     <button class="tab-btn"        onclick="switchTab('graph', this)">📈 Graph</button>
     <button class="tab-btn"        onclick="switchTab('script', this)">📜 Script</button>
@@ -474,6 +501,12 @@
       <div id="perimeter-content"></div>
     </section>
 
+    <!-- Meta Progression Tab -->
+    <section id="tab-meta" class="tab-panel hidden">
+      <h3 class="section-label">Meta Progression</h3>
+      <div id="meta-content"></div>
+    </section>
+
     <!-- Recipes Tab -->
     <section id="tab-recipes" class="tab-panel hidden">
       <h3 class="section-label">Recipe Reference</h3>
@@ -485,8 +518,16 @@
     <section id="tab-graph" class="tab-panel hidden">
       <h3 class="section-label">Production Graph</h3>
       <p class="graph-hint">Shows per-second rates for starred items (★ in the Inventory tab). Up to 120 seconds of history.</p>
-      <div class="graph-container">
-        <canvas id="graph-canvas" class="graph-canvas"></canvas>
+      <div class="graph-tabs">
+        <button class="graph-tab graph-tab-active" data-gmode="production" onclick="setGraphMode('production')">Production</button>
+        <button class="graph-tab"                   data-gmode="consumption" onclick="setGraphMode('consumption')">Consumption</button>
+        <button class="graph-tab"                   data-gmode="net" onclick="setGraphMode('net')">Net</button>
+      </div>
+      <div class="graph-layout">
+        <div class="graph-container">
+          <canvas id="graph-canvas" class="graph-canvas"></canvas>
+        </div>
+        <div id="graph-legend" class="graph-legend"></div>
       </div>
     </section>
 
