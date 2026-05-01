@@ -50,6 +50,30 @@ const LAB_KW = 60;
 const RADAR_KW = 300;
 const NUCLEAR_REACTOR_KW    = 488880;  // kW per nuclear reactor complex
 const NUCLEAR_FUEL_INTERVAL = 50;      // seconds per uranium fuel cell consumed
+
+// ── Module System ─────────────────────────────────────────────
+const MODULE_SLOTS = {
+  electricMiner: 3,
+  assembly: 0, assembly2: 2, assembly3: 4,
+  chemicalPlant: 3, oilRefinery: 3,
+  rocketSilo: 4,
+  electricFurnace: 2,
+  lab: 2,
+  pumpjack: 2,
+  centrifuge: 2,
+};
+const MODULE_DATA = {
+  speedMk1: { name: 'Speed 1', speedBonus: 0.20, energyBonus: 0.50 },
+  speedMk2: { name: 'Speed 2', speedBonus: 0.30, energyBonus: 0.60 },
+  speedMk3: { name: 'Speed 3', speedBonus: 0.50, energyBonus: 0.70 },
+  prodMk1:  { name: 'Prod 1',  prodBonus: 0.04, speedPenalty: -0.05, energyBonus: 0.40 },
+  prodMk2:  { name: 'Prod 2',  prodBonus: 0.06, speedPenalty: -0.10, energyBonus: 0.60 },
+  prodMk3:  { name: 'Prod 3',  prodBonus: 0.10, speedPenalty: -0.15, energyBonus: 0.80 },
+};
+// Recipes whose output is a placeable building — productivity modules not allowed.
+// Add recipe output item keys here as needed (e.g., 'inserter', 'transportBelt').
+const PROD_MODULE_BLACKLIST = new Set([]);
+
 const WALL_HP              = 350;      // HP per stone wall in perimeter
 // Gun turret: shotsPerSec × max(0, dmgPerShot×gMult − armor×armorMult) = effective DPS
 const GUN_TURRET_STATS = {
@@ -648,6 +672,11 @@ function getGS(key) {
   if (gs.limit    == null) gs.limit    = Infinity;
   if (gs.radarAcc == null) gs.radarAcc = 0;
   if (gs.packAcc  == null) gs.packAcc  = 0;
+  if (gs.modules  == null) gs.modules  = {};
+  if (gs.progress == null) gs.progress = 0;
+  if (gs.prodFrac == null) gs.prodFrac = {};
+  if (gs.active   == null) gs.active   = false;
+  if (!gs.selectedModuleType) gs.selectedModuleType = 'speedMk1';
   return gs;
 }
 
@@ -669,6 +698,33 @@ function canAfford(inputs) {
 
 function spend(inputs) {
   for (const [k, v] of Object.entries(inputs)) state.inventory[k] -= v;
+}
+
+function howManyCanAfford(inputs, maxCycles) {
+  let n = maxCycles;
+  for (const [item, amt] of Object.entries(inputs)) {
+    if (amt <= 0) continue;
+    n = Math.min(n, Math.floor((state.inventory[item] ?? 0) / amt));
+  }
+  return Math.max(0, n);
+}
+
+function calcGroupModifiers(type, buildingCount, modules) {
+  const slotsPerBuilding = MODULE_SLOTS[type] ?? 0;
+  if (slotsPerBuilding === 0 || buildingCount === 0) return { speedMult: 1, prodBonus: 0 };
+  const totalSlots = buildingCount * slotsPerBuilding;
+  let speedBonus = 0, prodBonus = 0, usedSlots = 0;
+  for (const [mtype, cnt] of Object.entries(modules ?? {})) {
+    if (!cnt || cnt <= 0) continue;
+    const mod = MODULE_DATA[mtype];
+    if (!mod) continue;
+    const actual = Math.min(cnt, totalSlots - usedSlots);
+    usedSlots += actual;
+    const perBuilding = actual / buildingCount;
+    speedBonus += perBuilding * ((mod.speedBonus ?? 0) + (mod.speedPenalty ?? 0));
+    prodBonus  += perBuilding * (mod.prodBonus ?? 0);
+  }
+  return { speedMult: Math.max(0.2, 1 + speedBonus), prodBonus };
 }
 
 // ── Tech Helpers ──────────────────────────────────────────────
@@ -974,179 +1030,261 @@ function tick() {
     }
   }
 
-  // ── Electric Miners ──
-  for (const b of state.buildings) {
-    if (b.type !== 'electricMiner') continue;
-    const gs = getGS(groupKey(b));
+  // ── Electric Miners ── (aggregated per resource group)
+  for (const [key, group] of Object.entries(groups)) {
+    if (group.type !== 'electricMiner') continue;
+    const gs = getGS(key);
     if (!gs.enabled) continue;
     gs.noPower = powerRatio < 1;
-    if (!patchInPerimeter(b.resource)) { gs.outsidePerimeter = true; continue; }
+    if (!patchInPerimeter(group.resource)) { gs.outsidePerimeter = true; continue; }
     gs.outsidePerimeter = false;
-    if ((state.inventory[b.resource] ?? 0) >= gs.limit) continue;
-    const patch = state.patches[b.resource];
+    if ((state.inventory[group.resource] ?? 0) >= gs.limit) continue;
+    const patch = state.patches[group.resource];
     if (!patch || patch.remaining <= 0) continue;
-    b.acc = (b.acc ?? 0) + ELECTRIC_MINER_SPEED * dt * powerRatio;
-    if (b.acc >= 1) {
-      let n = Math.min(Math.floor(b.acc), patch.remaining);
-      if (b.resource === 'uraniumOre') {
+    const count = group.buildings.length;
+    const { speedMult } = calcGroupModifiers('electricMiner', count, gs.modules);
+    gs.acc = (gs.acc ?? 0) + count * ELECTRIC_MINER_SPEED * speedMult * dt * powerRatio;
+    if (gs.acc >= 1) {
+      let n = Math.min(Math.floor(gs.acc), patch.remaining);
+      if (group.resource === 'uraniumOre') {
         n = Math.min(n, Math.floor(state.inventory.sulfuricAcid ?? 0));
-        if (n <= 0) { gs.acidStarved = true; b.acc = 0; continue; }
+        if (n <= 0) { gs.acidStarved = true; gs.acc = 0; continue; }
         state.inventory.sulfuricAcid -= n;
         gs.acidStarved = false;
       }
-      const prod = b.resource === 'uraniumOre' ? 1 : miningProdMult();
-      state.inventory[b.resource] = (state.inventory[b.resource] ?? 0) + n * prod;
-      patch.remaining -= n; b.acc -= n;
+      const prod = group.resource === 'uraniumOre' ? 1 : miningProdMult();
+      state.inventory[group.resource] = (state.inventory[group.resource] ?? 0) + n * prod;
+      patch.remaining -= n; gs.acc -= n;
     }
   }
 
-  // ── Furnaces (stone) ──
-  for (const b of state.buildings) {
-    if (b.type !== 'furnace') continue;
-    const gs = getGS(groupKey(b));
-    if (gs.starved) continue;
-    const recipe = FURNACE_RECIPES[b.recipe];
-    if (!recipe) continue;
+  // ── Furnaces (stone) — aggregated ──
+  for (const [key, group] of Object.entries(groups)) {
+    if (group.type !== 'furnace') continue;
+    const gs = getGS(key);
+    if (gs.starved) { gs.active = false; gs.progress = 0; continue; }
+    const recipe = FURNACE_RECIPES[group.recipe];
+    if (!recipe) { gs.active = false; continue; }
+    const count = group.buildings.length;
     const outputKey = Object.keys(recipe.outputs)[0];
-    if (!b.active) {
-      if ((state.inventory[outputKey] ?? 0) < gs.limit && canAfford(recipe.inputs)) {
-        spend(recipe.inputs); b.active = true; b.progress = 0;
-      }
-    } else {
-      b.progress += dt / recipe.time;
-      if (b.progress >= 1) {
-        for (const [item, amt] of Object.entries(recipe.outputs)) state.inventory[item] += amt;
-        b.active = false; b.progress = 0;
-        if ((state.inventory[outputKey] ?? 0) < gs.limit && canAfford(recipe.inputs)) {
-          spend(recipe.inputs); b.active = true;
+    const { speedMult, prodBonus } = calcGroupModifiers('furnace', count, gs.modules);
+    gs.progress += count * speedMult / recipe.time * dt;
+    gs.progress = Math.min(gs.progress, count * 4);
+    const cycles = Math.floor(gs.progress);
+    if (cycles > 0) {
+      const inv = Math.floor(state.inventory[outputKey] ?? 0);
+      if (inv >= gs.limit) { gs.progress = 0; gs.active = false; }
+      else {
+        const afford = howManyCanAfford(recipe.inputs, cycles);
+        if (afford === 0) { gs.progress = 0; gs.active = false; }
+        else {
+          const outAmt = recipe.outputs[outputKey];
+          const byLimit = gs.limit === Infinity ? cycles : Math.max(0, Math.floor((gs.limit - inv) / outAmt));
+          const actual = Math.min(afford, byLimit, cycles);
+          if (actual > 0) {
+            for (const [k, v] of Object.entries(recipe.inputs)) state.inventory[k] = (state.inventory[k] ?? 0) - v * actual;
+            for (const [k, v] of Object.entries(recipe.outputs)) {
+              const tot = v * actual * (1 + prodBonus);
+              gs.prodFrac[k] = (gs.prodFrac[k] ?? 0) + tot;
+              const w = Math.floor(gs.prodFrac[k]); gs.prodFrac[k] -= w;
+              state.inventory[k] = (state.inventory[k] ?? 0) + w;
+            }
+            gs.progress -= actual; gs.active = true;
+          } else { gs.progress = 0; gs.active = false; }
         }
       }
     }
   }
 
-  // ── Steel Furnaces ──
-  for (const b of state.buildings) {
-    if (b.type !== 'steelFurnace') continue;
-    const gs = getGS(groupKey(b));
-    if (gs.starved) continue;
-    const recipe = FURNACE_RECIPES[b.recipe];
-    if (!recipe) continue;
+  // ── Steel Furnaces — aggregated ──
+  for (const [key, group] of Object.entries(groups)) {
+    if (group.type !== 'steelFurnace') continue;
+    const gs = getGS(key);
+    if (gs.starved) { gs.active = false; gs.progress = 0; continue; }
+    const recipe = FURNACE_RECIPES[group.recipe];
+    if (!recipe) { gs.active = false; continue; }
+    const count = group.buildings.length;
     const outputKey = Object.keys(recipe.outputs)[0];
-    if (!b.active) {
-      if ((state.inventory[outputKey] ?? 0) < gs.limit && canAfford(recipe.inputs)) {
-        spend(recipe.inputs); b.active = true; b.progress = 0;
-      }
-    } else {
-      b.progress += dt * STEEL_FURNACE_SPEED / recipe.time;
-      if (b.progress >= 1) {
-        for (const [item, amt] of Object.entries(recipe.outputs)) state.inventory[item] = (state.inventory[item] ?? 0) + amt;
-        b.active = false; b.progress = 0;
-        if ((state.inventory[outputKey] ?? 0) < gs.limit && canAfford(recipe.inputs)) {
-          spend(recipe.inputs); b.active = true;
+    const { speedMult, prodBonus } = calcGroupModifiers('steelFurnace', count, gs.modules);
+    gs.progress += count * speedMult * STEEL_FURNACE_SPEED / recipe.time * dt;
+    gs.progress = Math.min(gs.progress, count * 4);
+    const cycles = Math.floor(gs.progress);
+    if (cycles > 0) {
+      const inv = Math.floor(state.inventory[outputKey] ?? 0);
+      if (inv >= gs.limit) { gs.progress = 0; gs.active = false; }
+      else {
+        const afford = howManyCanAfford(recipe.inputs, cycles);
+        if (afford === 0) { gs.progress = 0; gs.active = false; }
+        else {
+          const outAmt = recipe.outputs[outputKey];
+          const byLimit = gs.limit === Infinity ? cycles : Math.max(0, Math.floor((gs.limit - inv) / outAmt));
+          const actual = Math.min(afford, byLimit, cycles);
+          if (actual > 0) {
+            for (const [k, v] of Object.entries(recipe.inputs)) state.inventory[k] = (state.inventory[k] ?? 0) - v * actual;
+            for (const [k, v] of Object.entries(recipe.outputs)) {
+              const tot = v * actual * (1 + prodBonus);
+              gs.prodFrac[k] = (gs.prodFrac[k] ?? 0) + tot;
+              const w = Math.floor(gs.prodFrac[k]); gs.prodFrac[k] -= w;
+              state.inventory[k] = (state.inventory[k] ?? 0) + w;
+            }
+            gs.progress -= actual; gs.active = true;
+          } else { gs.progress = 0; gs.active = false; }
         }
       }
     }
   }
 
-  // ── Assembly Machines Mk1 ──
-  for (const b of state.buildings) {
-    if (b.type !== 'assembly') continue;
-    const gs = getGS(groupKey(b));
-    if (!gs.enabled) continue;
+  // ── Assembly Machines Mk1 — aggregated ──
+  for (const [key, group] of Object.entries(groups)) {
+    if (group.type !== 'assembly') continue;
+    const gs = getGS(key);
+    if (!gs.enabled) { gs.active = false; continue; }
     gs.noPower = powerRatio < 1;
-    const recipe = PLAYER_RECIPES[b.recipe];
-    if (!recipe) continue;
+    const recipe = PLAYER_RECIPES[group.recipe];
+    if (!recipe) { gs.active = false; continue; }
+    const count = group.buildings.length;
     const outputKey = Object.keys(recipe.outputs)[0];
-    if (!b.active) {
-      if ((state.inventory[outputKey] ?? 0) < gs.limit && canAfford(recipe.inputs)) {
-        spend(recipe.inputs); b.active = true; b.progress = 0;
-      }
-    } else {
-      b.progress += dt * powerRatio * ASSEMBLY_SPEED / recipe.time;
-      if (b.progress >= 1) {
-        for (const [item, amt] of Object.entries(recipe.outputs))
-          state.inventory[item] = (state.inventory[item] ?? 0) + amt;
-        b.active = false; b.progress = 0;
-        if ((state.inventory[outputKey] ?? 0) < gs.limit && canAfford(recipe.inputs)) {
-          spend(recipe.inputs); b.active = true;
+    const { speedMult, prodBonus } = calcGroupModifiers('assembly', count, gs.modules);
+    gs.progress += count * speedMult * powerRatio * ASSEMBLY_SPEED / recipe.time * dt;
+    gs.progress = Math.min(gs.progress, count * 4);
+    const cycles = Math.floor(gs.progress);
+    if (cycles > 0) {
+      const inv = Math.floor(state.inventory[outputKey] ?? 0);
+      if (inv >= gs.limit) { gs.progress = 0; gs.active = false; }
+      else {
+        const afford = howManyCanAfford(recipe.inputs, cycles);
+        if (afford === 0) { gs.progress = 0; gs.active = false; }
+        else {
+          const outAmt = recipe.outputs[outputKey];
+          const byLimit = gs.limit === Infinity ? cycles : Math.max(0, Math.floor((gs.limit - inv) / outAmt));
+          const actual = Math.min(afford, byLimit, cycles);
+          if (actual > 0) {
+            for (const [k, v] of Object.entries(recipe.inputs)) state.inventory[k] = (state.inventory[k] ?? 0) - v * actual;
+            for (const [k, v] of Object.entries(recipe.outputs)) {
+              const tot = v * actual * (1 + prodBonus);
+              gs.prodFrac[k] = (gs.prodFrac[k] ?? 0) + tot;
+              const w = Math.floor(gs.prodFrac[k]); gs.prodFrac[k] -= w;
+              state.inventory[k] = (state.inventory[k] ?? 0) + w;
+            }
+            gs.progress -= actual; gs.active = true;
+          } else { gs.progress = 0; gs.active = false; }
         }
       }
     }
   }
 
-  // ── Assembly Machines Mk2 ──
-  for (const b of state.buildings) {
-    if (b.type !== 'assembly2') continue;
-    const gs = getGS(groupKey(b));
-    if (!gs.enabled) continue;
+  // ── Assembly Machines Mk2 — aggregated ──
+  for (const [key, group] of Object.entries(groups)) {
+    if (group.type !== 'assembly2') continue;
+    const gs = getGS(key);
+    if (!gs.enabled) { gs.active = false; continue; }
     gs.noPower = powerRatio < 1;
-    const recipe = PLAYER_RECIPES[b.recipe];
-    if (!recipe) continue;
+    const recipe = PLAYER_RECIPES[group.recipe];
+    if (!recipe) { gs.active = false; continue; }
+    const count = group.buildings.length;
     const outputKey = Object.keys(recipe.outputs)[0];
-    if (!b.active) {
-      if ((state.inventory[outputKey] ?? 0) < gs.limit && canAfford(recipe.inputs)) {
-        spend(recipe.inputs); b.active = true; b.progress = 0;
-      }
-    } else {
-      b.progress += dt * powerRatio * ASSEMBLY2_SPEED / recipe.time;
-      if (b.progress >= 1) {
-        for (const [item, amt] of Object.entries(recipe.outputs))
-          state.inventory[item] = (state.inventory[item] ?? 0) + amt;
-        b.active = false; b.progress = 0;
-        if ((state.inventory[outputKey] ?? 0) < gs.limit && canAfford(recipe.inputs)) {
-          spend(recipe.inputs); b.active = true;
+    const { speedMult, prodBonus } = calcGroupModifiers('assembly2', count, gs.modules);
+    gs.progress += count * speedMult * powerRatio * ASSEMBLY2_SPEED / recipe.time * dt;
+    gs.progress = Math.min(gs.progress, count * 4);
+    const cycles = Math.floor(gs.progress);
+    if (cycles > 0) {
+      const inv = Math.floor(state.inventory[outputKey] ?? 0);
+      if (inv >= gs.limit) { gs.progress = 0; gs.active = false; }
+      else {
+        const afford = howManyCanAfford(recipe.inputs, cycles);
+        if (afford === 0) { gs.progress = 0; gs.active = false; }
+        else {
+          const outAmt = recipe.outputs[outputKey];
+          const byLimit = gs.limit === Infinity ? cycles : Math.max(0, Math.floor((gs.limit - inv) / outAmt));
+          const actual = Math.min(afford, byLimit, cycles);
+          if (actual > 0) {
+            for (const [k, v] of Object.entries(recipe.inputs)) state.inventory[k] = (state.inventory[k] ?? 0) - v * actual;
+            for (const [k, v] of Object.entries(recipe.outputs)) {
+              const tot = v * actual * (1 + prodBonus);
+              gs.prodFrac[k] = (gs.prodFrac[k] ?? 0) + tot;
+              const w = Math.floor(gs.prodFrac[k]); gs.prodFrac[k] -= w;
+              state.inventory[k] = (state.inventory[k] ?? 0) + w;
+            }
+            gs.progress -= actual; gs.active = true;
+          } else { gs.progress = 0; gs.active = false; }
         }
       }
     }
   }
 
-  // ── Assembly Machines Mk3 ──
-  for (const b of state.buildings) {
-    if (b.type !== 'assembly3') continue;
-    const gs = getGS(groupKey(b));
-    if (!gs.enabled) continue;
+  // ── Assembly Machines Mk3 — aggregated ──
+  for (const [key, group] of Object.entries(groups)) {
+    if (group.type !== 'assembly3') continue;
+    const gs = getGS(key);
+    if (!gs.enabled) { gs.active = false; continue; }
     gs.noPower = powerRatio < 1;
-    const recipe = PLAYER_RECIPES[b.recipe];
-    if (!recipe) continue;
+    const recipe = PLAYER_RECIPES[group.recipe];
+    if (!recipe) { gs.active = false; continue; }
+    const count = group.buildings.length;
     const outputKey = Object.keys(recipe.outputs)[0];
-    if (!b.active) {
-      if ((state.inventory[outputKey] ?? 0) < gs.limit && canAfford(recipe.inputs)) {
-        spend(recipe.inputs); b.active = true; b.progress = 0;
-      }
-    } else {
-      b.progress += dt * powerRatio * ASSEMBLY3_SPEED / recipe.time;
-      if (b.progress >= 1) {
-        for (const [item, amt] of Object.entries(recipe.outputs))
-          state.inventory[item] = (state.inventory[item] ?? 0) + amt;
-        b.active = false; b.progress = 0;
-        if ((state.inventory[outputKey] ?? 0) < gs.limit && canAfford(recipe.inputs)) {
-          spend(recipe.inputs); b.active = true;
+    const { speedMult, prodBonus } = calcGroupModifiers('assembly3', count, gs.modules);
+    gs.progress += count * speedMult * powerRatio * ASSEMBLY3_SPEED / recipe.time * dt;
+    gs.progress = Math.min(gs.progress, count * 4);
+    const cycles = Math.floor(gs.progress);
+    if (cycles > 0) {
+      const inv = Math.floor(state.inventory[outputKey] ?? 0);
+      if (inv >= gs.limit) { gs.progress = 0; gs.active = false; }
+      else {
+        const afford = howManyCanAfford(recipe.inputs, cycles);
+        if (afford === 0) { gs.progress = 0; gs.active = false; }
+        else {
+          const outAmt = recipe.outputs[outputKey];
+          const byLimit = gs.limit === Infinity ? cycles : Math.max(0, Math.floor((gs.limit - inv) / outAmt));
+          const actual = Math.min(afford, byLimit, cycles);
+          if (actual > 0) {
+            for (const [k, v] of Object.entries(recipe.inputs)) state.inventory[k] = (state.inventory[k] ?? 0) - v * actual;
+            for (const [k, v] of Object.entries(recipe.outputs)) {
+              const tot = v * actual * (1 + prodBonus);
+              gs.prodFrac[k] = (gs.prodFrac[k] ?? 0) + tot;
+              const w = Math.floor(gs.prodFrac[k]); gs.prodFrac[k] -= w;
+              state.inventory[k] = (state.inventory[k] ?? 0) + w;
+            }
+            gs.progress -= actual; gs.active = true;
+          } else { gs.progress = 0; gs.active = false; }
         }
       }
     }
   }
 
-  // ── Electric Furnaces ──
-  for (const b of state.buildings) {
-    if (b.type !== 'electricFurnace') continue;
-    const gs = getGS(groupKey(b));
-    if (!gs.enabled) continue;
+  // ── Electric Furnaces — aggregated ──
+  for (const [key, group] of Object.entries(groups)) {
+    if (group.type !== 'electricFurnace') continue;
+    const gs = getGS(key);
+    if (!gs.enabled) { gs.active = false; continue; }
     gs.noPower = powerRatio < 1;
-    const recipe = FURNACE_RECIPES[b.recipe];
-    if (!recipe) continue;
+    const recipe = FURNACE_RECIPES[group.recipe];
+    if (!recipe) { gs.active = false; continue; }
+    const count = group.buildings.length;
     const outputKey = Object.keys(recipe.outputs)[0];
-    if (!b.active) {
-      if ((state.inventory[outputKey] ?? 0) < gs.limit && canAfford(recipe.inputs)) {
-        spend(recipe.inputs); b.active = true; b.progress = 0;
-      }
-    } else {
-      b.progress += dt * powerRatio * ELECTRIC_FURNACE_SPEED / recipe.time;
-      if (b.progress >= 1) {
-        for (const [item, amt] of Object.entries(recipe.outputs))
-          state.inventory[item] = (state.inventory[item] ?? 0) + amt;
-        b.active = false; b.progress = 0;
-        if ((state.inventory[outputKey] ?? 0) < gs.limit && canAfford(recipe.inputs)) {
-          spend(recipe.inputs); b.active = true;
+    const { speedMult, prodBonus } = calcGroupModifiers('electricFurnace', count, gs.modules);
+    gs.progress += count * speedMult * powerRatio * ELECTRIC_FURNACE_SPEED / recipe.time * dt;
+    gs.progress = Math.min(gs.progress, count * 4);
+    const cycles = Math.floor(gs.progress);
+    if (cycles > 0) {
+      const inv = Math.floor(state.inventory[outputKey] ?? 0);
+      if (inv >= gs.limit) { gs.progress = 0; gs.active = false; }
+      else {
+        const afford = howManyCanAfford(recipe.inputs, cycles);
+        if (afford === 0) { gs.progress = 0; gs.active = false; }
+        else {
+          const outAmt = recipe.outputs[outputKey];
+          const byLimit = gs.limit === Infinity ? cycles : Math.max(0, Math.floor((gs.limit - inv) / outAmt));
+          const actual = Math.min(afford, byLimit, cycles);
+          if (actual > 0) {
+            for (const [k, v] of Object.entries(recipe.inputs)) state.inventory[k] = (state.inventory[k] ?? 0) - v * actual;
+            for (const [k, v] of Object.entries(recipe.outputs)) {
+              const tot = v * actual * (1 + prodBonus);
+              gs.prodFrac[k] = (gs.prodFrac[k] ?? 0) + tot;
+              const w = Math.floor(gs.prodFrac[k]); gs.prodFrac[k] -= w;
+              state.inventory[k] = (state.inventory[k] ?? 0) + w;
+            }
+            gs.progress -= actual; gs.active = true;
+          } else { gs.progress = 0; gs.active = false; }
         }
       }
     }
@@ -1166,114 +1304,165 @@ function tick() {
     state.inventory[b.resource] = (state.inventory[b.resource] ?? 0) + extracted;
   }
 
-  // ── Oil Refineries ──
-  for (const b of state.buildings) {
-    if (b.type !== 'oilRefinery') continue;
-    const gs = getGS(groupKey(b));
-    if (!gs.enabled) continue;
+  // ── Oil Refineries — aggregated ──
+  for (const [key, group] of Object.entries(groups)) {
+    if (group.type !== 'oilRefinery') continue;
+    const gs = getGS(key);
+    if (!gs.enabled) { gs.active = false; continue; }
     gs.noPower = powerRatio < 1;
-    const recipe = PLAYER_RECIPES[b.recipe];
-    if (!recipe) continue;
+    const recipe = PLAYER_RECIPES[group.recipe];
+    if (!recipe) { gs.active = false; continue; }
+    const count = group.buildings.length;
     const outputKey = Object.keys(recipe.outputs)[0];
-    if (!b.active) {
-      if ((state.inventory[outputKey] ?? 0) < gs.limit && canAfford(recipe.inputs)) {
-        spend(recipe.inputs); b.active = true; b.progress = 0;
-      }
-    } else {
-      b.progress += dt * powerRatio * OIL_REFINERY_SPEED / recipe.time;
-      if (b.progress >= 1) {
-        for (const [item, amt] of Object.entries(recipe.outputs))
-          state.inventory[item] = (state.inventory[item] ?? 0) + amt;
-        b.active = false; b.progress = 0;
-        if ((state.inventory[outputKey] ?? 0) < gs.limit && canAfford(recipe.inputs)) {
-          spend(recipe.inputs); b.active = true;
+    const { speedMult, prodBonus } = calcGroupModifiers('oilRefinery', count, gs.modules);
+    gs.progress += count * speedMult * powerRatio * OIL_REFINERY_SPEED / recipe.time * dt;
+    gs.progress = Math.min(gs.progress, count * 4);
+    const cycles = Math.floor(gs.progress);
+    if (cycles > 0) {
+      const inv = Math.floor(state.inventory[outputKey] ?? 0);
+      if (inv >= gs.limit) { gs.progress = 0; gs.active = false; }
+      else {
+        const afford = howManyCanAfford(recipe.inputs, cycles);
+        if (afford === 0) { gs.progress = 0; gs.active = false; }
+        else {
+          const outAmt = recipe.outputs[outputKey];
+          const byLimit = gs.limit === Infinity ? cycles : Math.max(0, Math.floor((gs.limit - inv) / outAmt));
+          const actual = Math.min(afford, byLimit, cycles);
+          if (actual > 0) {
+            for (const [k, v] of Object.entries(recipe.inputs)) state.inventory[k] = (state.inventory[k] ?? 0) - v * actual;
+            for (const [k, v] of Object.entries(recipe.outputs)) {
+              const tot = v * actual * (1 + prodBonus);
+              gs.prodFrac[k] = (gs.prodFrac[k] ?? 0) + tot;
+              const w = Math.floor(gs.prodFrac[k]); gs.prodFrac[k] -= w;
+              state.inventory[k] = (state.inventory[k] ?? 0) + w;
+            }
+            gs.progress -= actual; gs.active = true;
+          } else { gs.progress = 0; gs.active = false; }
         }
       }
     }
   }
 
-  // ── Chemical Plants ──
-  for (const b of state.buildings) {
-    if (b.type !== 'chemicalPlant') continue;
-    const gs = getGS(groupKey(b));
-    if (!gs.enabled) continue;
+  // ── Chemical Plants — aggregated ──
+  for (const [key, group] of Object.entries(groups)) {
+    if (group.type !== 'chemicalPlant') continue;
+    const gs = getGS(key);
+    if (!gs.enabled) { gs.active = false; continue; }
     gs.noPower = powerRatio < 1;
-    const recipe = PLAYER_RECIPES[b.recipe];
-    if (!recipe) continue;
+    const recipe = PLAYER_RECIPES[group.recipe];
+    if (!recipe) { gs.active = false; continue; }
+    const count = group.buildings.length;
     const outputKey = Object.keys(recipe.outputs)[0];
-    if (!b.active) {
-      if ((state.inventory[outputKey] ?? 0) < gs.limit && canAfford(recipe.inputs)) {
-        spend(recipe.inputs); b.active = true; b.progress = 0;
-      }
-    } else {
-      b.progress += dt * powerRatio * CHEMICAL_PLANT_SPEED / recipe.time;
-      if (b.progress >= 1) {
-        for (const [item, amt] of Object.entries(recipe.outputs))
-          state.inventory[item] = (state.inventory[item] ?? 0) + amt;
-        b.active = false; b.progress = 0;
-        if ((state.inventory[outputKey] ?? 0) < gs.limit && canAfford(recipe.inputs)) {
-          spend(recipe.inputs); b.active = true;
+    const { speedMult, prodBonus } = calcGroupModifiers('chemicalPlant', count, gs.modules);
+    gs.progress += count * speedMult * powerRatio * CHEMICAL_PLANT_SPEED / recipe.time * dt;
+    gs.progress = Math.min(gs.progress, count * 4);
+    const cycles = Math.floor(gs.progress);
+    if (cycles > 0) {
+      const inv = Math.floor(state.inventory[outputKey] ?? 0);
+      if (inv >= gs.limit) { gs.progress = 0; gs.active = false; }
+      else {
+        const afford = howManyCanAfford(recipe.inputs, cycles);
+        if (afford === 0) { gs.progress = 0; gs.active = false; }
+        else {
+          const outAmt = recipe.outputs[outputKey];
+          const byLimit = gs.limit === Infinity ? cycles : Math.max(0, Math.floor((gs.limit - inv) / outAmt));
+          const actual = Math.min(afford, byLimit, cycles);
+          if (actual > 0) {
+            for (const [k, v] of Object.entries(recipe.inputs)) state.inventory[k] = (state.inventory[k] ?? 0) - v * actual;
+            for (const [k, v] of Object.entries(recipe.outputs)) {
+              const tot = v * actual * (1 + prodBonus);
+              gs.prodFrac[k] = (gs.prodFrac[k] ?? 0) + tot;
+              const w = Math.floor(gs.prodFrac[k]); gs.prodFrac[k] -= w;
+              state.inventory[k] = (state.inventory[k] ?? 0) + w;
+            }
+            gs.progress -= actual; gs.active = true;
+          } else { gs.progress = 0; gs.active = false; }
         }
       }
     }
   }
 
-  // ── Centrifuges ──
-  for (const b of state.buildings) {
-    if (b.type !== 'centrifuge') continue;
-    const gs = getGS(groupKey(b));
-    if (!gs.enabled) continue;
+  // ── Centrifuges — aggregated ──
+  for (const [key, group] of Object.entries(groups)) {
+    if (group.type !== 'centrifuge') continue;
+    const gs = getGS(key);
+    if (!gs.enabled) { gs.active = false; continue; }
     gs.noPower = powerRatio < 1;
-    const recipe = PLAYER_RECIPES[b.recipe];
-    if (!recipe) continue;
+    const recipe = PLAYER_RECIPES[group.recipe];
+    if (!recipe) { gs.active = false; continue; }
+    const count = group.buildings.length;
     const outputKey = Object.keys(recipe.outputs)[0];
-    if (!b.active) {
-      if ((state.inventory[outputKey] ?? 0) < gs.limit && canAfford(recipe.inputs)) {
-        spend(recipe.inputs); b.active = true; b.progress = 0;
-      }
-    } else {
-      b.progress += dt * powerRatio * CENTRIFUGE_SPEED / recipe.time;
-      if (b.progress >= 1) {
-        if (b.recipe === 'uraniumProcessing') {
-          state.uraniumProcessingCount = (state.uraniumProcessingCount ?? 0) + 1;
-          if (state.uraniumProcessingCount % 143 === 0) {
-            state.inventory.uranium235 = (state.inventory.uranium235 ?? 0) + 1;
-          } else {
-            state.inventory.uranium238 = (state.inventory.uranium238 ?? 0) + 1;
-          }
-        } else {
-          for (const [item, amt] of Object.entries(recipe.outputs))
-            state.inventory[item] = (state.inventory[item] ?? 0) + amt;
-        }
-        b.active = false; b.progress = 0;
-        if ((state.inventory[outputKey] ?? 0) < gs.limit && canAfford(recipe.inputs)) {
-          spend(recipe.inputs); b.active = true;
+    const { speedMult, prodBonus } = calcGroupModifiers('centrifuge', count, gs.modules);
+    gs.progress += count * speedMult * powerRatio * CENTRIFUGE_SPEED / recipe.time * dt;
+    gs.progress = Math.min(gs.progress, count * 4);
+    const cycles = Math.floor(gs.progress);
+    if (cycles > 0) {
+      const inv = Math.floor(state.inventory[outputKey] ?? 0);
+      if (inv >= gs.limit) { gs.progress = 0; gs.active = false; }
+      else {
+        const afford = howManyCanAfford(recipe.inputs, cycles);
+        if (afford === 0) { gs.progress = 0; gs.active = false; }
+        else {
+          const outAmt = recipe.outputs[outputKey];
+          const byLimit = gs.limit === Infinity ? cycles : Math.max(0, Math.floor((gs.limit - inv) / outAmt));
+          const actual = Math.min(afford, byLimit, cycles);
+          if (actual > 0) {
+            for (const [k, v] of Object.entries(recipe.inputs)) state.inventory[k] = (state.inventory[k] ?? 0) - v * actual;
+            if (group.recipe === 'uraniumProcessing') {
+              for (let i = 0; i < actual; i++) {
+                state.uraniumProcessingCount = (state.uraniumProcessingCount ?? 0) + 1;
+                if (state.uraniumProcessingCount % 143 === 0) state.inventory.uranium235 = (state.inventory.uranium235 ?? 0) + 1;
+                else state.inventory.uranium238 = (state.inventory.uranium238 ?? 0) + 1;
+              }
+            } else {
+              for (const [k, v] of Object.entries(recipe.outputs)) {
+                const tot = v * actual * (1 + prodBonus);
+                gs.prodFrac[k] = (gs.prodFrac[k] ?? 0) + tot;
+                const w = Math.floor(gs.prodFrac[k]); gs.prodFrac[k] -= w;
+                state.inventory[k] = (state.inventory[k] ?? 0) + w;
+              }
+            }
+            gs.progress -= actual; gs.active = true;
+          } else { gs.progress = 0; gs.active = false; }
         }
       }
     }
   }
 
-  // ── Rocket Silos ──
-  for (const b of state.buildings) {
-    if (b.type !== 'rocketSilo') continue;
-    const gs = getGS(groupKey(b));
-    if (!gs.enabled) continue;
+  // ── Rocket Silos — aggregated ──
+  for (const [key, group] of Object.entries(groups)) {
+    if (group.type !== 'rocketSilo') continue;
+    const gs = getGS(key);
+    if (!gs.enabled) { gs.active = false; continue; }
     gs.noPower = powerRatio < 1;
-    const recipe = PLAYER_RECIPES[b.recipe];
-    if (!recipe) continue;
+    const recipe = PLAYER_RECIPES[group.recipe];
+    if (!recipe) { gs.active = false; continue; }
+    const count = group.buildings.length;
     const outputKey = Object.keys(recipe.outputs)[0];
-    if (!b.active) {
-      if ((state.inventory[outputKey] ?? 0) < gs.limit && canAfford(recipe.inputs)) {
-        spend(recipe.inputs); b.active = true; b.progress = 0;
-      }
-    } else {
-      b.progress += dt * powerRatio * ROCKET_SILO_SPEED / recipe.time;
-      if (b.progress >= 1) {
-        for (const [item, amt] of Object.entries(recipe.outputs))
-          state.inventory[item] = (state.inventory[item] ?? 0) + amt;
-        b.active = false; b.progress = 0;
-        if ((state.inventory[outputKey] ?? 0) < gs.limit && canAfford(recipe.inputs)) {
-          spend(recipe.inputs); b.active = true;
+    const { speedMult, prodBonus } = calcGroupModifiers('rocketSilo', count, gs.modules);
+    gs.progress += count * speedMult * powerRatio * ROCKET_SILO_SPEED / recipe.time * dt;
+    gs.progress = Math.min(gs.progress, count * 4);
+    const cycles = Math.floor(gs.progress);
+    if (cycles > 0) {
+      const inv = Math.floor(state.inventory[outputKey] ?? 0);
+      if (inv >= gs.limit) { gs.progress = 0; gs.active = false; }
+      else {
+        const afford = howManyCanAfford(recipe.inputs, cycles);
+        if (afford === 0) { gs.progress = 0; gs.active = false; }
+        else {
+          const outAmt = recipe.outputs[outputKey];
+          const byLimit = gs.limit === Infinity ? cycles : Math.max(0, Math.floor((gs.limit - inv) / outAmt));
+          const actual = Math.min(afford, byLimit, cycles);
+          if (actual > 0) {
+            for (const [k, v] of Object.entries(recipe.inputs)) state.inventory[k] = (state.inventory[k] ?? 0) - v * actual;
+            for (const [k, v] of Object.entries(recipe.outputs)) {
+              const tot = v * actual * (1 + prodBonus);
+              gs.prodFrac[k] = (gs.prodFrac[k] ?? 0) + tot;
+              const w = Math.floor(gs.prodFrac[k]); gs.prodFrac[k] -= w;
+              state.inventory[k] = (state.inventory[k] ?? 0) + w;
+            }
+            gs.progress -= actual; gs.active = true;
+          } else { gs.progress = 0; gs.active = false; }
         }
       }
     }
@@ -1395,7 +1584,8 @@ function tick() {
       return t ? { cost: t.cost, timePerPack: t.timePerPack, totalNeeded: Math.max(...Object.values(t.cost)) } : null;
     })();
     if (gs.enabled && techData) {
-      gs.packAcc = (gs.packAcc ?? 0) + count * dt / techData.timePerPack;
+      const { speedMult: labSpeedMult } = calcGroupModifiers('lab', count, gs.modules);
+      gs.packAcc = (gs.packAcc ?? 0) + count * labSpeedMult * dt / techData.timePerPack;
       while (gs.packAcc >= 1) {
         const free = state.devFreeResearch && state.devMode;
         const hasAllPacks = free || Object.keys(techData.cost).every(pk => (state.inventory[pk] ?? 0) >= 1);
@@ -2168,7 +2358,8 @@ function renderBuildings() {
   }
   const focused = document.activeElement;
   if (focused && focused.closest('#active-buildings') &&
-      (focused.classList.contains('limit-input') || focused.classList.contains('add-count-input'))) return;
+      (focused.classList.contains('limit-input') || focused.classList.contains('add-count-input') ||
+       focused.classList.contains('module-type-sel'))) return;
 
   const container = document.getElementById('active-buildings');
   const groups    = buildGroupMap();
@@ -2198,7 +2389,7 @@ function renderBuildings() {
       const noPower    = type === 'electricMiner' && gs.noPower;
       const acidStarved = type === 'electricMiner' && group.resource === 'uraniumOre' && gs.acidStarved;
       const outsidePerim = gs.outsidePerimeter;
-      const avgAcc  = group.buildings.reduce((s, b) => s + (b.acc ?? 0), 0) / count;
+      const avgAcc  = (gs.acc ?? 0) % 1;
       const isActive = gs.enabled && !gs.starved && !acidStarved && hasPatch && !atLimit && !outsidePerim;
       const pRatio   = state.powerRatio ?? 1;
       const brownStr = noPower ? ` · ⚡ ${Math.round(pRatio * 100)}% power` : '';
@@ -2219,15 +2410,15 @@ function renderBuildings() {
       const label = type === 'miner'
         ? `Burner Miner — ${PATCHES[group.resource]?.name}`
         : `Electric Miner — ${PATCHES[group.resource]?.name}`;
-      return buildingCard(icon, label, count, meta, statusTxt, isActive, avgAcc, key, '', true);
+      return buildingCard(icon, label, count, meta, statusTxt, isActive, avgAcc, key, '', true, type === 'electricMiner' ? 'electricMiner' : null);
     }
 
     if (type === 'furnace') {
-      const activeN   = group.buildings.filter(b => b.active).length;
+      const activeN   = gs.active ? count : 0;
       const recipe    = FURNACE_RECIPES[group.recipe];
       const outputKey = recipe ? Object.keys(recipe.outputs)[0] : null;
       const atLimit   = outputKey && (state.inventory[outputKey] ?? 0) >= gs.limit;
-      const avgProg   = group.buildings.reduce((s, b) => s + (b.progress ?? 0), 0) / count;
+      const avgProg   = (gs.progress ?? 0) % 1;
       const missingIn = getMissingInputs(recipe);
       const waitMsg   = missingIn ? `⏳ Need: ${missingIn.join(', ')}` : 'Waiting for inputs';
       const statusTxt = !gs.enabled ? 'Disabled'
@@ -2239,15 +2430,15 @@ function renderBuildings() {
       return buildingCard('🔥', 'Stone Furnace', count,
         `coal: ${(count * COAL_PER_FURNACE).toFixed(4)}/sec`,
         statusTxt, gs.enabled && !gs.starved && activeN > 0, avgProg, key,
-        buildCurrentRecipeDisplay(group.recipe, FURNACE_RECIPES), true);
+        buildCurrentRecipeDisplay(group.recipe, FURNACE_RECIPES), true, 'furnace');
     }
 
     if (type === 'steelFurnace') {
-      const activeN   = group.buildings.filter(b => b.active).length;
+      const activeN   = gs.active ? count : 0;
       const recipe    = FURNACE_RECIPES[group.recipe];
       const outputKey = recipe ? Object.keys(recipe.outputs)[0] : null;
       const atLimit   = outputKey && (state.inventory[outputKey] ?? 0) >= gs.limit;
-      const avgProg   = group.buildings.reduce((s, b) => s + (b.progress ?? 0), 0) / count;
+      const avgProg   = (gs.progress ?? 0) % 1;
       const missingIn = getMissingInputs(recipe);
       const waitMsg   = missingIn ? `⏳ Need: ${missingIn.join(', ')}` : 'Waiting for inputs';
       const statusTxt = !gs.enabled ? 'Disabled'
@@ -2259,15 +2450,15 @@ function renderBuildings() {
       return buildingCard('🟧', 'Steel Furnace', count,
         `coal: ${(count * COAL_PER_STEEL_FURNACE).toFixed(4)}/sec · 2× speed`,
         statusTxt, gs.enabled && !gs.starved && activeN > 0, avgProg, key,
-        buildCurrentRecipeDisplay(group.recipe, FURNACE_RECIPES), true);
+        buildCurrentRecipeDisplay(group.recipe, FURNACE_RECIPES), true, 'steelFurnace');
     }
 
     if (type === 'assembly') {
-      const activeN   = group.buildings.filter(b => b.active).length;
+      const activeN   = gs.active ? count : 0;
       const recipe    = PLAYER_RECIPES[group.recipe];
       const outputKey = recipe ? Object.keys(recipe.outputs)[0] : null;
       const atLimit   = outputKey && (state.inventory[outputKey] ?? 0) >= gs.limit;
-      const avgProg   = group.buildings.reduce((s, b) => s + (b.progress ?? 0), 0) / count;
+      const avgProg   = (gs.progress ?? 0) % 1;
       const missingIn = getMissingInputs(recipe);
       const waitMsg   = missingIn ? `⏳ Need: ${missingIn.join(', ')}` : 'Waiting for inputs';
       const brownStr  = gs.noPower ? ` · ⚡ ${Math.round((state.powerRatio ?? 1) * 100)}% power` : '';
@@ -2279,15 +2470,15 @@ function renderBuildings() {
       return buildingCard('🏭', 'Assembly Machine Mk1', count,
         `${ASSEMBLY_KW * count} kW · speed ×${ASSEMBLY_SPEED}`,
         statusTxt, gs.enabled && activeN > 0, avgProg, key,
-        buildCurrentRecipeDisplay(group.recipe, PLAYER_RECIPES), true);
+        buildCurrentRecipeDisplay(group.recipe, PLAYER_RECIPES), true, 'assembly');
     }
 
     if (type === 'assembly2') {
-      const activeN   = group.buildings.filter(b => b.active).length;
+      const activeN   = gs.active ? count : 0;
       const recipe    = PLAYER_RECIPES[group.recipe];
       const outputKey = recipe ? Object.keys(recipe.outputs)[0] : null;
       const atLimit   = outputKey && (state.inventory[outputKey] ?? 0) >= gs.limit;
-      const avgProg   = group.buildings.reduce((s, b) => s + (b.progress ?? 0), 0) / count;
+      const avgProg   = (gs.progress ?? 0) % 1;
       const missingIn = getMissingInputs(recipe);
       const waitMsg   = missingIn ? `⏳ Need: ${missingIn.join(', ')}` : 'Waiting for inputs';
       const brownStr  = gs.noPower ? ` · ⚡ ${Math.round((state.powerRatio ?? 1) * 100)}% power` : '';
@@ -2299,7 +2490,7 @@ function renderBuildings() {
       return buildingCard('🏗️', 'Assembly Machine Mk2', count,
         `${ASSEMBLY2_KW * count} kW · speed ×${ASSEMBLY2_SPEED}`,
         statusTxt, gs.enabled && activeN > 0, avgProg, key,
-        buildCurrentRecipeDisplay(group.recipe, PLAYER_RECIPES), true);
+        buildCurrentRecipeDisplay(group.recipe, PLAYER_RECIPES), true, 'assembly2');
     }
 
     if (type === 'lab') {
@@ -2327,7 +2518,7 @@ function renderBuildings() {
                        : gs2.starved  ? '🔴 No Science Packs'
                                       : `Researching: ${techName ?? '?'} (${res.totalConsumed}/${totalNeeded})`;
       return buildingCard('🔬', 'Lab', count, 'processes science packs',
-        statusTxt, gs2.enabled && !!res.current && !gs2.starved, progress, key);
+        statusTxt, gs2.enabled && !!res.current && !gs2.starved, progress, key, '', false, 'lab');
     }
 
     if (type === 'offshoreP') {
@@ -2381,11 +2572,11 @@ function renderBuildings() {
     }
 
     if (type === 'electricFurnace') {
-      const activeN   = group.buildings.filter(b => b.active).length;
+      const activeN   = gs.active ? count : 0;
       const recipe    = FURNACE_RECIPES[group.recipe];
       const outputKey = recipe ? Object.keys(recipe.outputs)[0] : null;
       const atLimit   = outputKey && (state.inventory[outputKey] ?? 0) >= gs.limit;
-      const avgProg   = group.buildings.reduce((s, b) => s + (b.progress ?? 0), 0) / count;
+      const avgProg   = (gs.progress ?? 0) % 1;
       const missingIn = getMissingInputs(recipe);
       const waitMsg   = missingIn ? `⏳ Need: ${missingIn.join(', ')}` : 'Waiting for inputs';
       const brownStr  = gs.noPower ? ` · ⚡ ${Math.round((state.powerRatio ?? 1) * 100)}% power` : '';
@@ -2397,15 +2588,15 @@ function renderBuildings() {
       return buildingCard('⚡🔥', 'Electric Furnace', count,
         `${ELECTRIC_FURNACE_KW * count} kW · 2× speed`,
         statusTxt2, gs.enabled && activeN > 0, avgProg, key,
-        buildCurrentRecipeDisplay(group.recipe, FURNACE_RECIPES), true);
+        buildCurrentRecipeDisplay(group.recipe, FURNACE_RECIPES), true, 'electricFurnace');
     }
 
     if (type === 'assembly3') {
-      const activeN   = group.buildings.filter(b => b.active).length;
+      const activeN   = gs.active ? count : 0;
       const recipe    = PLAYER_RECIPES[group.recipe];
       const outputKey = recipe ? Object.keys(recipe.outputs)[0] : null;
       const atLimit   = outputKey && (state.inventory[outputKey] ?? 0) >= gs.limit;
-      const avgProg   = group.buildings.reduce((s, b) => s + (b.progress ?? 0), 0) / count;
+      const avgProg   = (gs.progress ?? 0) % 1;
       const missingIn = getMissingInputs(recipe);
       const waitMsg   = missingIn ? `⏳ Need: ${missingIn.join(', ')}` : 'Waiting for inputs';
       const brownStr  = gs.noPower ? ` · ⚡ ${Math.round((state.powerRatio ?? 1) * 100)}% power` : '';
@@ -2417,7 +2608,7 @@ function renderBuildings() {
       return buildingCard('🏭', 'Assembly Machine Mk3', count,
         `${ASSEMBLY3_KW * count} kW · speed ×${ASSEMBLY3_SPEED}`,
         statusTxt2, gs.enabled && activeN > 0, avgProg, key,
-        buildCurrentRecipeDisplay(group.recipe, PLAYER_RECIPES), true);
+        buildCurrentRecipeDisplay(group.recipe, PLAYER_RECIPES), true, 'assembly3');
     }
 
     if (type === 'pumpjack') {
@@ -2432,15 +2623,15 @@ function renderBuildings() {
                                      : `${(count * PUMPJACK_SPEED * pRatio).toFixed(1)}/sec${brownStr}`;
       return buildingCard('🛢️', 'Pumpjack', count,
         `${PUMPJACK_KW * count} kW · ${remaining.toLocaleString()} remaining`,
-        statusTxt2, isActive2, hasPatch ? 1 : 0, key);
+        statusTxt2, isActive2, hasPatch ? 1 : 0, key, '', false, 'pumpjack');
     }
 
     if (type === 'oilRefinery') {
-      const activeN   = group.buildings.filter(b => b.active).length;
+      const activeN   = gs.active ? count : 0;
       const recipe    = PLAYER_RECIPES[group.recipe];
       const outputKey = recipe ? Object.keys(recipe.outputs)[0] : null;
       const atLimit   = outputKey && (state.inventory[outputKey] ?? 0) >= gs.limit;
-      const avgProg   = group.buildings.reduce((s, b) => s + (b.progress ?? 0), 0) / count;
+      const avgProg   = (gs.progress ?? 0) % 1;
       const missingIn = getMissingInputs(recipe);
       const waitMsg   = missingIn ? `⏳ Need: ${missingIn.join(', ')}` : 'Waiting for inputs';
       const brownStr  = gs.noPower ? ` · ⚡ ${Math.round((state.powerRatio ?? 1) * 100)}% power` : '';
@@ -2452,15 +2643,15 @@ function renderBuildings() {
       return buildingCard('🛢️', 'Oil Refinery', count,
         `${OIL_REFINERY_KW * count} kW`,
         statusTxt2, gs.enabled && activeN > 0, avgProg, key,
-        buildCurrentRecipeDisplay(group.recipe, PLAYER_RECIPES), true);
+        buildCurrentRecipeDisplay(group.recipe, PLAYER_RECIPES), true, 'oilRefinery');
     }
 
     if (type === 'chemicalPlant') {
-      const activeN   = group.buildings.filter(b => b.active).length;
+      const activeN   = gs.active ? count : 0;
       const recipe    = PLAYER_RECIPES[group.recipe];
       const outputKey = recipe ? Object.keys(recipe.outputs)[0] : null;
       const atLimit   = outputKey && (state.inventory[outputKey] ?? 0) >= gs.limit;
-      const avgProg   = group.buildings.reduce((s, b) => s + (b.progress ?? 0), 0) / count;
+      const avgProg   = (gs.progress ?? 0) % 1;
       const missingIn = getMissingInputs(recipe);
       const waitMsg   = missingIn ? `⏳ Need: ${missingIn.join(', ')}` : 'Waiting for inputs';
       const brownStr  = gs.noPower ? ` · ⚡ ${Math.round((state.powerRatio ?? 1) * 100)}% power` : '';
@@ -2472,15 +2663,15 @@ function renderBuildings() {
       return buildingCard('⚗️', 'Chemical Plant', count,
         `${CHEMICAL_PLANT_KW * count} kW · speed ×${CHEMICAL_PLANT_SPEED}`,
         statusTxt2, gs.enabled && activeN > 0, avgProg, key,
-        buildCurrentRecipeDisplay(group.recipe, PLAYER_RECIPES), true);
+        buildCurrentRecipeDisplay(group.recipe, PLAYER_RECIPES), true, 'chemicalPlant');
     }
 
     if (type === 'centrifuge') {
-      const activeN   = group.buildings.filter(b => b.active).length;
+      const activeN   = gs.active ? count : 0;
       const recipe    = PLAYER_RECIPES[group.recipe];
       const outputKey = recipe ? Object.keys(recipe.outputs)[0] : null;
       const atLimit   = outputKey && (state.inventory[outputKey] ?? 0) >= gs.limit;
-      const avgProg   = group.buildings.reduce((s, b) => s + (b.progress ?? 0), 0) / count;
+      const avgProg   = (gs.progress ?? 0) % 1;
       const missingIn = getMissingInputs(recipe);
       const waitMsg   = missingIn ? `⏳ Need: ${missingIn.join(', ')}` : 'Waiting for inputs';
       const brownStr  = gs.noPower ? ` · ⚡ ${Math.round((state.powerRatio ?? 1) * 100)}% power` : '';
@@ -2492,15 +2683,15 @@ function renderBuildings() {
       return buildingCard('☢️', 'Centrifuge', count,
         `${CENTRIFUGE_KW * count} kW · speed ×${CENTRIFUGE_SPEED}`,
         statusTxt2, gs.enabled && activeN > 0, avgProg, key,
-        buildCurrentRecipeDisplay(group.recipe, PLAYER_RECIPES), true);
+        buildCurrentRecipeDisplay(group.recipe, PLAYER_RECIPES), true, 'centrifuge');
     }
 
     if (type === 'rocketSilo') {
-      const activeN   = group.buildings.filter(b => b.active).length;
+      const activeN   = gs.active ? count : 0;
       const recipe    = PLAYER_RECIPES[group.recipe];
       const outputKey = recipe ? Object.keys(recipe.outputs)[0] : null;
       const atLimit   = outputKey && (state.inventory[outputKey] ?? 0) >= gs.limit;
-      const avgProg   = group.buildings.reduce((s, b) => s + (b.progress ?? 0), 0) / count;
+      const avgProg   = (gs.progress ?? 0) % 1;
       const missingIn = getMissingInputs(recipe);
       const waitMsg   = missingIn ? `⏳ Need: ${missingIn.join(', ')}` : 'Waiting for inputs';
       const brownStr  = gs.noPower ? ` · ⚡ ${Math.round((state.powerRatio ?? 1) * 100)}% power` : '';
@@ -2512,7 +2703,7 @@ function renderBuildings() {
       return buildingCard('🚀', 'Rocket Silo', count,
         `${ROCKET_SILO_KW * count} kW`,
         statusTxt2, gs.enabled && activeN > 0, avgProg, key,
-        buildCurrentRecipeDisplay(group.recipe, PLAYER_RECIPES), true);
+        buildCurrentRecipeDisplay(group.recipe, PLAYER_RECIPES), true, 'rocketSilo');
     }
 
     if (type === 'nuclearReactor') {
@@ -2532,13 +2723,91 @@ function renderBuildings() {
   }).join('');
 }
 
-function buildingCard(icon, name, count, meta, statusTxt, isActive, barFill, key, extra = '', showLimit = false) {
+function buildModSummary(mods) {
+  const parts = [];
+  for (const [mtype, n] of Object.entries(mods)) {
+    if (n > 0 && MODULE_DATA[mtype]) parts.push(`${MODULE_DATA[mtype].name}×${n}`);
+  }
+  return parts.length ? parts.join(', ') : '';
+}
+
+function adjustGroupModules(key, modType, amount) {
+  const gs = getGS(key);
+  const groups = buildGroupMap();
+  const group = groups[key];
+  if (!group) return;
+  const slotsPerBuilding = MODULE_SLOTS[group.type] ?? 0;
+  const totalSlots = slotsPerBuilding * group.buildings.length;
+  if (!gs.modules) gs.modules = {};
+  const usedSlots = Object.values(gs.modules).reduce((s, n) => s + n, 0);
+  const current = gs.modules[modType] ?? 0;
+  let newVal = current + amount;
+  if (amount > 0) {
+    const freeSlots = totalSlots - usedSlots;
+    newVal = Math.min(newVal, current + freeSlots);
+  }
+  newVal = Math.max(0, newVal);
+  gs.modules[modType] = newVal;
+  saveState();
+  renderBuildings();
+}
+
+function fillGroupModules(key, modType) {
+  const gs = getGS(key);
+  const groups = buildGroupMap();
+  const group = groups[key];
+  if (!group) return;
+  const slotsPerBuilding = MODULE_SLOTS[group.type] ?? 0;
+  const totalSlots = slotsPerBuilding * group.buildings.length;
+  if (!gs.modules) gs.modules = {};
+  const usedOther = Object.entries(gs.modules).reduce((s, [k, n]) => k === modType ? s : s + n, 0);
+  gs.modules[modType] = Math.max(0, totalSlots - usedOther);
+  saveState();
+  renderBuildings();
+}
+
+function clearGroupModules(key) {
+  const gs = getGS(key);
+  gs.modules = {};
+  saveState();
+  renderBuildings();
+}
+
+function buildingCard(icon, name, count, meta, statusTxt, isActive, barFill, key, extra = '', showLimit = false, moduleType = null) {
   const gs      = getGS(key);
   const stClass = isActive ? 'status-ok' : 'status-warn';
   const fillPct = (Math.min(1, Math.max(0, barFill)) * 100).toFixed(1);
   const limitRow = showLimit
     ? `<div class="building-limit-row">Stop if output ≥ <input type="number" class="limit-input" data-limit="${key}" value="${gs.limit}" min="0" max="99999" step="10"></div>`
     : '';
+
+  let moduleRow = '';
+  if (moduleType !== null) {
+    const slotsPerBuilding = MODULE_SLOTS[moduleType] ?? 0;
+    const totalSlots = slotsPerBuilding * count;
+    if (totalSlots > 0) {
+      const mods = gs.modules ?? {};
+      const selectedType = gs.selectedModuleType ?? 'speedMk1';
+      const usedSlots = Object.values(mods).reduce((s, n) => s + n, 0);
+      const summary = buildModSummary(mods);
+      const isProdAllowed = !PROD_MODULE_BLACKLIST.has(key.split(':')[1] ?? '');
+      const options = Object.entries(MODULE_DATA)
+        .filter(([k]) => k.startsWith('speed') || isProdAllowed)
+        .map(([k, d]) => `<option value="${k}"${k === selectedType ? ' selected' : ''}>${d.name}</option>`)
+        .join('');
+      moduleRow = `<div class="module-row">
+        <span class="module-slots-info">${usedSlots}/${totalSlots} slots</span>
+        <select class="module-type-sel" data-mod-sel="${key}">${options}</select>
+        <button class="mod-btn mod-add" data-mod-add="${key}" title="+1 module">+1</button>
+        <button class="mod-btn mod-add10" data-mod-add10="${key}" title="+10 modules">+10</button>
+        <button class="mod-btn mod-fill" data-mod-fill="${key}" title="Fill all slots">Fill</button>
+        <button class="mod-btn mod-rem" data-mod-rem="${key}" title="-1 module">−1</button>
+        <button class="mod-btn mod-clear" data-mod-clear="${key}" title="Remove all modules">Clear</button>
+        ${summary ? `<span class="mod-summary">${summary}</span>` : '<span class="mod-summary mod-summary-empty">no modules</span>'}
+      </div>`;
+    }
+  }
+
   return `<div class="building-card">
     <span class="building-icon">${icon}</span>
     <div class="building-info">
@@ -2546,7 +2815,7 @@ function buildingCard(icon, name, count, meta, statusTxt, isActive, barFill, key
         <span class="building-name">${name}</span>
         <span class="building-count">×${count}</span>
       </div>
-      ${extra}${limitRow}
+      ${extra}${limitRow}${moduleRow}
       <div class="building-meta">${meta}</div>
       <div class="building-status ${stClass}">${statusTxt}</div>
       <div class="mini-bar"><div class="mini-fill ${isActive ? 'fill-active' : ''}" style="width:${fillPct}%"></div></div>
@@ -3671,11 +3940,46 @@ function setupEventDelegation() {
       changeGroupRecipe(recipeBtn.dataset.groupRecipe, recipeBtn.dataset.recipe, recipeBtn.dataset.btype);
       return;
     }
+    const modAdd = e.target.closest('[data-mod-add]');
+    if (modAdd) {
+      const k = modAdd.dataset.modAdd;
+      const sel = modAdd.closest('.module-row')?.querySelector('[data-mod-sel]');
+      adjustGroupModules(k, getGS(k).selectedModuleType ?? 'speedMk1', 1);
+      return;
+    }
+    const modAdd10 = e.target.closest('[data-mod-add10]');
+    if (modAdd10) {
+      const k = modAdd10.dataset.modAdd10;
+      adjustGroupModules(k, getGS(k).selectedModuleType ?? 'speedMk1', 10);
+      return;
+    }
+    const modFill = e.target.closest('[data-mod-fill]');
+    if (modFill) {
+      const k = modFill.dataset.modFill;
+      fillGroupModules(k, getGS(k).selectedModuleType ?? 'speedMk1');
+      return;
+    }
+    const modRem = e.target.closest('[data-mod-rem]');
+    if (modRem) {
+      const k = modRem.dataset.modRem;
+      adjustGroupModules(k, getGS(k).selectedModuleType ?? 'speedMk1', -1);
+      return;
+    }
+    const modClear = e.target.closest('[data-mod-clear]');
+    if (modClear) {
+      clearGroupModules(modClear.dataset.modClear);
+      return;
+    }
   });
 
   document.getElementById('active-buildings').addEventListener('change', e => {
     const limitInput = e.target.closest('[data-limit]');
     if (limitInput) setGroupLimit(limitInput.dataset.limit, parseInt(limitInput.value) || 0);
+    const modSel = e.target.closest('[data-mod-sel]');
+    if (modSel) {
+      const gs = getGS(modSel.dataset.modSel);
+      gs.selectedModuleType = modSel.value;
+    }
   });
 
   const searchEl = document.getElementById('buildings-search');

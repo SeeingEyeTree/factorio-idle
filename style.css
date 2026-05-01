@@ -837,6 +837,39 @@ button {
 }
 .dev-close-btn:hover { color: var(--red); border-color: var(--red); }
 
+/* ── Module Row ─────────────────────────────────────────────── */
+
+.module-row {
+  display: flex; align-items: center; gap: .3rem;
+  padding: .3rem 0; flex-wrap: wrap;
+  border-top: 1px solid var(--border);
+  margin-top: .2rem;
+}
+.module-slots-info {
+  font-size: .7rem; color: var(--dim);
+  min-width: 3.5rem; text-align: right;
+}
+.module-type-sel {
+  font-size: .72rem;
+  background: var(--surf3); color: var(--text);
+  border: 1px solid var(--border2); border-radius: 4px;
+  padding: .1rem .25rem; cursor: pointer;
+  max-width: 6rem;
+}
+.mod-btn {
+  font-size: .7rem; padding: .1rem .35rem;
+  border-radius: 4px; border: 1px solid var(--border2);
+  background: var(--surf3); color: var(--text);
+  cursor: pointer; white-space: nowrap;
+}
+.mod-btn:hover { background: var(--surf2); border-color: var(--accent); color: var(--accent); }
+.mod-fill { color: var(--green); }
+.mod-fill:hover { background: var(--surf2); border-color: var(--green); color: var(--green); }
+.mod-clear { color: var(--red); }
+.mod-clear:hover { background: var(--surf2); border-color: var(--red); color: var(--red); }
+.mod-summary { font-size: .68rem; color: var(--accent); margin-left: .2rem; }
+.mod-summary-empty { color: var(--dim); }
+
 /* ── Notifications ──────────────────────────────────────────── */
 
 .notif {
