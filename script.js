@@ -620,12 +620,102 @@ function buildScriptContext() {
   ctx.centrifuge = 'centrifuge';
   ctx.rocket_silo = 'rocketSilo'; ctx.silo = 'rocketSilo';
   ctx.nuclear_reactor = 'nuclearReactor'; ctx.reactor = 'nuclearReactor';
-  // Resource aliases
+  // Resource aliases (for place/limit with miners)
   ctx.iron = 'iron'; ctx.iron_ore = 'iron_ore';
   ctx.copper = 'copper'; ctx.copper_ore = 'copper_ore';
   ctx.coal = 'coal'; ctx.stone = 'stone';
   ctx.oil = 'oil'; ctx.crude_oil = 'crude_oil';
   ctx.uranium = 'uranium'; ctx.uranium_ore = 'uranium_ore';
+  // Recipe aliases (for place/limit with furnaces/assemblers)
+  ctx.iron_plate = 'iron_plate'; ctx.copper_plate = 'copper_plate';
+  ctx.stone_brick = 'stone_brick'; ctx.steel = 'steel';
+  ctx.iron_gear = 'iron_gear'; ctx.gear = 'iron_gear';
+  ctx.copper_cable = 'copper_cable'; ctx.cable = 'copper_cable';
+  ctx.pipe = 'pipe'; ctx.iron_stick = 'iron_stick';
+  ctx.circuit = 'circuit'; ctx.green_circuit = 'circuit';
+  ctx.electronic_circuit = 'circuit';
+  ctx.advanced_circuit = 'advanced_circuit'; ctx.red_circuit = 'advanced_circuit';
+  ctx.processing_unit = 'processing_unit'; ctx.blue_circuit = 'processing_unit';
+  ctx.inserter = 'inserter'; ctx.transport_belt = 'transport_belt'; ctx.belt = 'transport_belt';
+  ctx.engine_unit = 'engine_unit'; ctx.engine = 'engine_unit';
+  ctx.electric_engine = 'electric_engine'; ctx.electric_engine_unit = 'electric_engine';
+  ctx.flying_robot_frame = 'flying_robot_frame';
+  ctx.construction_robot = 'construction_robot';
+  ctx.plastic_bar = 'plastic_bar'; ctx.plastic = 'plastic_bar';
+  ctx.sulfur = 'sulfur'; ctx.sulfuric_acid = 'sulfuric_acid';
+  ctx.battery = 'battery'; ctx.lubricant = 'lubricant';
+  ctx.solid_fuel = 'solid_fuel'; ctx.rocket_fuel = 'rocket_fuel';
+  ctx.explosives = 'explosives';
+  ctx.low_density_structure = 'low_density_structure';
+  ctx.rocket_control_unit = 'rocket_control_unit';
+  ctx.rocket_part = 'rocket_part';
+  ctx.science_pack_1 = 'science_pack_1'; ctx.red_science = 'science_pack_1';
+  ctx.science_pack_2 = 'science_pack_2'; ctx.green_science = 'science_pack_2';
+  ctx.science_pack_3 = 'science_pack_3'; ctx.blue_science = 'science_pack_3';
+  ctx.military_science = 'military_science';
+  ctx.production_science = 'production_science';
+  ctx.utility_science = 'utility_science';
+  ctx.space_science = 'space_science';
+  ctx.uranium_processing = 'uranium_processing';
+  ctx.kovarex = 'kovarex'; ctx.uranium_fuel_cell = 'uranium_fuel_cell';
+  ctx.concrete = 'concrete';
+  ctx.basic_oil = 'basic_oil'; ctx.advanced_oil = 'advanced_oil';
+  ctx.heavy_oil_cracking = 'heavy_oil_cracking'; ctx.light_oil_cracking = 'light_oil_cracking';
+
+  // ── devmode() — toggle dev mode
+  ctx.devmode = function() {
+    const on = !state.devMode;
+    toggleDevMode(on);
+    scriptOutput.push({ type: 'info', text: on ? '🛠 Dev mode enabled' : 'Dev mode disabled' });
+  };
+
+  // ── give(item, n=1) — add items (dev mode only)
+  ctx.give = function(item, n) {
+    if (!state.devMode) { scriptOutput.push({ type: 'warn', text: 'give: dev mode required' }); return; }
+    const GIVE_MAP = {
+      iron_ore: 'ironOre', iron: 'ironOre', copper_ore: 'copperOre', copper: 'copperOre',
+      coal: 'coal', stone: 'stone', crude_oil: 'crudeOil', oil: 'crudeOil',
+      uranium_ore: 'uraniumOre', uranium: 'uraniumOre',
+      iron_plate: 'ironPlate', copper_plate: 'copperPlate', stone_brick: 'stoneBrick',
+      steel: 'steel', iron_gear: 'ironGear', gear: 'ironGear',
+      copper_cable: 'copperCable', cable: 'copperCable',
+      pipe: 'pipe', iron_stick: 'ironStick',
+      circuit: 'electronicCircuit', green_circuit: 'electronicCircuit', electronic_circuit: 'electronicCircuit',
+      advanced_circuit: 'advancedCircuit', red_circuit: 'advancedCircuit',
+      processing_unit: 'processingUnit', blue_circuit: 'processingUnit',
+      inserter: 'inserter', transport_belt: 'transportBelt', belt: 'transportBelt',
+      engine_unit: 'engineUnit', engine: 'engineUnit',
+      electric_engine: 'electricEngineUnit', electric_engine_unit: 'electricEngineUnit',
+      flying_robot_frame: 'flyingRobotFrame',
+      plastic_bar: 'plasticBar', plastic: 'plasticBar',
+      sulfur: 'sulfur', sulfuric_acid: 'sulfuricAcid',
+      battery: 'battery', lubricant: 'lubricant', explosives: 'explosives',
+      solid_fuel: 'solidFuel', rocket_fuel: 'rocketFuel',
+      low_density_structure: 'lowDensityStructure', lds: 'lowDensityStructure',
+      rocket_control_unit: 'rocketControlUnit', rocket_part: 'rocketPart',
+      science_pack_1: 'redScience', red_science: 'redScience',
+      science_pack_2: 'greenScience', green_science: 'greenScience',
+      science_pack_3: 'blueScience', blue_science: 'blueScience',
+      military_science: 'blackScience', black_science: 'blackScience',
+      production_science: 'purpleScience', purple_science: 'purpleScience',
+      utility_science: 'yellowScience', yellow_science: 'yellowScience',
+      space_science: 'spaceScience',
+      uranium235: 'uranium235', uranium238: 'uranium238',
+      uranium_fuel_cell: 'uraniumFuelCell', nuclear_fuel: 'nuclearFuel',
+      concrete: 'concrete',
+      firearm_magazine: 'firearmMagazine', ammo: 'firearmMagazine',
+      piercing_rounds: 'piercingRoundsMag', piercing: 'piercingRoundsMag',
+      heavy_oil: 'heavyOil', light_oil: 'lightOil', petroleum_gas: 'petroleumGas',
+      water: 'water', steam: 'steam',
+    };
+    const raw   = String(item ?? '');
+    const key   = GIVE_MAP[raw] ?? raw;
+    const count = typeof n === 'number' ? Math.max(1, Math.floor(n)) : 1;
+    if (!key) { scriptOutput.push({ type: 'warn', text: 'give: item name required' }); return; }
+    state.inventory[key] = (state.inventory[key] ?? 0) + count;
+    if (count > 0) state.seen[key] = true;
+    scriptOutput.push({ type: 'info', text: `Gave ${count.toLocaleString()}× ${key}` });
+  };
 
   // ── place(type, arg, n=1)
   ctx.place = function(type, arg, n) {
@@ -820,6 +910,14 @@ function scriptPlaceBuilding(type, arg, n) {
   if (!isUnlocked('building', realType)) {
     scriptOutput.push({ type: 'warn', text: `place: ${DISPLAY[realType] ?? realType} is locked (research required)` });
     return;
+  }
+
+  // Allow place(type, count) for buildings that don't take a recipe/resource arg
+  const NO_ARG_TYPES = new Set(['boiler','steamEngine','offshoreP','radar','solarPanel',
+                                'accumulator','nuclearReactor','lab','pumpjack']);
+  if (n == null && arg != null && NO_ARG_TYPES.has(realType) && /^\d+(\.\d+)?$/.test(arg)) {
+    n = parseFloat(arg);
+    arg = null;
   }
 
   const count = typeof n === 'number' ? Math.max(1, Math.floor(n)) : 1;

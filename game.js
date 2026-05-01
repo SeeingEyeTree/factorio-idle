@@ -360,6 +360,9 @@ function createState(settings) {
     productionHistory: { samples: [] },
     seen: {},
     allPaused: false,
+    devMode: false,
+    devFreeResearch: false,
+    devTickSpeed: 1,
   };
 }
 
@@ -398,6 +401,9 @@ function applyStateFromEnvelope(envelope) {
   if (state.perimeter.ammoType == null) state.perimeter.ammoType = 'firearmMagazine';
   if (!state.inventoryDelta)           state.inventoryDelta   = {};
   if (!state.placementRecipes)         state.placementRecipes = defaultPlacementRecipes();
+  if (state.devMode         == null)   state.devMode          = false;
+  if (state.devFreeResearch == null)   state.devFreeResearch  = false;
+  if (state.devTickSpeed    == null)   state.devTickSpeed     = 1;
   if (state.settings?.radarNotif == null) state.settings.radarNotif = true;
   if (state.settings?.defaultLimitBuilding == null) state.settings.defaultLimitBuilding = 10;
   if (state.settings?.defaultLimitOther    == null) state.settings.defaultLimitOther    = Infinity;
@@ -903,7 +909,7 @@ function patchInPerimeter(resource) {
 // ── Game Loop ─────────────────────────────────────────────────
 
 function tick() {
-  const dt     = TICK_MS / 1000;
+  const dt     = TICK_MS / 1000 * (state?.devTickSpeed ?? 1);
   const groups = buildGroupMap();
 
   // ── Compute total power demand (uses last tick's powerKw) ──
@@ -1011,6 +1017,9 @@ function tick() {
       if (b.progress >= 1) {
         for (const [item, amt] of Object.entries(recipe.outputs)) state.inventory[item] += amt;
         b.active = false; b.progress = 0;
+        if ((state.inventory[outputKey] ?? 0) < gs.limit && canAfford(recipe.inputs)) {
+          spend(recipe.inputs); b.active = true;
+        }
       }
     }
   }
@@ -1032,6 +1041,9 @@ function tick() {
       if (b.progress >= 1) {
         for (const [item, amt] of Object.entries(recipe.outputs)) state.inventory[item] = (state.inventory[item] ?? 0) + amt;
         b.active = false; b.progress = 0;
+        if ((state.inventory[outputKey] ?? 0) < gs.limit && canAfford(recipe.inputs)) {
+          spend(recipe.inputs); b.active = true;
+        }
       }
     }
   }
@@ -1055,6 +1067,9 @@ function tick() {
         for (const [item, amt] of Object.entries(recipe.outputs))
           state.inventory[item] = (state.inventory[item] ?? 0) + amt;
         b.active = false; b.progress = 0;
+        if ((state.inventory[outputKey] ?? 0) < gs.limit && canAfford(recipe.inputs)) {
+          spend(recipe.inputs); b.active = true;
+        }
       }
     }
   }
@@ -1078,6 +1093,9 @@ function tick() {
         for (const [item, amt] of Object.entries(recipe.outputs))
           state.inventory[item] = (state.inventory[item] ?? 0) + amt;
         b.active = false; b.progress = 0;
+        if ((state.inventory[outputKey] ?? 0) < gs.limit && canAfford(recipe.inputs)) {
+          spend(recipe.inputs); b.active = true;
+        }
       }
     }
   }
@@ -1101,6 +1119,9 @@ function tick() {
         for (const [item, amt] of Object.entries(recipe.outputs))
           state.inventory[item] = (state.inventory[item] ?? 0) + amt;
         b.active = false; b.progress = 0;
+        if ((state.inventory[outputKey] ?? 0) < gs.limit && canAfford(recipe.inputs)) {
+          spend(recipe.inputs); b.active = true;
+        }
       }
     }
   }
@@ -1124,6 +1145,9 @@ function tick() {
         for (const [item, amt] of Object.entries(recipe.outputs))
           state.inventory[item] = (state.inventory[item] ?? 0) + amt;
         b.active = false; b.progress = 0;
+        if ((state.inventory[outputKey] ?? 0) < gs.limit && canAfford(recipe.inputs)) {
+          spend(recipe.inputs); b.active = true;
+        }
       }
     }
   }
@@ -1161,6 +1185,9 @@ function tick() {
         for (const [item, amt] of Object.entries(recipe.outputs))
           state.inventory[item] = (state.inventory[item] ?? 0) + amt;
         b.active = false; b.progress = 0;
+        if ((state.inventory[outputKey] ?? 0) < gs.limit && canAfford(recipe.inputs)) {
+          spend(recipe.inputs); b.active = true;
+        }
       }
     }
   }
@@ -1184,6 +1211,9 @@ function tick() {
         for (const [item, amt] of Object.entries(recipe.outputs))
           state.inventory[item] = (state.inventory[item] ?? 0) + amt;
         b.active = false; b.progress = 0;
+        if ((state.inventory[outputKey] ?? 0) < gs.limit && canAfford(recipe.inputs)) {
+          spend(recipe.inputs); b.active = true;
+        }
       }
     }
   }
@@ -1216,6 +1246,9 @@ function tick() {
             state.inventory[item] = (state.inventory[item] ?? 0) + amt;
         }
         b.active = false; b.progress = 0;
+        if ((state.inventory[outputKey] ?? 0) < gs.limit && canAfford(recipe.inputs)) {
+          spend(recipe.inputs); b.active = true;
+        }
       }
     }
   }
@@ -1239,6 +1272,9 @@ function tick() {
         for (const [item, amt] of Object.entries(recipe.outputs))
           state.inventory[item] = (state.inventory[item] ?? 0) + amt;
         b.active = false; b.progress = 0;
+        if ((state.inventory[outputKey] ?? 0) < gs.limit && canAfford(recipe.inputs)) {
+          spend(recipe.inputs); b.active = true;
+        }
       }
     }
   }
@@ -1361,9 +1397,10 @@ function tick() {
     if (gs.enabled && techData) {
       gs.packAcc = (gs.packAcc ?? 0) + count * dt / techData.timePerPack;
       while (gs.packAcc >= 1) {
-        const hasAllPacks = Object.keys(techData.cost).every(pk => (state.inventory[pk] ?? 0) >= 1);
+        const free = state.devFreeResearch && state.devMode;
+        const hasAllPacks = free || Object.keys(techData.cost).every(pk => (state.inventory[pk] ?? 0) >= 1);
         if (hasAllPacks) {
-          for (const pk of Object.keys(techData.cost)) state.inventory[pk]--;
+          if (!free) for (const pk of Object.keys(techData.cost)) state.inventory[pk]--;
           state.research.totalConsumed++;
           gs.packAcc--;
           gs.starved = false;
@@ -1649,10 +1686,39 @@ function setGroupLimit(key, value) {
 
 // ── Rendering ─────────────────────────────────────────────────
 
+function renderDevPanel() {
+  const el = document.getElementById('dev-panel');
+  if (!el) return;
+  if (!state.devMode) { el.classList.add('hidden'); return; }
+  el.classList.remove('hidden');
+  const speed = state.devTickSpeed ?? 1;
+  const speeds = [1, 2, 5, 10, 25];
+  el.innerHTML = `<span class="dev-label">DEV MODE</span>` +
+    `<label class="dev-toggle-label"><input type="checkbox" onchange="toggleDevFreeResearch(this.checked)" ${state.devFreeResearch ? 'checked' : ''}> Free Research</label>` +
+    `<span class="dev-speed-label">Speed:</span>` +
+    speeds.map(s => `<button class="dev-speed-btn${speed === s ? ' active' : ''}" onclick="setDevTickSpeed(${s})">${s}x</button>`).join('') +
+    `<button class="dev-close-btn" onclick="toggleDevMode(false)">✕</button>`;
+}
+
+function toggleDevMode(on) {
+  state.devMode = on != null ? !!on : !state.devMode;
+  renderDevPanel();
+}
+
+function toggleDevFreeResearch(checked) {
+  state.devFreeResearch = !!checked;
+}
+
+function setDevTickSpeed(n) {
+  state.devTickSpeed = n;
+  renderDevPanel();
+}
+
 function renderUI() {
   renderPower();
   renderBiterIndicator();
   renderStarredBar();
+  renderDevPanel();
   updatePlaceButtonStates();
   const active = document.querySelector('.tab-panel:not(.hidden)');
   if (!active) return;
@@ -3275,9 +3341,19 @@ function renderStarredBar() {
     return;
   }
   el.classList.remove('hidden');
+  const samples = state.productionHistory?.samples ?? [];
+  const SMOOTH = Math.min(10, samples.length);
+  const smoothedDelta = {};
+  if (SMOOTH > 0) {
+    for (const k of (state.starredItems ?? [])) {
+      let sum = 0;
+      for (let i = samples.length - SMOOTH; i < samples.length; i++) sum += samples[i][k] ?? 0;
+      smoothedDelta[k] = sum / SMOOTH;
+    }
+  }
   const html = starred.map(k => {
     const amt  = Math.floor(state.inventory[k] ?? 0);
-    const rate = state.inventoryDelta[k] ?? 0;
+    const rate = SMOOTH > 0 ? (smoothedDelta[k] ?? 0) : (state.inventoryDelta[k] ?? 0);
     const rateStr = (rate >= 0 ? '+' : '') + rate.toFixed(1) + '/s';
     return `<div class="starred-item" title="${ITEMS[k]?.name ?? k}">
       <span class="starred-icon">${itemIcon(k)}</span>
