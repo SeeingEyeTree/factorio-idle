@@ -397,17 +397,17 @@ const TECHNOLOGIES = {
     description: 'Unlocks uranium ammo for anti-tank weapons',
     unlockRecipes: ['uraniumRoundsMag'], unlockBuildings: [],
   },
-  /*nuclearReactorTech: {
+  nuclearPowerTech: {
     name: 'Nuclear Reactor', icon: '🏭',
     cost: { redScience: 1000, greenScience: 1000, blueScience: 1000, purpleScience: 1000, yellowScience: 1000 }, timePerPack: 60,
     prereqs: ['uraniumProcessing'],
     description: 'Enables construction of nuclear reactor power plants (488.88 MW per complex)',
     unlockRecipes: ['nuclearReactorItem', 'heatPipeItem', 'heatExchangerItem', 'steamTurbineItem'], unlockBuildings: ['nuclearReactor'],
-  },*/
+  },
   oilProcessingTech: {
-    name: 'Oil Processing', icon: '🛢️',
+    name: 'Oil Processing', icon: '⚗️',
     cost: { redScience: 75, greenScience: 75 }, timePerPack: 30,
-    prereqs: ['oilGathering', 'fluidHandling'],
+    prereqs: ['oilGathering'],
     description: 'Unlocks Oil Refinery for processing crude oil',
     unlockRecipes: ['oilRefineryItem', 'basicOilProcessing', 'chemicalPlantItem','solidFuelPetro'], unlockBuildings: ['oilRefinery','chemicalPlant'],
   },
@@ -444,7 +444,7 @@ const TECHNOLOGIES = {
     name: 'Rainbow Science Pack', icon: '🌈',
     cost: { redScience: 1000, greenScience: 1000, blueScience: 1000, purpleScience: 1000, yellowScience: 1000, spaceScience: 1000,blackScience: 1000 }, timePerPack: 60,
     prereqs: ['rocketSiloTech'],
-    description: 'Unlocks Rainbow Science Pack — the ultimate science pack, crafted from all others',
+    description: 'Unlocks Rainbow Science Pack — the ultimate science pack, crafted from all others ps Your welcom for a nother prod layer',
     unlockRecipes: ['rainbowScience'], unlockBuildings: [],
   },
   utilitySciencePack: {

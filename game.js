@@ -93,7 +93,8 @@ const LASER_KW_PER_TURRET  = LASER_SHOTS_PER_SEC * 800; // 1200 kW (800kJ/shot)
 const BUILDING_TOUGHNESS   = 2000;     // overflow damage to destroy 1 building
 const WALLS_PER_TILE       = 20;  // max stone walls per perimeter tile  → total = 20 * 4 * sideLength
 const TURRETS_PER_TILE     = 5;   // max turrets per perimeter tile       → total = 5 * 4 * sideLength
-const ARTILLERY_BASE_DAMAGE     = 500;    // base damage per artillery piece per wave
+const ARTILLERY_BASE_DAMAGE     = 500;    // damage per artillery shell
+const ARTILLERY_FIRE_RATE       = 10;     // seconds between shots per artillery turret
 const ATOMIC_BOMB_DAMAGE        = 1e9;    // damage dealt by one atomic bomb to one section
 const ATOMIC_BOMBS_PER_SPIDER   = 5;      // bombs available per spidertron per wave
 const IRRADIATION_SCALING_RATE  = 0.001;  // how much each bomb use increases biter threat scaling
@@ -186,7 +187,7 @@ const BUILDING_ITEM_KEYS = new Set(
 function defaultMetaState() {
   return {
     totalPoints: 0,
-    rawKills: 0,
+    weightedKills: 0,
     buildingUpgrades: {},
     perks: {
       quickStart: false,
@@ -206,6 +207,8 @@ function loadMetaState() {
     if (saved) {
       const parsed = JSON.parse(saved);
       const def = defaultMetaState();
+      // migrate rawKills → weightedKills
+      if (parsed.rawKills != null && parsed.weightedKills == null) parsed.weightedKills = parsed.rawKills;
       metaState = {
         ...def,
         ...parsed,
@@ -260,6 +263,9 @@ let buildingSearchQuery = '';
 let lastTechHash = '';
 let lastRobotTechHtml = '';
 let lastPerimeterHtml = '';
+let lastWavePreviewHash = '';
+let lastWavePreviewHtml = '';
+const starredMaxCh = {}; // { 'ironOre_count': 6, 'ironOre_rate': 7, ... }
 let lastInventoryHtml  = '';
 let lastStarredBarHtml = '';
 let lastMetaHtml = '';
@@ -1771,20 +1777,23 @@ function tick() {
     } else { gs.starved = true; }
   }
 
-  // Steam engines: only produce what solar+nuclear didn't already cover
+  // Steam engines: cover shortfall + 5% buffer so adding buildings doesn't flicker
   const engineGroup = groups['steamEngine'];
   if (engineGroup) {
     const gs        = getGS('steamEngine');
     const count     = engineGroup.buildings.length;
     const maxKw     = count * 900;
-    const shortfall = Math.max(0, totalDemand - state.powerKw);
+    const shortfall = Math.max(0, totalDemand * 1.05 - state.powerKw);
     if (!gs.enabled) {
       gs.starved = false; gs.standby = false;
+      state.powerCapacityKw = state.powerKw;
     } else if (shortfall === 0) {
-      // Solar/nuclear already meets all demand — engines idle, no steam consumed
+      // Solar/nuclear already covers 105%+ of demand — engines idle, no steam consumed
       gs.starved = false; gs.standby = true;
+      state.powerCapacityKw = state.powerKw + maxKw;
     } else if (state.steam <= 0) {
       gs.starved = true; gs.standby = false;
+      state.powerCapacityKw = state.powerKw;
     } else {
       gs.standby = false;
       const fraction      = Math.min(1, shortfall / maxKw);
@@ -1798,9 +1807,10 @@ function tick() {
         state.steam     = 0;
       }
       gs.starved = false;
+      state.powerCapacityKw = state.powerKw + (1 - fraction) * maxKw;
     }
   } else {
-    // No steam engines — powerKw stays as solar+nuclear
+    state.powerCapacityKw = state.powerKw;
   }
 
   // Accumulators: discharge deficit, charge surplus
@@ -2129,7 +2139,11 @@ function cancelCraftQueue(key) {
 
 function toggleGroup(key) {
   const gs = getGS(key);
-  gs.enabled = !gs.enabled; gs.coalAcc = 0; gs.starved = !gs.enabled;
+  const enabling = !gs.enabled;
+  gs.enabled = enabling;
+  gs.coalAcc = 0;
+  gs.starved = !enabling;
+  if (enabling && state.allPaused) state.allPaused = false;
   renderBuildings();
 }
 
@@ -2243,12 +2257,14 @@ function renderInventory() {
 function renderPower() {
   const waterPct = (state.water / WATER_MAX * 100).toFixed(1);
   const steamPct = (state.steam / STEAM_MAX * 100).toFixed(1);
-  const pw     = Math.floor(state.powerKw);
-  const demand = Math.floor(state.powerDemandKw ?? 0);
-  const pClass = pw >= demand && pw > 0 ? 'power-on' : demand > 0 && pw < demand ? 'power-warn' : '';
-  const pwText = demand > 0
-    ? `${pw.toLocaleString()} kW gen · ${demand.toLocaleString()} kW use`
-    : `${pw.toLocaleString()} kW`;
+  const pw      = Math.floor(state.powerKw);
+  const demand  = Math.floor(state.powerDemandKw ?? 0);
+  const cap     = Math.floor(state.powerCapacityKw ?? pw);
+  const pClass  = pw >= demand && pw > 0 ? 'power-on' : demand > 0 && pw < demand ? 'power-warn' : '';
+  const capStr  = cap > pw ? ` / ${cap.toLocaleString()} kW cap` : '';
+  const pwText  = demand > 0
+    ? `${pw.toLocaleString()} kW gen${capStr} · ${demand.toLocaleString()} kW use`
+    : `${pw.toLocaleString()} kW${capStr}`;
 
   const accCount  = state.buildings.filter(b => b.type === 'accumulator').length;
   const accMax    = accCount * ACCUMULATOR_CAPACITY;
@@ -2692,7 +2708,7 @@ function renderBuildings() {
                        : acidStarved  ? '⚗️ No Sulfuric Acid'
                        : atLimit      ? `⏸ Output limit (${gs.limit})`
                        : !hasPatch    ? 'Patch depleted'
-                                      : `${(count * speed * pRatio).toFixed(2)}/sec${brownStr}${nodesStr}`;
+                                      : `${(count * speed * (type === 'electricMiner' ? calcGroupModifiers('electricMiner', count, gs.modules).speedMult : 1) * pRatio).toFixed(2)}/sec${brownStr}${nodesStr}`;
       const meta = type === 'miner'
         ? `coal: ${(count * COAL_PER_MINER).toFixed(4)}/sec`
         : `${ELECTRIC_MINER_KW * count} kW`;
@@ -3039,7 +3055,16 @@ function adjustGroupModules(key, modType, amount) {
   let newVal = current + amount;
   if (amount > 0) {
     const freeSlots = totalSlots - usedSlots;
-    newVal = Math.min(newVal, current + freeSlots);
+    const inInv = state.inventory[modType] ?? 0;
+    const canAdd = Math.min(freeSlots, inInv);
+    newVal = Math.min(newVal, current + canAdd);
+    const actualAdded = Math.max(0, newVal - current);
+    if (actualAdded === 0) { notify(`No ${MODULE_DATA[modType]?.name ?? modType} in inventory`, 'warning'); return; }
+    state.inventory[modType] = inInv - actualAdded;
+  } else if (amount < 0) {
+    newVal = Math.max(0, newVal);
+    const actualRemoved = current - newVal;
+    if (actualRemoved > 0) state.inventory[modType] = (state.inventory[modType] ?? 0) + actualRemoved;
   }
   newVal = Math.max(0, newVal);
   gs.modules[modType] = newVal;
@@ -3055,14 +3080,26 @@ function fillGroupModules(key, modType) {
   const slotsPerBuilding = MODULE_SLOTS[group.type] ?? 0;
   const totalSlots = slotsPerBuilding * group.buildings.length;
   if (!gs.modules) gs.modules = {};
+  const current = gs.modules[modType] ?? 0;
   const usedOther = Object.entries(gs.modules).reduce((s, [k, n]) => k === modType ? s : s + n, 0);
-  gs.modules[modType] = Math.max(0, totalSlots - usedOther);
+  const wanted = Math.max(0, totalSlots - usedOther);
+  const toAdd = wanted - current;
+  if (toAdd <= 0) return;
+  const inInv = state.inventory[modType] ?? 0;
+  const actualAdded = Math.min(toAdd, inInv);
+  if (actualAdded === 0) { notify(`No ${MODULE_DATA[modType]?.name ?? modType} in inventory`, 'warning'); return; }
+  state.inventory[modType] = inInv - actualAdded;
+  gs.modules[modType] = current + actualAdded;
   saveState();
   renderBuildings();
 }
 
 function clearGroupModules(key) {
   const gs = getGS(key);
+  if (!gs.modules) return;
+  for (const [mtype, n] of Object.entries(gs.modules)) {
+    if (n > 0) state.inventory[mtype] = (state.inventory[mtype] ?? 0) + n;
+  }
   gs.modules = {};
   saveState();
   renderBuildings();
@@ -3649,6 +3686,18 @@ function fightBiterWave() {
 
   const { gunDPS, laserDPS, totalDPS } = calcDefenseDPS(actualArmor);
 
+  // ── Artillery pre-wave fire (fires during biter approach) ─────
+  const artDmgPerShell  = ARTILLERY_BASE_DAMAGE * artilleryDamageMult(p.artilleryDamageLevel ?? 0);
+  const shellsPerTurret = Math.floor(biterInterval() / ARTILLERY_FIRE_RATE);
+  const shellsWanted    = (p.artillery ?? 0) * shellsPerTurret;
+  const artShellsAvail  = state.inventory.artilleryShell ?? 0;
+  const artShellsUsed   = Math.min(shellsWanted, artShellsAvail);
+  const artPreDamage    = artShellsUsed * artDmgPerShell;
+  if (artShellsUsed > 0) state.inventory.artilleryShell = artShellsAvail - artShellsUsed;
+  const remainingBiterHP     = Math.max(0, totalBiterHP - artPreDamage);
+  const waveKilledByArtillery = remainingBiterHP <= 0 && (p.artillery ?? 0) > 0;
+  state.waveKilledByArtillery = waveKilledByArtillery;
+
   // ── Wall section model ─────────────────────────────────────
   const numSections = perimeterTiles();
   let sectionsAttacked;
@@ -3662,7 +3711,7 @@ function fightBiterWave() {
 
   const sectionWallHP  = totalWallHP  / numSections;
   const sectionDefDPS  = totalDPS     / numSections;
-  const sectionBiterHP = totalBiterHP / sectionsAttacked;
+  const sectionBiterHP = remainingBiterHP / sectionsAttacked;
   const sectionBiterDPS= totalBiterDPS / sectionsAttacked;
 
   // Fight each attacked section and accumulate overflow
@@ -3671,25 +3720,27 @@ function fightBiterWave() {
   let ammoUsed = 0;
   const ammoStats = GUN_TURRET_STATS[p.ammoType ?? 'firearmMagazine'] ?? GUN_TURRET_STATS.firearmMagazine;
 
-  for (let s = 0; s < sectionsAttacked; s++) {
-    if (sectionDefDPS > 0) {
-      const kt = sectionBiterHP / sectionDefDPS;
-      if (killTime === null) killTime = kt; // use first section as representative
-      const dmg = sectionBiterDPS * kt;
-      ammoUsed += p.gunTurrets * ammoStats.ammoCostPerSec * kt / sectionsAttacked;
-      if (dmg > sectionWallHP) totalOverflow += dmg - sectionWallHP;
-    } else {
-      // No DPS: biters attack for full interval duration
-      const dmg = sectionBiterDPS * biterInterval();
-      if (dmg > sectionWallHP) totalOverflow += dmg - sectionWallHP;
+  if (!waveKilledByArtillery) {
+    for (let s = 0; s < sectionsAttacked; s++) {
+      if (sectionDefDPS > 0) {
+        const kt = sectionBiterHP / sectionDefDPS;
+        if (killTime === null) killTime = kt;
+        const dmg = sectionBiterDPS * kt;
+        ammoUsed += p.gunTurrets * ammoStats.ammoCostPerSec * kt / sectionsAttacked;
+        if (dmg > sectionWallHP) totalOverflow += dmg - sectionWallHP;
+      } else {
+        const dmg = sectionBiterDPS * biterInterval();
+        if (dmg > sectionWallHP) totalOverflow += dmg - sectionWallHP;
+      }
     }
+    ammoUsed = Math.ceil(ammoUsed);
   }
-  ammoUsed = Math.ceil(ammoUsed);
 
   // Representative damage for display: sum across sections
-  const biterDamageDealt = sectionDefDPS > 0
-    ? sectionBiterDPS * (sectionBiterHP / (sectionDefDPS || 1)) * sectionsAttacked
-    : sectionBiterDPS * biterInterval() * sectionsAttacked;
+  const biterDamageDealt = waveKilledByArtillery ? 0
+    : sectionDefDPS > 0
+      ? sectionBiterDPS * (sectionBiterHP / (sectionDefDPS || 1)) * sectionsAttacked
+      : sectionBiterDPS * biterInterval() * sectionsAttacked;
 
   // Consume ammo
   const ammoType      = p.ammoType ?? 'firearmMagazine';
@@ -3697,19 +3748,15 @@ function fightBiterWave() {
   const actualAmmoUsed= Math.min(ammoUsed, ammoAvail);
   if (actualAmmoUsed > 0) state.inventory[ammoType] -= actualAmmoUsed;
 
-  // ── Artillery fire ────────────────────────────────────────────
-  const artilleryDmgPerPiece = ARTILLERY_BASE_DAMAGE * artilleryDamageMult(p.artilleryDamageLevel ?? 0);
-  const totalArtilleryDmg    = (p.artillery ?? 0) * artilleryDmgPerPiece;
-  if (totalArtilleryDmg > 0) {
-    totalOverflow = Math.max(0, totalOverflow - totalArtilleryDmg);
-  }
-
   // ── Atomic bomb defense ───────────────────────────────────────
   p.atomicBombsUsedThisWave = 0;
   let bombsUsed = 0;
   const availableBombs = (p.spidertrons ?? 0) * ATOMIC_BOMBS_PER_SPIDER;
   if (totalOverflow > 0 && availableBombs > 0) {
-    const bombsNeeded = Math.ceil(totalOverflow / ATOMIC_BOMB_DAMAGE);
+    const nukeableSections = Math.max(1, Math.floor(numSections / 20));
+    const biterHPperNukeSection = remainingBiterHP / nukeableSections;
+    const bombsPerSection  = Math.ceil(biterHPperNukeSection / ATOMIC_BOMB_DAMAGE);
+    const bombsNeeded      = nukeableSections * bombsPerSection;
     bombsUsed = Math.min(bombsNeeded, availableBombs);
     totalOverflow = Math.max(0, totalOverflow - bombsUsed * ATOMIC_BOMB_DAMAGE);
   }
@@ -3736,10 +3783,10 @@ function fightBiterWave() {
   // ── Meta progression: track kills and award points ───────────
   if (state.settings?.biters) {
     const killMult = (bombsUsed > 0) ? 0.01 : 1;
-    const weightedKills = actualCount * killMult;
+    const waveWeightedKills = actualCount * killMult;
     state.bitersKilled = (state.bitersKilled ?? 0) + actualCount;
-    metaState.rawKills = (metaState.rawKills ?? 0) + weightedKills;
-    metaState.totalPoints = Math.log10(1 + metaState.rawKills * 1e-4) * 10;
+    metaState.weightedKills = (metaState.weightedKills ?? 0) + waveWeightedKills;
+    metaState.totalPoints = Math.log10(1 + metaState.weightedKills * 1e-4) * 10;
     saveMetaState();
   }
 
@@ -3761,17 +3808,28 @@ function fightBiterWave() {
     ammoType,
     sectionsAttacked,
     numSections,
-    artilleryDmg: Math.round(totalArtilleryDmg),
+    artPreDamage: Math.round(artPreDamage),
+    artShellsUsed,
+    artKilled: waveKilledByArtillery,
     bombsUsed,
     hadAtomicAssist: bombsUsed > 0,
-    result: buildingsLost > 0 ? 'buildings_lost' : 'repelled',
+    result: waveKilledByArtillery ? 'art_killed' : buildingsLost > 0 ? 'buildings_lost' : 'repelled',
   };
 
-  lastPerimeterHtml = '';
-  if (buildingsLost > 0)
+  lastPerimeterHtml = ''; lastWavePreviewHash = '';
+  if (waveKilledByArtillery)
+    notify(`✓ Biter wave ${waveNum} destroyed by artillery!`, 'info');
+  else if (buildingsLost > 0)
     notify(`⚠ Biter wave ${waveNum}: ${buildingsLost} building${buildingsLost > 1 ? 's' : ''} destroyed!`, 'warning');
   else
     notify(`✓ Biter wave ${waveNum} repelled!`, 'info');
+}
+
+function skipToNextBiterWave() {
+  state.waveKilledByArtillery = false;
+  state.biterTimer = state.settings?.biterIntervalSecs ?? BITER_INTERVAL;
+  lastPerimeterHtml = '';
+  renderPerimeter();
 }
 
 function addPerimeterDefense(type, amount) {
@@ -3954,10 +4012,17 @@ function renderPerimeter() {
   const artRangeLevel    = p.artilleryRangeLevel ?? 0;
   const artDmgLevel      = p.artilleryDamageLevel ?? 0;
   const artDmgPerPiece   = ARTILLERY_BASE_DAMAGE * artilleryDamageMult(artDmgLevel);
-  const artTotalDmg      = (p.artillery ?? 0) * artDmgPerPiece;
+  const artShellsPerTurret = Math.floor(biterInterval() / ARTILLERY_FIRE_RATE);
+  const artShellsPerWave   = (p.artillery ?? 0) * artShellsPerTurret;
+  const artPreviewDmg      = artShellsPerWave * artDmgPerPiece;
 
   // Spidertron computed values
   const availBombs       = (p.spidertrons ?? 0) * ATOMIC_BOMBS_PER_SPIDER;
+
+  // Ammo/power estimates for wave prediction
+  const previewKillTimeSec = previewSectionDefDPS > 0 ? previewSectionBiterHP / previewSectionDefDPS : null;
+  const previewAmmoEst     = previewKillTimeSec != null ? Math.ceil(p.gunTurrets * (gunStats?.ammoCostPerSec ?? 0.25) * previewKillTimeSec) : null;
+  const laserPowerDrawKw   = p.laserTurrets * LASER_KW_PER_TURRET;
 
   const concreteCost = p.sideLength * 10;
   const newSL   = p.sideLength + 1;
@@ -4000,6 +4065,7 @@ function renderPerimeter() {
     <div class="perimeter-btn-row">
       <button class="btn-sm" onclick="addPerimeterDefense('walls',1)">+1</button>
       <button class="btn-sm" onclick="addPerimeterDefense('walls',10)">+10</button>
+      <button class="btn-sm" onclick="addPerimeterDefense('walls',999999)">Max</button>
       <button class="btn-sm btn-danger-sm" onclick="removePerimeterDefense('walls',1)">−1</button>
       <button class="btn-sm btn-danger-sm" onclick="removePerimeterDefense('walls',10)">−10</button>
     </div>
@@ -4025,6 +4091,7 @@ function renderPerimeter() {
     <div class="perimeter-btn-row">
       <button class="btn-sm" onclick="addPerimeterDefense('gunTurrets',1)">+1</button>
       <button class="btn-sm" onclick="addPerimeterDefense('gunTurrets',5)">+5</button>
+      <button class="btn-sm" onclick="addPerimeterDefense('gunTurrets',999999)">Max</button>
       <button class="btn-sm btn-danger-sm" onclick="removePerimeterDefense('gunTurrets',1)">−1</button>
       <button class="btn-sm btn-danger-sm" onclick="removePerimeterDefense('gunTurrets',5)">−5</button>
     </div>
@@ -4056,6 +4123,7 @@ function renderPerimeter() {
     <div class="perimeter-btn-row">
       <button class="btn-sm" onclick="addPerimeterDefense('laserTurrets',1)">+1</button>
       <button class="btn-sm" onclick="addPerimeterDefense('laserTurrets',5)">+5</button>
+      <button class="btn-sm" onclick="addPerimeterDefense('laserTurrets',999999)">Max</button>
       <button class="btn-sm btn-danger-sm" onclick="removePerimeterDefense('laserTurrets',1)">−1</button>
       <button class="btn-sm btn-danger-sm" onclick="removePerimeterDefense('laserTurrets',5)">−5</button>
     </div>
@@ -4067,10 +4135,16 @@ function renderPerimeter() {
       <span>Placed / Max</span><strong>${p.artillery ?? 0} / ${maxArtillery}</strong>
     </div>
     <div class="perimeter-stat-row">
-      <span>Dmg per piece</span><strong>${artDmgPerPiece.toLocaleString()}</strong>
+      <span>Dmg per shell</span><strong>${artDmgPerPiece.toLocaleString()}</strong>
     </div>
     <div class="perimeter-stat-row">
-      <span>Total artillery dmg</span><strong>${artTotalDmg.toLocaleString()}</strong>
+      <span>Fire rate</span><strong>1 shell / ${ARTILLERY_FIRE_RATE}s per turret</strong>
+    </div>
+    <div class="perimeter-stat-row">
+      <span>Shells per wave</span><strong>${artShellsPerWave} (${artShellsPerTurret}/turret)</strong>
+    </div>
+    <div class="perimeter-stat-row">
+      <span>Pre-wave damage</span><strong>~${artPreviewDmg.toLocaleString()} vs ${nextBiterHP.toLocaleString()} HP${artPreviewDmg >= nextBiterHP ? ' ✅ kills wave' : ''}</strong>
     </div>
     <div class="perimeter-stat-row">
       <span>Range level</span><strong>${artRangeLevel}</strong>
@@ -4079,11 +4153,15 @@ function renderPerimeter() {
       <span>Damage level</span><strong>${artDmgLevel} (+${Math.round((artilleryDamageMult(artDmgLevel) - 1) * 100)}%)</strong>
     </div>
     <div class="perimeter-stat-row">
-      <span>In inventory</span><strong>${Math.floor(state.inventory.artilleryTurretItem ?? 0)}</strong>
+      <span>Shells in inventory</span><strong>${Math.floor(state.inventory.artilleryShell ?? 0)}</strong>
+    </div>
+    <div class="perimeter-stat-row">
+      <span>Turrets in inventory</span><strong>${Math.floor(state.inventory.artilleryTurretItem ?? 0)}</strong>
     </div>
     <div class="perimeter-btn-row">
       <button class="btn-sm" onclick="addPerimeterDefense('artillery',1)">+1</button>
       <button class="btn-sm" onclick="addPerimeterDefense('artillery',5)">+5</button>
+      <button class="btn-sm" onclick="addPerimeterDefense('artillery',999999)">Max</button>
       <button class="btn-sm btn-danger-sm" onclick="removePerimeterDefense('artillery',1)">−1</button>
       <button class="btn-sm btn-danger-sm" onclick="removePerimeterDefense('artillery',5)">−5</button>
     </div>
@@ -4112,13 +4190,25 @@ function renderPerimeter() {
     <div class="perimeter-btn-row">
       <button class="btn-sm" onclick="addPerimeterDefense('spidertrons',1)">+1</button>
       <button class="btn-sm" onclick="addPerimeterDefense('spidertrons',5)">+5</button>
+      <button class="btn-sm" onclick="addPerimeterDefense('spidertrons',999999)">Max</button>
       <button class="btn-sm btn-danger-sm" onclick="removePerimeterDefense('spidertrons',1)">−1</button>
       <button class="btn-sm btn-danger-sm" onclick="removePerimeterDefense('spidertrons',5)">−5</button>
     </div>
     ${lastWave?.bombsUsed > 0 ? `<div class="perimeter-stat-row" style="margin-top:.5rem"><span>Last wave bombs used</span><strong>${lastWave.bombsUsed}</strong></div>` : ''}
   </div>
 
-  <div class="perimeter-card perimeter-card-wide">
+  ${(function() {
+    const wph = [
+      (state.biterThreatPoints ?? 0).toFixed(1),
+      state.biterWaveNumber,
+      p.gunTurrets, p.laserTurrets, p.artillery ?? 0,
+      p.ammoType ?? 'firearmMagazine',
+      p.walls,
+      Math.round((state.powerRatio ?? 1) * 20),
+    ].join('|');
+    if (wph !== lastWavePreviewHash) {
+      lastWavePreviewHash = wph;
+      lastWavePreviewHtml = `<div class="perimeter-card perimeter-card-wide">
     <div class="perimeter-card-title">📊 Next Wave Prediction — Wave ${nextWave}</div>
     <div class="perimeter-wave-row">
       <div class="perimeter-wave-col">
@@ -4159,12 +4249,25 @@ function renderPerimeter() {
     <div class="perimeter-stat-row">
       <span>Est. total biter damage</span><strong>~${parseFloat(previewDamage).toLocaleString()} · Wall HP: ${totalWallHP.toLocaleString()}</strong>
     </div>
+    ${previewAmmoEst != null ? `<div class="perimeter-stat-row"><span>Est. ammo used</span><strong>${previewAmmoEst.toLocaleString()} × ${ITEMS[ammoType]?.name ?? ammoType} (${Math.floor(state.inventory[ammoType] ?? 0).toLocaleString()} in inv)</strong></div>` : ''}
+    ${laserPowerDrawKw > 0 ? `<div class="perimeter-stat-row"><span>Laser power draw</span><strong>${laserPowerDrawKw.toLocaleString()} kW (${Math.round((state.powerRatio ?? 1) * 100)}% power)</strong></div>` : ''}
+    ${artPreviewDmg > 0 ? `<div class="perimeter-stat-row"><span>Artillery pre-damage</span><strong>~${artPreviewDmg.toLocaleString()} (${artShellsPerWave} shells) · ${artPreviewDmg >= nextBiterHP ? '✅ kills wave' : Math.round(artPreviewDmg / nextBiterHP * 100) + '% of wave HP'}</strong></div>` : ''}
     <div class="perimeter-outcome ${previewOverflow > 0 && totalDPS <= 0 ? 'perimeter-outcome-danger' : previewOverflow > 0 ? 'perimeter-outcome-warn' : 'perimeter-outcome-ok'}">${previewSurvive}</div>
-  </div>
+  </div>`;
+    }
+    return lastWavePreviewHtml;
+  })()}
+
+  ${state.waveKilledByArtillery ? `
+  <div class="perimeter-card perimeter-card-wide" style="border-color:var(--green)">
+    <div class="perimeter-card-title">✅ Wave ${state.biterWaveNumber} Destroyed by Artillery</div>
+    <p style="font-size:.85rem;color:var(--text-muted);margin:.25rem 0 .5rem">Next wave arrives in ${Math.ceil(biterInterval() - (state.biterTimer ?? 0))}s — or start it now.</p>
+    <button class="btn-sm" style="color:var(--green)" onclick="skipToNextBiterWave()">▶ Start Next Wave Now</button>
+  </div>` : ''}
 
   ${lastWave ? `
   <div class="perimeter-card perimeter-card-wide">
-    <div class="perimeter-card-title">⚔ Last Wave — Wave ${lastWave.waveNum} · ${lastWave.result === 'repelled' ? '✅ Repelled' : '❌ ' + lastWave.buildingsLost + ' building(s) lost'}</div>
+    <div class="perimeter-card-title">⚔ Last Wave — Wave ${lastWave.waveNum} · ${lastWave.result === 'art_killed' ? '✅ Destroyed by Artillery' : lastWave.result === 'repelled' ? '✅ Repelled' : '❌ ' + lastWave.buildingsLost + ' building(s) lost'}</div>
     <div class="perimeter-wave-row">
       <div class="perimeter-wave-col">
         <div class="perimeter-label">Count</div><div class="perimeter-range">${lastWave.count}</div>
@@ -4191,7 +4294,7 @@ function renderPerimeter() {
     <div class="perimeter-stat-row">
       <span>Ammo consumed</span><strong>${lastWave.ammoUsed} × ${ITEMS[lastWave.ammoType]?.name ?? lastWave.ammoType}</strong>
     </div>
-    ${(lastWave.artilleryDmg ?? 0) > 0 ? `<div class="perimeter-stat-row"><span>Artillery damage</span><strong>${lastWave.artilleryDmg.toLocaleString()}</strong></div>` : ''}
+    ${(lastWave.artShellsUsed ?? 0) > 0 ? `<div class="perimeter-stat-row"><span>Artillery shells used</span><strong>${lastWave.artShellsUsed} (${Math.round(lastWave.artPreDamage ?? 0).toLocaleString()} dmg${lastWave.artKilled ? ' — killed wave' : ''})</strong></div>` : ''}
     ${(lastWave.bombsUsed ?? 0) > 0 ? `<div class="perimeter-stat-row"><span>Atomic bombs used</span><strong>${lastWave.bombsUsed}</strong></div>` : ''}
   </div>` : ''}
 
@@ -4216,7 +4319,15 @@ function renderBiterIndicator() {
 }
 
 function toggleAllPaused() {
-  state.allPaused = !state.allPaused;
+  const pausing = !state.allPaused;
+  state.allPaused = pausing;
+  const groups = buildGroupMap();
+  for (const key of Object.keys(groups)) {
+    const gs = getGS(key);
+    gs.enabled = !pausing;
+    if (pausing) { gs.coalAcc = 0; gs.starved = true; }
+    else gs.starved = false;
+  }
   renderUI();
 }
 
@@ -4249,14 +4360,18 @@ function renderStarredBar() {
     }
   }
   const html = starred.map(k => {
-    const amt  = Math.floor(state.inventory[k] ?? 0);
-    const rate = SMOOTH > 0 ? (smoothedDelta[k] ?? 0) : (state.inventoryDelta[k] ?? 0);
+    const amt     = Math.floor(state.inventory[k] ?? 0);
+    const rate    = SMOOTH > 0 ? (smoothedDelta[k] ?? 0) : (state.inventoryDelta[k] ?? 0);
+    const cntStr  = amt.toLocaleString();
     const rateStr = (rate >= 0 ? '+' : '') + rate.toFixed(1) + '/s';
+    const ck = k + '_c', rk = k + '_r';
+    starredMaxCh[ck] = Math.max(starredMaxCh[ck] ?? 0, cntStr.length);
+    starredMaxCh[rk] = Math.max(starredMaxCh[rk] ?? 0, rateStr.length);
     return `<div class="starred-item" title="${ITEMS[k]?.name ?? k}">
       <span class="starred-icon">${itemIcon(k)}</span>
       <span class="starred-name">${ITEMS[k]?.name ?? k}</span>
-      <span class="starred-count">${amt.toLocaleString()}</span>
-      <span class="starred-rate ${rate >= 0 ? 'rate-pos' : 'rate-neg'}">${rateStr}</span>
+      <span class="starred-count" style="min-width:${starredMaxCh[ck]}ch">${cntStr}</span>
+      <span class="starred-rate ${rate >= 0 ? 'rate-pos' : 'rate-neg'}" style="min-width:${starredMaxCh[rk]}ch">${rateStr}</span>
     </div>`;
   }).join('');
   if (html === lastStarredBarHtml) return;
@@ -4338,6 +4453,7 @@ function renderGraph() {
   const plotW = W - pad.left - pad.right;
   const plotH = H - pad.top - pad.bottom;
 
+  // Compute axis range from raw samples (before smoothing) so scale is stable
   let minVal = 0, maxVal = 0;
   for (const s of samples) {
     for (const k of starred) {
@@ -4373,14 +4489,27 @@ function renderGraph() {
     ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(W - pad.right, y); ctx.stroke();
   }
 
+  // Build 10-sample rolling averages for display
+  const AVG_WIN = 10;
+  const smoothed = samples.map((_, i) => {
+    const from = Math.max(0, i - AVG_WIN + 1);
+    const obj = {};
+    for (const k of starred) {
+      let sum = 0;
+      for (let j = from; j <= i; j++) sum += samples[j][k] ?? 0;
+      obj[k] = sum / (i - from + 1);
+    }
+    return obj;
+  });
+
   // Data lines
   starred.forEach((k, ci) => {
     ctx.strokeStyle = COLORS[ci % COLORS.length];
     ctx.lineWidth = 2;
     ctx.beginPath();
-    for (let i = 0; i < samples.length; i++) {
+    for (let i = 0; i < smoothed.length; i++) {
       const x = scaleX(i);
-      const y = scaleY(samples[i][k] ?? 0);
+      const y = scaleY(smoothed[i][k] ?? 0);
       i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
     }
     ctx.stroke();
@@ -4521,6 +4650,7 @@ function showGame() {
   lastStarredBarHtml = '';
   lastRobotTechHtml  = '';
   lastPerimeterHtml  = '';
+  lastWavePreviewHash = '';
   lastMetaHtml       = '';
   const searchEl = document.getElementById('buildings-search');
   if (searchEl) searchEl.value = '';
@@ -4640,7 +4770,7 @@ function setupEventDelegation() {
 
   document.getElementById('active-buildings').addEventListener('change', e => {
     const limitInput = e.target.closest('[data-limit]');
-    if (limitInput) setGroupLimit(limitInput.dataset.limit, parseInt(limitInput.value) || 0);
+    if (limitInput) setGroupLimit(limitInput.dataset.limit, limitInput.value);
     const modSel = e.target.closest('[data-mod-sel]');
     if (modSel) {
       const gs = getGS(modSel.dataset.modSel);

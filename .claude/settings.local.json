@@ -8,7 +8,9 @@
       "PowerShell(Get-ChildItem \"c:\\\\Users\\\\malco\\\\factorio-idle\\\\dist\\\\Factorio Idle-win32-x64\" | Select-Object Name, @{N='SizeMB';E={[math]::Round\\($_.Length/1MB,1\\)}} | Select-Object -First 15)",
       "PowerShell($env:PATH = $env:PATH + \";C:\\\\Program Files\\\\Git\\\\bin;C:\\\\Program Files\\\\Git\\\\cmd\"; git --version 2>&1)",
       "PowerShell($git = \"C:\\\\Users\\\\malco\\\\AppData\\\\Local\\\\GitHubDesktop\\\\app-3.5.6\\\\resources\\\\app\\\\git\\\\cmd\\\\git.exe\"; & $git --version)",
-      "PowerShell(cd \"c:\\\\Users\\\\malco\\\\factorio-idle\"; $env:PATH += \";C:\\\\Users\\\\malco\\\\AppData\\\\Local\\\\GitHubDesktop\\\\app-3.5.6\\\\resources\\\\app\\\\git\\\\cmd\"; .\\\\node_modules\\\\.bin\\\\electron-packager.cmd . \"Factorio Idle\" --platform=win32 --arch=x64 --out=dist --overwrite --ignore=\"node_modules|dist|example_imgs|\\\\.claude\" 2>&1)"
+      "PowerShell(cd \"c:\\\\Users\\\\malco\\\\factorio-idle\"; $env:PATH += \";C:\\\\Users\\\\malco\\\\AppData\\\\Local\\\\GitHubDesktop\\\\app-3.5.6\\\\resources\\\\app\\\\git\\\\cmd\"; .\\\\node_modules\\\\.bin\\\\electron-packager.cmd . \"Factorio Idle\" --platform=win32 --arch=x64 --out=dist --overwrite --ignore=\"node_modules|dist|example_imgs|\\\\.claude\" 2>&1)",
+      "PowerShell(node --check \"c:\\\\Users\\\\malco\\\\factorio-idle\\\\game.js\" 2>&1)",
+      "PowerShell(if \\($LASTEXITCODE -eq 0\\) { \"SYNTAX OK\" } else { \"SYNTAX ERROR\" })"
     ]
   }
 }
