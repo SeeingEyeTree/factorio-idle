@@ -309,7 +309,7 @@ const PLAYER_RECIPES = {
   productivityModule:   { name: 'Productivity Module',      inputs: { advancedCircuit: 5, electronicCircuit: 5 },            outputs: { productivityModule: 1 },   time: 15.0 },
   productivityModule2:  { name: 'Productivity Module 2',    inputs: { advancedCircuit: 5, productivityModule: 4, processingUnit: 5 }, outputs: { productivityModule2: 1 }, time: 30.0 },
   productivityModule3:  { name: 'Productivity Module 3',    inputs: { advancedCircuit: 5, productivityModule2: 4, processingUnit: 5 }, outputs: { productivityModule3: 1 }, time: 60.0 },
-  gamerModule:          { name: 'Gamer Module',             inputs: { speedModule3: 4, productivityModule3: 4, processingUnit: 20, advancedCircuit: 10 }, outputs: { gamerModule: 1 }, time: 60.0 },
+  gamerModule:          { name: 'Gamer Module',             inputs: { speedModule3: 10, productivityModule3: 10, processingUnit: 20, advancedCircuit: 20 }, outputs: { gamerModule: 1 }, time: 60.0 },
 
   // ── Military ──────────────────────────────────────────────────
   firearmMagazine:      { name: 'Firearm Magazine',         inputs: { ironPlate: 4 },                                        outputs: { firearmMagazine: 1 },      time: 1.0  },
@@ -343,7 +343,7 @@ const PLAYER_RECIPES = {
   laserTurretItem:      { name: 'Laser Turret',             inputs: { steel: 20, electronicCircuit: 20, battery: 12 },       outputs: { laserTurretItem: 1 },      time: 20.0 },
   flamethrowerTurretItem:{ name: 'Flamethrower Turret',     inputs: { steel: 30, ironGear: 15, pipe: 10, engineUnit: 5 },    outputs: { flamethrowerTurretItem: 1 }, time: 20.0 },
   artilleryTurretItem:  { name: 'Artillery Turret',         inputs: { steel: 60, concrete: 60, ironGear: 40, advancedCircuit: 20 }, outputs: { artilleryTurretItem: 1 }, time: 40.0 },
-  spidertronItem:       { name: 'Spidertron',               inputs: { processingUnit: 16, lowDensityStructure: 150, rocketFuel: 10, radarItem: 2, electricEngineUnit: 4, advancedCircuit: 20 }, outputs: { spidertronItem: 1 }, time: 30.0 },
+  spidertronItem:       { name: 'Spidertron',               inputs: { processingUnit: 506, lowDensityStructure: 150, radarItem: 2, electricEngineUnit: 120, advancedCircuit: 25 }, outputs: { spidertronItem: 1 }, time: 10.0 },
   stoneWall:            { name: 'Stone Wall',               inputs: { stoneBrick: 5 },                                       outputs: { stoneWall: 1 },            time: 0.5  },
   //gate:                 { name: 'Gate',                     inputs: { steel: 2, electronicCircuit: 2, stoneWall: 1 },        outputs: { gate: 1 },                 time: 0.5  },
 };

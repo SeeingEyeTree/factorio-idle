@@ -13,25 +13,26 @@ const TECHNOLOGIES = {
   },
   military: {
     name: 'Military', icon: '⚙️',
-    cost: { redScience: 10 }, timePerPack: 10,
+    cost: { redScience: 10 }, timePerPack: 15,
     prereqs: [],
-    description: 'More Gun',
-    unlockRecipes: [], unlockBuildings: [],
+    description: 'Unlocks the damage upgrades for gun turrets',
+    unlockRecipes: [], unlockBuildings: [],// unlocks the damge upgrades for gun turrets
   },
   logistics: {
     name: 'Logistics', icon: '🔁',
-    cost: { redScience: 15 }, timePerPack: 15,
+    cost: { redScience: 20 }, timePerPack: 15,
     prereqs: [],
     description: 'Reduces building placement time by 0.25 seconds',
     unlockRecipes: [], unlockBuildings: [],
   },
+  /*
   landfill: {
     name: 'Landfill', icon: '🏝️',
     cost: { redScience: 50, greenScience: 50 }, timePerPack: 30,
     prereqs: ['logisticSciencePack'],
     description: 'Unlocks Landfill to convert water tiles to land',
     unlockRecipes: ['landfill'], unlockBuildings: [],
-  },
+  },*/
   radarTech: {
     name: 'Radar', icon: '📡',
     cost: { redScience: 20 }, timePerPack: 10,
@@ -96,8 +97,8 @@ const TECHNOLOGIES = {
     description: 'Unlocks Engine Unit crafting',
     unlockRecipes: ['engineUnit'], unlockBuildings: [],
   },
-  electricDistribution1: {
-    name: 'Electric Energy Distribution 1', icon: '🔋',
+  accumulators: {
+    name: 'Electric energy accumulators', icon: '🔋',
     cost: { redScience: 150, greenScience: 150 }, timePerPack: 30,
     prereqs: ['batteryTech'],
     description: 'Unlocks Accumulator (stores 5 MJ of power)',
@@ -118,13 +119,13 @@ const TECHNOLOGIES = {
     unlockRecipes: [], unlockBuildings: [],
   },
   // ── Red + Green (oil era) ─────────────────────────────────────
-  fluidHandling: {
+  /*fluidHandling: {
     name: 'Fluid Handling', icon: '🌊',
     cost: { redScience: 50, greenScience: 50 }, timePerPack: 15,
     prereqs: ['engineTech', 'automation2'],
     description: 'Fluid infrastructure — prerequisite for oil industry',
     unlockRecipes: [], unlockBuildings: [],
-  },
+  },*/
   concrete: {
     name: 'Concrete', icon: '🌊',
     cost: { redScience: 250, greenScience: 250 }, timePerPack: 30,
@@ -135,7 +136,7 @@ const TECHNOLOGIES = {
   oilGathering: {
     name: 'Oil Gathering', icon: '🛢️',
     cost: { redScience: 100, greenScience: 100 }, timePerPack: 30,
-    prereqs: ['fluidHandling'],
+    prereqs: ['concrete'],
     description: 'Unlocks Pumpjack for crude oil extraction',
     unlockRecipes: ['pumpjackItem'], unlockBuildings: ['pumpjack'],
   },
@@ -182,14 +183,14 @@ const TECHNOLOGIES = {
     cost: { redScience: 75, greenScience: 75, blueScience: 75 }, timePerPack: 45,
     prereqs: ['chemicalSciencePack'],
     description: 'Unlocks advanced oil cracking for more efficient petroleum use',
-    unlockRecipes: ['lubricant', 'rocketFuel','advancedOilProcessing','heavyOilCracking', 'lightOilCracking'], unlockBuildings: [],
+    unlockRecipes: [ 'rocketFuel','advancedOilProcessing','heavyOilCracking', 'lightOilCracking','solidFuelHeavy', 'solidFuelLight'], unlockBuildings: [],
   },
   lubricantTech: {
     name: 'Lubricant', icon: '🫙',
     cost: { redScience: 50, greenScience: 50, blueScience: 50 }, timePerPack: 30,
     prereqs: ['advancedOilProcessing'],
     description: 'Enables lubricant production from heavy oil',
-    unlockRecipes: [], unlockBuildings: [],
+    unlockRecipes: ['lubricant'], unlockBuildings: [],
   },
   electricEngine: {
     name: 'Electric Engine', icon: '🌀',
@@ -225,7 +226,7 @@ const TECHNOLOGIES = {
     cost: { redScience: 2500, greenScience: 2500, blueScience: 2500, yellowScience: 2500,purpleScience: 2500, blackScience: 2500 }, timePerPack: 30,
     prereqs: ['speedModuleTech3', 'nuclearPowerTech', 'military4'],
     description: 'Its a spider. It has guns. It can climb walls. It is the ultimate combat machine.',
-    unlockRecipes: ['spidertron', 'spidertronRemote'], unlockBuildings: [],
+    unlockRecipes: ['spidertronItem'], unlockBuildings: [],
   },
   military3: {
     name: 'Military 3', icon: '⚙️',
@@ -244,17 +245,18 @@ const TECHNOLOGIES = {
   artillery: {
     name: 'Artillery', icon: '⚙️',
     cost: { redScience: 2000, greenScience: 2000, blueScience: 2000, blackScience: 2000, yellowScience: 2000 }, timePerPack: 30,
-    prereqs: ['militarySciencePack', 'chemicalSciencePack'],
+    prereqs: ['military4'],// concre radar as well be I want clean tech tree
     description: 'The best in big bata boom hardware',
     unlockRecipes: ['artilleryShell', 'artilleryTurretItem','artilleryWagon'], unlockBuildings: [],
   },
+  /*
   flammables: {
     name: 'Flammables', icon: '🔥',
     cost: { redScience: 50, greenScience: 50 }, timePerPack: 30,
-    prereqs: ['oilRefineryTech'],
+    prereqs: ['oilProcessingTech'],
     description: 'Unlocks solid fuel production from heavy oil and light oil',
     unlockRecipes: [], unlockBuildings: [],
-  },
+  },*/
   electricFurnaceTech: {
     name: 'Electric Furnace', icon: '⚡',
     cost: { redScience: 250, greenScience: 250, blueScience: 250 }, timePerPack: 30,
@@ -276,17 +278,17 @@ const TECHNOLOGIES = {
     description: 'Unlocks Stone Wall crafting and military items',
     unlockRecipes: ['stoneWall'], unlockBuildings: [],
   },
-  modules: {
+  /*modules: {
     name: 'Modules', icon: '🟣',
     cost: { redScience: 100, greenScience: 100 }, timePerPack: 30,
     prereqs: ['advancedCircuit'],
     description: 'Unlocks Productivity Module 1',
     unlockRecipes: [], unlockBuildings: [],
-  },
+  },*/
   productionModuleTech1: {
     name: 'Productivity Module 1', icon: '🟣',
     cost: { redScience: 50, greenScience: 50 }, timePerPack: 30,
-    prereqs: ['modules'],
+    prereqs: ['advancedCircuit'],
     description: 'Unlocks Productivity Module 1',
     unlockRecipes: ['productivityModule'], unlockBuildings: [],
   },
@@ -307,7 +309,7 @@ const TECHNOLOGIES = {
   speedModuleTech1: {
     name: 'Speed Module 1', icon: '🟣',
     cost: { redScience: 50, greenScience: 50 }, timePerPack: 30,
-    prereqs: ['modules'],
+    prereqs: ['advancedCircuit'],
     description: 'Unlocks Speed Module 1',
     unlockRecipes: ['speedModule'], unlockBuildings: [],
   },
@@ -327,7 +329,7 @@ const TECHNOLOGIES = {
   },
   beaconTech: {
     name: 'Beacon', icon: '📡',
-    cost: { redScience: 75, greenScience: 75, blueScience: 75 }, timePerPack: 30,
+    cost: { redScience: 75, greenScience: 75, blueScience: 75, purpleScience: 75 }, timePerPack: 30,
     prereqs: ['productionSciencePack', 'processingUnitTech'],
     description: 'Unlocks Beacon for signal transmission',
     unlockRecipes: ['beaconItem'], unlockBuildings: [],
@@ -353,17 +355,17 @@ const TECHNOLOGIES = {
     description: 'Unlocks Assembly Machine Mk3 (speed ×1.25, 375 kW)',
     unlockRecipes: ['assemblyMachine3Item'], unlockBuildings: ['assembly3'],
   },
-  centrifugeTech: {
-    name: 'Nuclear Power', icon: '⚛️',
-    cost: { redScience: 800, greenScience: 800, blueScience: 800 }, timePerPack: 30,
+  uraniumProcessing: {
+    name: 'Getting started with uranium', icon: '⚛️',
+    cost: { redScience: 300, greenScience: 300, blueScience: 300 }, timePerPack: 30,
     prereqs: ['processingUnitTech', 'productionSciencePack'],
-    description: 'Unlocks Centrifuge for uranium processing and enables uranium ore discovery',
-    unlockRecipes: ['centrifugeItem', 'uraniumProcessing', 'uraniumFuelCell'], unlockBuildings: ['centrifuge'],
+    description: 'Unlocks Centrifuge for uranium processing.',
+    unlockRecipes: ['centrifugeItem', 'uraniumProcessing'], unlockBuildings: ['centrifuge','nuclearReactor'],
   },
   kovarexEnrichmentTech: {
     name: 'Kovarex Enrichment Process', icon: '⚛️',
     cost: { redScience: 1500, greenScience: 1500, blueScience: 1500, purpleScience: 1500 }, timePerPack: 30,
-    prereqs: ['centrifugeTech'],
+    prereqs: ['uraniumProcessing'],
     description: 'Unlocks Kovarex Enrichment Process for efficient uranium enrichment (requires 40 uranium-235 and 5 uranium-238 to produce 41 uranium-235)',
     unlockRecipes: ['kovarexEnrichment'], unlockBuildings: [],
   },
@@ -377,49 +379,49 @@ const TECHNOLOGIES = {
   flamethrowerTech: {
     name: 'Flamethrower', icon: '🔥',
     cost: { redScience: 50, greenScience: 50, blueScience: 50 }, timePerPack: 30,
-    prereqs: ['miltarySciencePack', 'flammables'],
+    prereqs: ['miltarySciencePack', 'oilProcessingTech'],
     description: 'Unlocks Flamethrower for close-range combat',
     unlockRecipes: ['flamethrowerTurretItem'], unlockBuildings: [],
   },
     landMineTech: {
     name: 'Land Mine', icon: '💣',
     cost: { redScience: 100, greenScience: 100, blackScience: 100 }, timePerPack: 30,
-    prereqs: ['miltarySciencePack', 'flammables'],
+    prereqs: ['miltarySciencePack', 'oilProcessingTech'],
     description: 'Unlocks Land Mine for defensive purposes def not war crimes',
     unlockRecipes: ['landMine'], unlockBuildings: [],
   },
   uraniumAmmoTech: {
     name: 'Uranium Ammo', icon: '☢️',
-    cost: { redScience: 1000, greenScience: 1000, blueScience: 1000 ,yellowScience: 1000,blackScience: 1000}, timePerPack: 15,
-    prereqs: ['centrifugeTech','military4'],
+    cost: { redScience: 1000, greenScience: 1000, blueScience: 1000 ,yellowScience: 1000,blackScience: 1000}, timePerPack: 45,
+    prereqs: ['uraniumProcessing','military4'],
     description: 'Unlocks uranium ammo for anti-tank weapons',
     unlockRecipes: ['uraniumRoundsMag'], unlockBuildings: [],
   },
-  nuclearReactorTech: {
+  /*nuclearReactorTech: {
     name: 'Nuclear Reactor', icon: '🏭',
     cost: { redScience: 1000, greenScience: 1000, blueScience: 1000, purpleScience: 1000, yellowScience: 1000 }, timePerPack: 60,
-    prereqs: ['centrifugeTech'],
+    prereqs: ['uraniumProcessing'],
     description: 'Enables construction of nuclear reactor power plants (488.88 MW per complex)',
     unlockRecipes: ['nuclearReactorItem', 'heatPipeItem', 'heatExchangerItem', 'steamTurbineItem'], unlockBuildings: ['nuclearReactor'],
-  },
-  oilRefineryTech: {
-    name: 'Oil Refinery', icon: '🛢️',
+  },*/
+  oilProcessingTech: {
+    name: 'Oil Processing', icon: '🛢️',
     cost: { redScience: 75, greenScience: 75 }, timePerPack: 30,
     prereqs: ['oilGathering', 'fluidHandling'],
     description: 'Unlocks Oil Refinery for processing crude oil',
-    unlockRecipes: ['oilRefineryItem', 'basicOilProcessing'], unlockBuildings: ['oilRefinery'],
+    unlockRecipes: ['oilRefineryItem', 'basicOilProcessing', 'chemicalPlantItem','solidFuelPetro'], unlockBuildings: ['oilRefinery','chemicalPlant'],
   },
-  chemicalPlantTech: {
+  /*chemicalPlantTech: {
     name: 'Chemical Plant', icon: '⚗️',
     cost: { redScience: 75, greenScience: 75 }, timePerPack: 30,
     prereqs: ['oilGathering', 'fluidHandling'],
     description: 'Unlocks Chemical Plant for advanced processing',
-    unlockRecipes: ['chemicalPlantItem', 'sulfur', 'plasticBar', 'solidFuelHeavy', 'solidFuelLight', 'solidFuelPetro', 'lubricant'], unlockBuildings: ['chemicalPlant'],
-  },
+    unlockRecipes: ['sulfur', , , , 'lubricant'], unlockBuildings: ['chemicalPlant'],
+  },*/
   lowDensityStructureTech: {
     name: 'Low Density Structure', icon: '🪶',
-    cost: { redScience: 300, greenScience: 300, blueScience: 300 }, timePerPack: 30,
-    prereqs: ['productionSciencePack'],
+    cost: { redScience: 300, greenScience: 300, blueScience: 300 }, timePerPack: 45,
+    prereqs: ['chemicalSciencePack', 'advancedMaterialProcessing'],
     description: 'Unlocks Low Density Structure for rocket construction',
     unlockRecipes: ['lowDensityStructure'], unlockBuildings: [],
   },
@@ -430,18 +432,18 @@ const TECHNOLOGIES = {
     description: 'Unlocks Rocket Fuel production',
     unlockRecipes: ['rocketFuel'], unlockBuildings: [],
   },
-
+  /*
   satelliteTech: {
     name: 'Satellite', icon: '🛰️',
     cost: { redScience: 500, greenScience: 500, blueScience: 500, purpleScience: 500, yellowScience: 500 }, timePerPack: 60,
     prereqs: ['rocketSiloTech'],
     description: 'Unlocks Satellite for launching with the Rocket Silo to produce Space Science',
     unlockRecipes: ['satellite','spaceScience'], unlockBuildings: [],
-  },
+  },*/
   rainbowSciencePack: {
     name: 'Rainbow Science Pack', icon: '🌈',
-    cost: { redScience: 1000, greenScience: 1000, blueScience: 1000, purpleScience: 1000, yellowScience: 1000, spaceScience: 1000 }, timePerPack: 60,
-    prereqs: ['satelliteTech'],
+    cost: { redScience: 1000, greenScience: 1000, blueScience: 1000, purpleScience: 1000, yellowScience: 1000, spaceScience: 1000,blackScience: 1000 }, timePerPack: 60,
+    prereqs: ['rocketSiloTech'],
     description: 'Unlocks Rainbow Science Pack — the ultimate science pack, crafted from all others',
     unlockRecipes: ['rainbowScience'], unlockBuildings: [],
   },
@@ -455,9 +457,9 @@ const TECHNOLOGIES = {
   rocketSiloTech: {
     name: 'Rocket Silo', icon: '🚀',
     cost: { redScience: 1000, greenScience: 1000, blueScience: 1000, purpleScience: 1000, yellowScience: 1000 }, timePerPack: 60,
-    prereqs: ['utilitySciencePack'],
+    prereqs: ['utilitySciencePack','accumulators', 'rocketFuelTech','solarEnergy','prodModuleTech3', 'speedModuleTech3'],
     description: 'Unlocks Rocket Silo — build rocket parts and launch satellites for Space Science',
-    unlockRecipes: ['rocketSiloItem', 'rocketPart', 'satellite'], unlockBuildings: ['rocketSilo'],
+    unlockRecipes: ['rocketSiloItem', 'rocketPart', 'satellite','spaceScience'], unlockBuildings: ['rocketSilo'],
   },
   laserTech: {
     name: 'Laser', icon: '🔴',
@@ -480,13 +482,13 @@ const TECHNOLOGIES = {
     description: 'Unlocks Explosives crafting',
     unlockRecipes: ['explosives'], unlockBuildings: [],
   },
-  nuclearFuelReprocessing: {
+  /*nuclearFuelReprocessing: {
     name: 'Nuclear Fuel Reprocessing', icon: '⚛️',
     cost: { redScience: 50, greenScience: 50, blueScience: 50, purpleScience: 50 }, timePerPack: 30,
-    prereqs: ['centrifugeTech', 'productionSciencePack'],
+    prereqs: ['uraniumProcessing', 'productionSciencePack'],
     description: 'Unlocks Nuclear Fuel Reprocessing — recycle used uranium fuel cells',
     unlockRecipes: ['nuclearFuelReprocessing'], unlockBuildings: [],
-  },
+  },*/
 };
 
 
