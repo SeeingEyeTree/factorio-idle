@@ -238,7 +238,7 @@ const TECHNOLOGIES = {
   military4: {
     name: 'Military 4', icon: '⚙️',
     cost: { redScience: 150, greenScience: 150, blueScience: 150, blackScience: 150 }, timePerPack: 45,
-    prereqs: ['military3', 'yellowSciencePack'],
+    prereqs: ['military3', 'utilitySciencePack'],
     description: 'Here for reasons',
     unlockRecipes: [], unlockBuildings: [],
   },
@@ -378,15 +378,15 @@ const TECHNOLOGIES = {
   },
   flamethrowerTech: {
     name: 'Flamethrower', icon: '🔥',
-    cost: { redScience: 50, greenScience: 50, blueScience: 50 }, timePerPack: 30,
-    prereqs: ['miltarySciencePack', 'oilProcessingTech'],
+    cost: { redScience: 50, greenScience: 50, blackScience: 50 }, timePerPack: 30,
+    prereqs: ['militarySciencePack', 'oilProcessingTech'],
     description: 'Unlocks Flamethrower for close-range combat',
     unlockRecipes: ['flamethrowerTurretItem'], unlockBuildings: [],
   },
     landMineTech: {
     name: 'Land Mine', icon: '💣',
     cost: { redScience: 100, greenScience: 100, blackScience: 100 }, timePerPack: 30,
-    prereqs: ['miltarySciencePack', 'oilProcessingTech'],
+    prereqs: ['militarySciencePack', 'oilProcessingTech'],
     description: 'Unlocks Land Mine for defensive purposes def not war crimes',
     unlockRecipes: ['landMine'], unlockBuildings: [],
   },
@@ -399,7 +399,7 @@ const TECHNOLOGIES = {
   },
   nuclearPowerTech: {
     name: 'Nuclear Reactor', icon: '🏭',
-    cost: { redScience: 1000, greenScience: 1000, blueScience: 1000, purpleScience: 1000, yellowScience: 1000 }, timePerPack: 60,
+    cost: { redScience: 800, greenScience: 800, blueScience: 800}, timePerPack: 60,
     prereqs: ['uraniumProcessing'],
     description: 'Enables construction of nuclear reactor power plants (488.88 MW per complex)',
     unlockRecipes: ['nuclearReactorItem', 'heatPipeItem', 'heatExchangerItem', 'steamTurbineItem'], unlockBuildings: ['nuclearReactor'],
@@ -457,7 +457,7 @@ const TECHNOLOGIES = {
   rocketSiloTech: {
     name: 'Rocket Silo', icon: '🚀',
     cost: { redScience: 1000, greenScience: 1000, blueScience: 1000, purpleScience: 1000, yellowScience: 1000 }, timePerPack: 60,
-    prereqs: ['utilitySciencePack','accumulators', 'rocketFuelTech','solarEnergy','prodModuleTech3', 'speedModuleTech3'],
+    prereqs: ['utilitySciencePack', 'rocketFuelTech','solarEnergy','productionModuleTech3', 'speedModuleTech3'],
     description: 'Unlocks Rocket Silo — build rocket parts and launch satellites for Space Science',
     unlockRecipes: ['rocketSiloItem', 'rocketPart', 'satellite','spaceScience'], unlockBuildings: ['rocketSilo'],
   },
