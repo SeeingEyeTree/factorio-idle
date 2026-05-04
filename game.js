@@ -63,17 +63,17 @@ const MODULE_SLOTS = {
   centrifuge: 2,
 };
 const MODULE_DATA = {
-  speedMk1: { name: 'Speed 1', speedBonus: 0.20, energyBonus: 0.50 },
-  speedMk2: { name: 'Speed 2', speedBonus: 0.30, energyBonus: 0.60 },
-  speedMk3: { name: 'Speed 3', speedBonus: 0.50, energyBonus: 0.70 },
-  prodMk1:  { name: 'Prod 1',  prodBonus: 0.04, speedPenalty: -0.05, energyBonus: 0.40 },
-  prodMk2:  { name: 'Prod 2',  prodBonus: 0.06, speedPenalty: -0.10, energyBonus: 0.60 },
-  prodMk3:  { name: 'Prod 3',  prodBonus: 0.10, speedPenalty: -0.15, energyBonus: 0.80 },
+  speedModule: { name: 'Speed 1', speedBonus: 0.20, energyBonus: 0.50 },
+  speedModule2: { name: 'Speed 2', speedBonus: 0.30, energyBonus: 0.60 },
+  speedModule3: { name: 'Speed 3', speedBonus: 0.50, energyBonus: 0.70 },
+  productivityModule:  { name: 'Prod 1',  prodBonus: 0.04, speedPenalty: -0.05, energyBonus: 0.40 },
+  productivityModule2:  { name: 'Prod 2',  prodBonus: 0.06, speedPenalty: -0.10, energyBonus: 0.60 },
+  productivityModule3:  { name: 'Prod 3',  prodBonus: 0.10, speedPenalty: -0.15, energyBonus: 0.80 },
   gamerModule: { name: 'Gamer Module', speedBonus: 0, prodBonus: 0 },
 };
 // Recipes whose output is a placeable building — productivity modules not allowed.
 // Add recipe output item keys here as needed (e.g., 'inserter', 'transportBelt').
-const PROD_MODULE_BLACKLIST = new Set([]);
+const PROD_MODULE_BLACKLIST = new Set([]); // 
 
 const WALL_HP              = 350;      // HP per stone wall in perimeter
 // Gun turret: shotsPerSec × max(0, dmgPerShot×gMult − armor×armorMult) = effective DPS
