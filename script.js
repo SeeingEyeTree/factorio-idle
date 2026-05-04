@@ -1,5 +1,75 @@
 'use strict';
 
+// ── Building alias maps derived from BUILDING_DEFS (game.js must load first) ──
+
+// Maps script alias string → internal type key (e.g. 'am1' → 'assembly')
+const SCRIPT_TYPE_ALIASES = Object.fromEntries(
+  Object.entries(BUILDING_DEFS)
+    .filter(([, v]) => v.scriptAlias)
+    .map(([k, v]) => [v.scriptAlias, k])
+);
+
+// Maps script alias string → display name (e.g. 'am1' → 'Assembling Machine Mk1')
+const SCRIPT_TYPE_DISPLAY = Object.fromEntries(
+  Object.entries(BUILDING_DEFS)
+    .filter(([, v]) => v.scriptAlias)
+    .map(([k, v]) => [v.scriptAlias, v.name])
+);
+
+// ── Recipe alias maps derived from PLAYER_RECIPES + FURNACE_RECIPES ───────────
+// Any new recipe added to recipes.js is automatically usable in scripts.
+
+// Converts camelCase key to snake_case script identifier.
+function camelToSnake(str) {
+  return str.replace(/([A-Z])/g, m => '_' + m.toLowerCase());
+}
+
+// Auto-generated map: snake_case identifier → camelCase recipe key.
+// One canonical alias per recipe — adding a recipe here propagates everywhere.
+const SCRIPT_RECIPE_MAP = (function() {
+  const map = {};
+  const allRecipes = { ...FURNACE_RECIPES, ...PLAYER_RECIPES };
+  for (const camelKey of Object.keys(allRecipes)) {
+    map[camelToSnake(camelKey)] = camelKey;
+  }
+  return map;
+})();
+
+// Shorthand / legacy aliases that supplement the auto-generated canonical names.
+// Format: script identifier → camelCase recipe key.
+// Add new shorthands here; the canonical snake_case name is always available too.
+const SCRIPT_RECIPE_EXTRA_ALIASES = {
+  // Shorthands (shorter than the full canonical name)
+  gear:                'ironGear',
+  cable:               'copperCable',
+  belt:                'transportBelt',
+  engine:              'engineUnit',
+  electric_engine:     'electricEngineUnit',    // canonical: electric_engine_unit
+  plastic:             'plasticBar',
+  circuit:             'electronicCircuit',      // canonical: electronic_circuit
+  green_circuit:       'electronicCircuit',
+  red_circuit:         'advancedCircuit',
+  blue_circuit:        'processingUnit',
+  lds:                 'lowDensityStructure',
+  ammo:                'firearmMagazine',
+  piercing:            'piercingRoundsMag',      // canonical: piercing_rounds_mag
+  piercing_rounds:     'piercingRoundsMag',
+  construction_robot:  'constructionRobotItem',  // canonical: construction_robot_item
+  kovarex:             'kovarexEnrichment',       // canonical: kovarex_enrichment
+  // Oil-processing friendly names
+  basic_oil:           'basicOilProcessing',     // canonical: basic_oil_processing
+  advanced_oil:        'advancedOilProcessing',  // canonical: advanced_oil_processing
+  // solid_fuel defaults to the light-oil variant; use canonical names for others
+  solid_fuel:          'solidFuelLight',         // canonical: solid_fuel_light
+  // Science pack legacy / Factorio internal names
+  science_pack_1:      'redScience',
+  science_pack_2:      'greenScience',
+  science_pack_3:      'blueScience',
+  military_science:    'blackScience',
+  production_science:  'purpleScience',
+  utility_science:     'yellowScience',
+};
+
 // ── Tokenizer ─────────────────────────────────────────────────
 
 function tokenize(src) {
@@ -537,6 +607,39 @@ function buildScriptContext() {
   ctx.NUCLEAR_REACTORS = countType('nuclearReactor');
   ctx.CHUNKS_EXPLORED  = state.chunksRevealed ?? 0;
 
+  // ── Inventory building item counts (how many of each building you have in stock, not placed)
+  for (const [type, def] of Object.entries(BUILDING_DEFS)) {
+    const itemKey = getBuildingItemKey(type);
+    if (itemKey) {
+      const varName = 'INV_' + type.replace(/([A-Z])/g, '_$1').toUpperCase();
+      ctx[varName] = Math.floor(inv[itemKey] ?? 0);
+    }
+  }
+  // Short-name backwards-compat aliases (no INV_ prefix) for common building types
+  ctx.ELECTRIC_MINER    = Math.floor(inv.electricMinerItem    ?? 0);
+  ctx.BURNER_MINER      = Math.floor(inv.burnerMinerItem      ?? 0);
+  ctx.STONE_FURNACE     = Math.floor(inv.stoneFurnaceItem     ?? 0);
+  ctx.STEEL_FURNACE_INV = Math.floor(inv.steelFurnaceItem     ?? 0);  // STEEL_FURNACE already used for placed count
+  ctx.ELEC_FURNACE      = Math.floor(inv.electricFurnaceItem  ?? 0);
+  ctx.ASSEMBLY_ITEM     = Math.floor(inv.assemblyMachine1Item ?? 0);
+  ctx.ASSEMBLY2_ITEM    = Math.floor(inv.assemblyMachine2Item ?? 0);
+  ctx.ASSEMBLY3_ITEM    = Math.floor(inv.assemblyMachine3Item ?? 0);
+  ctx.LAB_ITEM          = Math.floor(inv.labItem              ?? 0);
+  ctx.BOILER_ITEM       = Math.floor(inv.boilerItem           ?? 0);
+  ctx.STEAM_ENGINE_ITEM = Math.floor(inv.steamEngineItem      ?? 0);
+  ctx.OFFSHORE_P_ITEM   = Math.floor(inv.offshorePumpItem     ?? 0);
+  ctx.RADAR_ITEM        = Math.floor(inv.radarItem            ?? 0);
+  ctx.SOLAR_PANEL_ITEM  = Math.floor(inv.solarPanelItem       ?? 0);
+  ctx.ACCUMULATOR_ITEM  = Math.floor(inv.accumulatorItem      ?? 0);
+  ctx.OIL_REFINERY_ITEM = Math.floor(inv.oilRefineryItem      ?? 0);
+  ctx.CHEM_PLANT_ITEM   = Math.floor(inv.chemicalPlantItem    ?? 0);
+  ctx.CENTRIFUGE_ITEM   = Math.floor(inv.centrifugeItem       ?? 0);
+  ctx.ROCKET_SILO_ITEM  = Math.floor(inv.rocketSiloItem       ?? 0);
+  ctx.PUMPJACK_ITEM     = Math.floor(inv.pumpjackItem         ?? 0);
+  ctx.NUCLEAR_REACTOR_ITEM = Math.floor(inv.nuclearReactorItem ?? 0);
+  ctx.GUN_TURRET_ITEM   = Math.floor(inv.gunTurretItem        ?? 0);
+  ctx.LASER_TURRET_ITEM = Math.floor(inv.laserTurretItem      ?? 0);
+
   // ── Power
   ctx.POWER_GEN       = state.powerKw         ?? 0;
   ctx.POWER_DEMAND    = state.powerDemandKw   ?? 0;
@@ -626,41 +729,15 @@ function buildScriptContext() {
   ctx.coal = 'coal'; ctx.stone = 'stone';
   ctx.oil = 'oil'; ctx.crude_oil = 'crude_oil';
   ctx.uranium = 'uranium'; ctx.uranium_ore = 'uranium_ore';
-  // Recipe aliases (for place/limit with furnaces/assemblers)
-  ctx.iron_plate = 'iron_plate'; ctx.copper_plate = 'copper_plate';
-  ctx.stone_brick = 'stone_brick'; ctx.steel = 'steel';
-  ctx.iron_gear = 'iron_gear'; ctx.gear = 'iron_gear';
-  ctx.copper_cable = 'copper_cable'; ctx.cable = 'copper_cable';
-  ctx.pipe = 'pipe'; ctx.iron_stick = 'iron_stick';
-  ctx.circuit = 'circuit'; ctx.green_circuit = 'circuit';
-  ctx.electronic_circuit = 'circuit';
-  ctx.advanced_circuit = 'advanced_circuit'; ctx.red_circuit = 'advanced_circuit';
-  ctx.processing_unit = 'processing_unit'; ctx.blue_circuit = 'processing_unit';
-  ctx.inserter = 'inserter'; ctx.transport_belt = 'transport_belt'; ctx.belt = 'transport_belt';
-  ctx.engine_unit = 'engine_unit'; ctx.engine = 'engine_unit';
-  ctx.electric_engine = 'electric_engine'; ctx.electric_engine_unit = 'electric_engine';
-  ctx.flying_robot_frame = 'flying_robot_frame';
-  ctx.construction_robot = 'construction_robot';
-  ctx.plastic_bar = 'plastic_bar'; ctx.plastic = 'plastic_bar';
-  ctx.sulfur = 'sulfur'; ctx.sulfuric_acid = 'sulfuric_acid';
-  ctx.battery = 'battery'; ctx.lubricant = 'lubricant';
-  ctx.solid_fuel = 'solid_fuel'; ctx.rocket_fuel = 'rocket_fuel';
-  ctx.explosives = 'explosives';
-  ctx.low_density_structure = 'low_density_structure';
-  ctx.rocket_control_unit = 'rocket_control_unit';
-  ctx.rocket_part = 'rocket_part';
-  ctx.science_pack_1 = 'science_pack_1'; ctx.red_science = 'science_pack_1';
-  ctx.science_pack_2 = 'science_pack_2'; ctx.green_science = 'science_pack_2';
-  ctx.science_pack_3 = 'science_pack_3'; ctx.blue_science = 'science_pack_3';
-  ctx.military_science = 'military_science';
-  ctx.production_science = 'production_science';
-  ctx.utility_science = 'utility_science';
-  ctx.space_science = 'space_science';
-  ctx.uranium_processing = 'uranium_processing';
-  ctx.kovarex = 'kovarex'; ctx.uranium_fuel_cell = 'uranium_fuel_cell';
-  ctx.concrete = 'concrete';
-  ctx.basic_oil = 'basic_oil'; ctx.advanced_oil = 'advanced_oil';
-  ctx.heavy_oil_cracking = 'heavy_oil_cracking'; ctx.light_oil_cracking = 'light_oil_cracking';
+  // Recipe aliases — auto-generated from PLAYER_RECIPES + FURNACE_RECIPES.
+  // Any new recipe added to recipes.js is automatically available as a script identifier.
+  for (const snakeKey of Object.keys(SCRIPT_RECIPE_MAP)) {
+    ctx[snakeKey] = snakeKey;
+  }
+  // Extra shorthand / legacy aliases (defined in SCRIPT_RECIPE_EXTRA_ALIASES above).
+  for (const aliasKey of Object.keys(SCRIPT_RECIPE_EXTRA_ALIASES)) {
+    ctx[aliasKey] = aliasKey;
+  }
 
   // ── devmode() — toggle dev mode
   ctx.devmode = function() {
@@ -748,44 +825,26 @@ function buildScriptContext() {
 
   // ── limit(type, amount) or limit(type, recipe, amount)
   ctx.limit = function(type, recipeOrAmount, amount) {
+    // Extended alias map: covers multi-word and legacy aliases beyond SCRIPT_TYPE_ALIASES
     const TYPE_MAP = {
-      miner: 'miner', burner_miner: 'miner', burner: 'miner',
-      e_drill: 'electricMiner', electric_drill: 'electricMiner', electric_miner: 'electricMiner', e_miner: 'electricMiner',
-      furnace: 'furnace', stone_furnace: 'furnace',
-      steel_furnace: 'steelFurnace', electric_furnace: 'electricFurnace',
+      ...SCRIPT_TYPE_ALIASES,
+      burner_miner: 'miner', burner: 'miner',
+      electric_drill: 'electricMiner', electric_miner: 'electricMiner', e_miner: 'electricMiner',
+      stone_furnace: 'furnace',
+      electric_furnace: 'electricFurnace',
       assembly: 'assembly', assembler: 'assembly', am1: 'assembly', assembly1: 'assembly',
-      assembly2: 'assembly2', assembler2: 'assembly2', am2: 'assembly2',
-      assembly3: 'assembly3', assembler3: 'assembly3', am3: 'assembly3',
-      lab: 'lab', boiler: 'boiler', steam_engine: 'steamEngine', solar_panel: 'solarPanel',
-      accumulator: 'accumulator', acc: 'accumulator',
-      offshore_pump: 'offshoreP', offshore: 'offshoreP', pump: 'offshoreP',
-      radar: 'radar', pumpjack: 'pumpjack', oil_pump: 'pumpjack',
-      oil_refinery: 'oilRefinery', refinery: 'oilRefinery',
+      assembly2: 'assembly2', assembler2: 'assembly2',
+      assembly3: 'assembly3', assembler3: 'assembly3',
+      steam_engine: 'steamEngine', solar_panel: 'solarPanel',
+      acc: 'accumulator',
+      offshore_pump: 'offshoreP', offshore: 'offshoreP',
+      oil_pump: 'pumpjack',
+      oil_refinery: 'oilRefinery',
       chemical_plant: 'chemicalPlant', chem_plant: 'chemicalPlant',
-      centrifuge: 'centrifuge', rocket_silo: 'rocketSilo', silo: 'rocketSilo',
-      nuclear_reactor: 'nuclearReactor', nuclear: 'nuclearReactor', reactor: 'nuclearReactor',
+      rocket_silo: 'rocketSilo',
+      nuclear_reactor: 'nuclearReactor', nuclear: 'nuclearReactor',
     };
-    const RECIPE_MAP = {
-      iron_plate: 'ironPlate', copper_plate: 'copperPlate', stone_brick: 'stoneBrick', steel: 'steel',
-      iron_gear: 'ironGear', gear: 'ironGear', copper_cable: 'copperCable', cable: 'copperCable',
-      pipe: 'pipe', iron_stick: 'ironStick',
-      circuit: 'electronicCircuit', green_circuit: 'electronicCircuit', electronic_circuit: 'electronicCircuit',
-      advanced_circuit: 'advancedCircuit', red_circuit: 'advancedCircuit',
-      processing_unit: 'processingUnit', blue_circuit: 'processingUnit',
-      inserter: 'inserter', transport_belt: 'transportBelt', belt: 'transportBelt',
-      engine_unit: 'engineUnit', engine: 'engineUnit',
-      electric_engine: 'electricEngineUnit', electric_engine_unit: 'electricEngineUnit',
-      flying_robot_frame: 'flyingRobotFrame',
-      red_science: 'redScience', green_science: 'greenScience', blue_science: 'blueScience',
-      black_science: 'blackScience', purple_science: 'purpleScience', yellow_science: 'yellowScience',
-      plastic: 'plasticBar', plastic_bar: 'plasticBar',
-      sulfur: 'sulfur', sulfuric_acid: 'sulfuricAcid', battery: 'battery', lubricant: 'lubricant',
-      solid_fuel: 'solidFuelLight', rocket_fuel: 'rocketFuel',
-      low_density_structure: 'lowDensityStructure', lds: 'lowDensityStructure',
-      basic_oil: 'basicOilProcessing', advanced_oil: 'advancedOilProcessing',
-      uranium_processing: 'uraniumProcessing', kovarex: 'kovarexEnrichment',
-      uranium_fuel_cell: 'uraniumFuelCell', concrete: 'concrete',
-    };
+    const RECIPE_MAP = { ...SCRIPT_RECIPE_MAP, ...SCRIPT_RECIPE_EXTRA_ALIASES };
     const RESOURCE_MAP = {
       iron: 'ironOre', iron_ore: 'ironOre', copper: 'copperOre', copper_ore: 'copperOre',
       coal: 'coal', stone: 'stone', oil: 'crudeOil', crude_oil: 'crudeOil',
@@ -825,28 +884,25 @@ function buildScriptContext() {
 // ── scriptPlaceBuilding ───────────────────────────────────────
 
 function scriptPlaceBuilding(type, arg, n) {
+  // Extended alias map: covers multi-word and legacy aliases beyond the single SCRIPT_TYPE_ALIASES entry per type
   const TYPE_MAP = {
-    miner: 'miner', burner_miner: 'miner', burner: 'miner',
-    e_drill: 'electricMiner', electric_drill: 'electricMiner', electric_miner: 'electricMiner', e_miner: 'electricMiner',
-    furnace: 'furnace', stone_furnace: 'furnace',
-    steel_furnace: 'steelFurnace',
+    ...SCRIPT_TYPE_ALIASES,
+    burner_miner: 'miner', burner: 'miner',
+    electric_drill: 'electricMiner', electric_miner: 'electricMiner', e_miner: 'electricMiner',
+    stone_furnace: 'furnace',
     electric_furnace: 'electricFurnace',
     assembly: 'assembly', assembler: 'assembly', am1: 'assembly', assembly1: 'assembly',
-    assembly2: 'assembly2', assembler2: 'assembly2', am2: 'assembly2',
-    assembly3: 'assembly3', assembler3: 'assembly3', am3: 'assembly3',
-    lab: 'lab',
-    boiler: 'boiler',
+    assembly2: 'assembly2', assembler2: 'assembly2',
+    assembly3: 'assembly3', assembler3: 'assembly3',
     steam_engine: 'steamEngine', steamengine: 'steamEngine',
     solar_panel: 'solarPanel', solar: 'solarPanel',
-    accumulator: 'accumulator', acc: 'accumulator',
-    offshore_pump: 'offshoreP', offshore: 'offshoreP', pump: 'offshoreP',
-    radar: 'radar',
-    pumpjack: 'pumpjack', oil_pump: 'pumpjack',
-    oil_refinery: 'oilRefinery', refinery: 'oilRefinery',
+    acc: 'accumulator',
+    offshore_pump: 'offshoreP', offshore: 'offshoreP',
+    oil_pump: 'pumpjack',
+    oil_refinery: 'oilRefinery',
     chemical_plant: 'chemicalPlant', chem_plant: 'chemicalPlant',
-    centrifuge: 'centrifuge',
-    rocket_silo: 'rocketSilo', silo: 'rocketSilo',
-    nuclear_reactor: 'nuclearReactor', nuclear: 'nuclearReactor', reactor: 'nuclearReactor',
+    rocket_silo: 'rocketSilo',
+    nuclear_reactor: 'nuclearReactor', nuclear: 'nuclearReactor',
   };
 
   const RESOURCE_MAP = {
@@ -858,47 +914,8 @@ function scriptPlaceBuilding(type, arg, n) {
     uranium: 'uraniumOre', uranium_ore: 'uraniumOre',
   };
 
-  const RECIPE_MAP = {
-    iron_plate: 'ironPlate', copper_plate: 'copperPlate', stone_brick: 'stoneBrick',
-    steel: 'steel',
-    iron_gear: 'ironGear', gear: 'ironGear',
-    copper_cable: 'copperCable', cable: 'copperCable',
-    pipe: 'pipe', iron_stick: 'ironStick',
-    circuit: 'electronicCircuit', green_circuit: 'electronicCircuit', electronic_circuit: 'electronicCircuit',
-    advanced_circuit: 'advancedCircuit', red_circuit: 'advancedCircuit',
-    processing_unit: 'processingUnit', blue_circuit: 'processingUnit',
-    inserter: 'inserter',
-    transport_belt: 'transportBelt', belt: 'transportBelt',
-    engine_unit: 'engineUnit', engine: 'engineUnit',
-    electric_engine: 'electricEngineUnit', electric_engine_unit: 'electricEngineUnit',
-    flying_robot_frame: 'flyingRobotFrame',
-    red_science: 'redScience', green_science: 'greenScience', blue_science: 'blueScience',
-    black_science: 'blackScience', purple_science: 'purpleScience', yellow_science: 'yellowScience',
-    plastic: 'plasticBar', plastic_bar: 'plasticBar',
-    sulfur: 'sulfur', sulfuric_acid: 'sulfuricAcid',
-    battery: 'battery', lubricant: 'lubricant', explosives: 'explosives',
-    solid_fuel: 'solidFuelLight', rocket_fuel: 'rocketFuel',
-    low_density_structure: 'lowDensityStructure', lds: 'lowDensityStructure',
-    basic_oil: 'basicOilProcessing', advanced_oil: 'advancedOilProcessing',
-    heavy_oil_cracking: 'heavyOilCracking', light_oil_cracking: 'lightOilCracking',
-    uranium_processing: 'uraniumProcessing', kovarex: 'kovarexEnrichment',
-    uranium_fuel_cell: 'uraniumFuelCell', nuclear_fuel: 'nuclearFuel',
-    concrete: 'concrete',
-    firearm_magazine: 'firearmMagazine', ammo: 'firearmMagazine',
-    piercing_rounds: 'piercingRoundsMag', piercing: 'piercingRoundsMag',
-    rocket_part: 'rocketPart',
-  };
-
-  const DISPLAY = {
-    miner: 'Burner Miner', electricMiner: 'Electric Mining Drill',
-    furnace: 'Stone Furnace', steelFurnace: 'Steel Furnace', electricFurnace: 'Electric Furnace',
-    assembly: 'Assembly Machine Mk1', assembly2: 'Assembly Machine Mk2', assembly3: 'Assembly Machine Mk3',
-    lab: 'Lab', boiler: 'Boiler', steamEngine: 'Steam Engine',
-    solarPanel: 'Solar Panel', accumulator: 'Accumulator', offshoreP: 'Offshore Pump',
-    radar: 'Radar', pumpjack: 'Pumpjack', oilRefinery: 'Oil Refinery',
-    chemicalPlant: 'Chemical Plant', centrifuge: 'Centrifuge',
-    rocketSilo: 'Rocket Silo', nuclearReactor: 'Nuclear Reactor',
-  };
+  // Combined recipe map: canonical auto-generated names + extra shorthands.
+  const RECIPE_MAP = { ...SCRIPT_RECIPE_MAP, ...SCRIPT_RECIPE_EXTRA_ALIASES };
 
   const realType = TYPE_MAP[type] ?? type;
   const costs    = BUILDING_COSTS[realType];
@@ -907,8 +924,10 @@ function scriptPlaceBuilding(type, arg, n) {
     scriptOutput.push({ type: 'warn', text: `place: unknown building type "${type}"` });
     return;
   }
+  const _displayName = BUILDING_DEFS[realType]?.name ?? realType;
+
   if (!isUnlocked('building', realType)) {
-    scriptOutput.push({ type: 'warn', text: `place: ${DISPLAY[realType] ?? realType} is locked (research required)` });
+    scriptOutput.push({ type: 'warn', text: `place: ${_displayName} is locked (research required)` });
     return;
   }
 
@@ -922,13 +941,11 @@ function scriptPlaceBuilding(type, arg, n) {
 
   const count = typeof n === 'number' ? Math.max(1, Math.floor(n)) : 1;
   const pr    = state.placementRecipes ?? defaultPlacementRecipes();
-  const MINER_TYPES = ['furnace','steelFurnace','electricFurnace','assembly','assembly2','assembly3',
-                       'oilRefinery','chemicalPlant','centrifuge','rocketSilo'];
   let placed = 0;
 
   for (let i = 0; i < count; i++) {
     if (!canAfford(costs)) {
-      if (i === 0) scriptOutput.push({ type: 'warn', text: `place: can't afford ${DISPLAY[realType] ?? realType}` });
+      if (i === 0) scriptOutput.push({ type: 'warn', text: `place: can't afford ${_displayName}` });
       break;
     }
     let target;
@@ -944,7 +961,7 @@ function scriptPlaceBuilding(type, arg, n) {
     } else if (realType === 'pumpjack') {
       spend(costs);
       target = { type: realType, resource: 'crudeOil', acc: 0 };
-    } else if (MINER_TYPES.includes(realType)) {
+    } else if (BUILDING_DEFS[realType]?.hasRecipe) {
       const recipe = (arg ? (RECIPE_MAP[arg] ?? arg) : null) ?? pr[realType] ?? '';
       spend(costs);
       target = { type: realType, recipe, active: false, progress: 0 };
@@ -952,13 +969,13 @@ function scriptPlaceBuilding(type, arg, n) {
       spend(costs);
       target = { type: realType };
     }
-    target.displayName = DISPLAY[realType] ?? realType;
+    target.displayName = _displayName;
     placeQueue.push(target);
     placed++;
   }
 
   if (placed > 0) {
-    scriptOutput.push({ type: 'info', text: `Queued ${placed}× ${DISPLAY[realType] ?? realType}` });
+    scriptOutput.push({ type: 'info', text: `Queued ${placed}× ${_displayName}` });
     if (!placing) processNextPlacement();
   }
 }

@@ -50,6 +50,12 @@ const LAB_KW = 60;
 const RADAR_KW = 300;
 const NUCLEAR_REACTOR_KW    = 488880;  // kW per nuclear reactor complex
 const NUCLEAR_FUEL_INTERVAL = 50;      // seconds per uranium fuel cell consumed
+const STEAM_ENGINE_KW            = 900;    // kW per steam engine
+const STEAM_ENGINE_STEAM_PER_SEC = 30;     // steam consumed per second per engine
+const OFFSHORE_PUMP_WATER_PER_SEC = 1200;  // water produced per second per offshore pump
+const BOILER_COAL_PER_SEC        = 0.45;   // coal consumed per second per boiler
+const BOILER_WATER_PER_SEC       = 6;      // water consumed per second per boiler
+const BOILER_STEAM_PER_SEC       = 60;     // steam produced per second per boiler
 
 // ── Module System ─────────────────────────────────────────────
 const MODULE_SLOTS = {
@@ -111,6 +117,12 @@ const BITER_POINTS_EXP_BASE_GROWTH  = 0.0001; // how much the base increases per
 // ITEMS, ALWAYS_SHOW, FURNACE_RECIPES, PLAYER_RECIPES, CRAFT_SECTIONS loaded from data/recipes.js
 // TECHNOLOGIES loaded from data/technologies.js
 
+const SCIENCE_PACKS = [
+  'redScience', 'greenScience', 'blueScience',
+  'blackScience', 'purpleScience', 'yellowScience',
+  'spaceScience', 'rainbowScience'
+];
+
 // ── Resource Patches ─────────────────────────────────────────
 
 const PATCHES = {
@@ -125,6 +137,39 @@ const PATCHES = {
 
 // ── Technologies ──────────────────────────────────────────────
 // (loaded from data/technologies.js)
+
+// ── Building Definitions (single source of truth) ─────────────
+const BUILDING_DEFS = {
+  // key: { name, icon, kw, speed, isElectric, hasRecipe, hasResource, scriptAlias, upgradeable }
+  miner:           { name: 'Burner Mining Drill',     icon: '⛏️',  kw: 0,                   speed: MINE_SPEED,            isElectric: false, hasRecipe: false, hasResource: true,  scriptAlias: 'miner',         upgradeable: false },
+  electricMiner:   { name: 'Electric Mining Drill',   icon: '⚡⛏️', kw: ELECTRIC_MINER_KW,   speed: ELECTRIC_MINER_SPEED,  isElectric: true,  hasRecipe: false, hasResource: true,  scriptAlias: 'e_drill',       upgradeable: true  },
+  furnace:         { name: 'Stone Furnace',            icon: '🔥',  kw: 0,                   speed: 1.0,                   isElectric: false, hasRecipe: true,  hasResource: false, scriptAlias: 'furnace',       upgradeable: true  },
+  steelFurnace:    { name: 'Steel Furnace',            icon: '🔥',  kw: 0,                   speed: STEEL_FURNACE_SPEED,   isElectric: false, hasRecipe: true,  hasResource: false, scriptAlias: 'steel_furnace', upgradeable: true  },
+  electricFurnace: { name: 'Electric Furnace',         icon: '🔥',  kw: ELECTRIC_FURNACE_KW, speed: ELECTRIC_FURNACE_SPEED, isElectric: true, hasRecipe: true,  hasResource: false, scriptAlias: 'electric_furnace', upgradeable: true },
+  assembly:        { name: 'Assembling Machine Mk1',  icon: '🏭',  kw: ASSEMBLY_KW,          speed: ASSEMBLY_SPEED,        isElectric: true,  hasRecipe: true,  hasResource: false, scriptAlias: 'am1',           upgradeable: true  },
+  assembly2:       { name: 'Assembling Machine Mk2',  icon: '🏭',  kw: ASSEMBLY2_KW,         speed: ASSEMBLY2_SPEED,       isElectric: true,  hasRecipe: true,  hasResource: false, scriptAlias: 'am2',           upgradeable: true  },
+  assembly3:       { name: 'Assembling Machine Mk3',  icon: '🏭',  kw: ASSEMBLY3_KW,         speed: ASSEMBLY3_SPEED,       isElectric: true,  hasRecipe: true,  hasResource: false, scriptAlias: 'am3',           upgradeable: true  },
+  lab:             { name: 'Lab',                      icon: '🔬',  kw: LAB_KW,               speed: 1.0,                   isElectric: true,  hasRecipe: false, hasResource: false, scriptAlias: 'lab',           upgradeable: true  },
+  boiler:          { name: 'Boiler',                   icon: '🫕',  kw: 0,                   speed: 1.0,                   isElectric: false, hasRecipe: false, hasResource: false, scriptAlias: 'boiler',        upgradeable: true  },
+  steamEngine:     { name: 'Steam Engine',             icon: '⚙️',  kw: -STEAM_ENGINE_KW,    speed: 1.0,                   isElectric: false, hasRecipe: false, hasResource: false, scriptAlias: 'steam_engine',  upgradeable: false },
+  offshoreP:       { name: 'Offshore Pump',            icon: '💧',  kw: 0,                   speed: 1.0,                   isElectric: false, hasRecipe: false, hasResource: false, scriptAlias: 'pump',          upgradeable: false },
+  radar:           { name: 'Radar',                    icon: '📡',  kw: RADAR_KW,             speed: 1.0,                   isElectric: true,  hasRecipe: false, hasResource: false, scriptAlias: 'radar',         upgradeable: false },
+  solarPanel:      { name: 'Solar Panel',              icon: '☀️',  kw: -SOLAR_PANEL_KW,     speed: 1.0,                   isElectric: false, hasRecipe: false, hasResource: false, scriptAlias: 'solar',         upgradeable: false },
+  accumulator:     { name: 'Accumulator',              icon: '🔋',  kw: 0,                   speed: 1.0,                   isElectric: false, hasRecipe: false, hasResource: false, scriptAlias: 'accumulator',   upgradeable: false },
+  oilRefinery:     { name: 'Oil Refinery',             icon: '🛢️',  kw: OIL_REFINERY_KW,    speed: OIL_REFINERY_SPEED,    isElectric: true,  hasRecipe: true,  hasResource: false, scriptAlias: 'refinery',      upgradeable: true  },
+  chemicalPlant:   { name: 'Chemical Plant',           icon: '⚗️',  kw: CHEMICAL_PLANT_KW,   speed: CHEMICAL_PLANT_SPEED,  isElectric: true,  hasRecipe: true,  hasResource: false, scriptAlias: 'chem',          upgradeable: true  },
+  centrifuge:      { name: 'Centrifuge',               icon: '🌀',  kw: CENTRIFUGE_KW,        speed: CENTRIFUGE_SPEED,      isElectric: true,  hasRecipe: true,  hasResource: false, scriptAlias: 'centrifuge',    upgradeable: true  },
+  rocketSilo:      { name: 'Rocket Silo',              icon: '🚀',  kw: ROCKET_SILO_KW,       speed: ROCKET_SILO_SPEED,     isElectric: true,  hasRecipe: true,  hasResource: false, scriptAlias: 'silo',          upgradeable: true  },
+  pumpjack:        { name: 'Pumpjack',                 icon: '🛢️',  kw: PUMPJACK_KW,          speed: PUMPJACK_SPEED,        isElectric: true,  hasRecipe: false, hasResource: true,  scriptAlias: 'pumpjack',      upgradeable: true  },
+  nuclearReactor:  { name: 'Nuclear Reactor',          icon: '☢️',  kw: -NUCLEAR_REACTOR_KW,  speed: 1.0,                   isElectric: false, hasRecipe: false, hasResource: false, scriptAlias: 'reactor',       upgradeable: false },
+};
+
+// Pre-built kW lookup for the power demand loop (electric consumers only, kw > 0)
+const BUILDING_KW_TABLE = Object.fromEntries(
+  Object.entries(BUILDING_DEFS)
+    .filter(([, v]) => v.isElectric && v.kw > 0)
+    .map(([k, v]) => [k, v.kw])
+);
 
 const BUILDING_COSTS = {
   miner:         { burnerMinerItem: 1 },
@@ -150,29 +195,14 @@ const BUILDING_COSTS = {
   nuclearReactor: { nuclearReactorItem: 4, offshorePumpItem: 4, pipe: 180, heatPipeItem: 68, heatExchangerItem: 48, steamTurbineItem: 84 },
 };
 
-const COST_LABEL = {
-  miner:         '1 × Burner Mining Drill',
-  furnace:       '1 × Stone Furnace',
-  offshoreP:     '1 × Offshore Pump',
-  boiler:        '1 × Boiler',
-  steamEngine:   '1 × Steam Engine',
-  assembly:      '1 × Assembly Machine Mk1',
-  radar:         '1 × Radar',
-  lab:           '1 × Lab',
-  electricMiner: '1 × Electric Mining Drill',
-  steelFurnace:  '1 × Steel Furnace',
-  assembly2:     '1 × Assembly Machine Mk2',
-  solarPanel:    '1 × Solar Panel',
-  accumulator:   '1 × Accumulator',
-  pumpjack:      '1 × Pumpjack',
-  oilRefinery:   '1 × Oil Refinery',
-  chemicalPlant: '1 × Chemical Plant',
-  electricFurnace: '1 × Electric Furnace',
-  assembly3:     '1 × Assembly Machine Mk3',
-  centrifuge:    '1 × Centrifuge',
-  rocketSilo:    '1 × Rocket Silo',
-  nuclearReactor: '4 × Nuclear Reactor + 4 × Offshore Pump + 180 × Pipe + 68 × Heat Pipe + 48 × Heat Exchanger + 84 × Steam Turbine',
-};
+const COST_LABEL = Object.fromEntries(
+  Object.entries(BUILDING_COSTS).map(([k, costs]) => [
+    k,
+    Object.entries(costs)
+      .map(([item, n]) => `${n} × ${ITEMS[item]?.name ?? item}`)
+      .join(' + ')
+  ])
+);
 
 // low≈50k  medium≈75k  high≈100k total ore
 const DENSITY_MULT = { low: 0.67, medium: 1.0, high: 1.33 };
@@ -182,12 +212,24 @@ const BUILDING_ITEM_KEYS = new Set(
   Object.values(BUILDING_COSTS).flatMap(cost => Object.keys(cost))
 );
 
+// Maps a building type key to its single inventory item key (the item you craft/hold to place it).
+// For buildings that cost multiple items (e.g. nuclearReactor), returns the primary building item.
+function getBuildingItemKey(type) {
+  const costs = BUILDING_COSTS[type];
+  if (!costs) return null;
+  // Find the cost entry whose key ends in 'Item' — that's the placeable building item
+  const itemEntry = Object.keys(costs).find(k => k.endsWith('Item'));
+  return itemEntry ?? null;
+}
+
 // ── Meta Progression State ────────────────────────────────────
 
 function defaultMetaState() {
   return {
     totalPoints: 0,
+    pendingPoints: 0,
     weightedKills: 0,
+    saveBlacklist: [],
     buildingUpgrades: {},
     perks: {
       quickStart: false,
@@ -215,6 +257,7 @@ function loadMetaState() {
         perks: { ...def.perks, ...(parsed.perks ?? {}) },
         gamerModule: { ...def.gamerModule, ...(parsed.gamerModule ?? {}) },
         buildingUpgrades: { ...(parsed.buildingUpgrades ?? {}) },
+        saveBlacklist: Array.isArray(parsed.saveBlacklist) ? parsed.saveBlacklist : [],
       };
     }
   } catch (e) {
@@ -250,12 +293,10 @@ var scriptActiveTab = 'manual'; // 'auto' | 'manual'
 // Picker search state (per machine type)
 const pickerSearches = {};
 
-// Delta tracking
-let inventorySnapshot = null;
-let snapshotTimer     = 0;
-let prodAccum = {};      // gross items produced this snapshot window
-let consAccum = {};      // gross items consumed this snapshot window
-let tickPrevInv = null;  // inventory snapshot at start of each tick (for prod/cons split)
+// Persists the user-chosen "add count" per building group across render cycles
+const buildingAddCounts = {};
+
+// (Legacy delta-tracking variables removed — rates now use itemsProduced/itemsConsumed counters)
 
 // UI state
 let graphMode = 'production'; // 'production' | 'consumption' | 'net'
@@ -364,16 +405,59 @@ function miningProdMult() {
   return 1 + (state.research?.miningProdLevel ?? 0) * 0.10;
 }
 
+// ── Infinite Tech Registry ────────────────────────────────────
+// getData references function-declared helpers — safe because function declarations are hoisted.
+const INFINITE_TECHS = {
+  'robot:speed': {
+    displayName: 'Robot Speed',
+    stateField: 'robotSpeedLevel',
+    prereq: 'robotics',
+    getData: (level) => getRobotSpeedTechData(level),
+  },
+  'robot:cargo': {
+    displayName: 'Robot Cargo Capacity',
+    stateField: 'robotCargoLevel',
+    prereq: 'robotics',
+    getData: (level) => ROBOT_CARGO_TECH_DATA[level] ?? null,
+  },
+  'mining:productivity': {
+    displayName: 'Mining Productivity',
+    stateField: 'miningProdLevel',
+    prereq: 'electricMiningDrill',
+    getData: (level) => getMiningProdData(level),
+  },
+  'gun:damage': {
+    displayName: 'Physical Projectile Damage',
+    stateField: 'gunDamageLevel',
+    prereq: 'gunTurret',
+    getData: (level) => getGunDamageData(level),
+  },
+  'laser:damage': {
+    displayName: 'Laser Shooting Speed',
+    stateField: 'laserDamageLevel',
+    prereq: 'laserTurretTech',
+    getData: (level) => getLaserDamageData(level),
+  },
+  'artillery:range': {
+    displayName: 'Artillery Range',
+    stateField: 'artilleryRangeLevel',
+    prereq: null,
+    getData: (level) => getArtilleryRangeTechData(level),
+  },
+  'artillery:damage': {
+    displayName: 'Artillery Damage',
+    stateField: 'artilleryDamageLevel',
+    prereq: null,
+    getData: (level) => getArtilleryDamageTechData(level),
+  },
+};
+
 function currentRobotTechData() {
   const cur = state.research.current;
-  if (cur === 'robot:speed')         return getRobotSpeedTechData((state.research.robotSpeedLevel ?? 0) + 1);
-  if (cur === 'robot:cargo')         return ROBOT_CARGO_TECH_DATA[(state.research.robotCargoLevel ?? 0) + 1] ?? null;
-  if (cur === 'mining:productivity') return getMiningProdData((state.research.miningProdLevel ?? 0) + 1);
-  if (cur === 'gun:damage')          return getGunDamageData((state.research.gunDamageLevel ?? 0) + 1);
-  if (cur === 'laser:damage')        return getLaserDamageData((state.research.laserDamageLevel ?? 0) + 1);
-  if (cur === 'artillery:range')     return getArtilleryRangeTechData((state.research.artilleryRangeLevel ?? 0) + 1);
-  if (cur === 'artillery:damage')    return getArtilleryDamageTechData((state.research.artilleryDamageLevel ?? 0) + 1);
-  return null;
+  const def = INFINITE_TECHS[cur];
+  if (!def) return null;
+  const level = (state.research[def.stateField] ?? 0) + 1;
+  return def.getData(level);
 }
 
 function computePlaceTimeSec() {
@@ -492,6 +576,11 @@ function createState(settings) {
     devMode: false,
     devFreeResearch: false,
     devTickSpeed: 1,
+    itemsProduced: {},
+    itemsConsumed: {},
+    rateSnapshot: { time: 0, produced: {}, consumed: {} },
+    saveCreatedAt: Date.now(),
+    _deathHandled: false,
   };
 
   // Apply Quick Start perk if purchased and meta prog is enabled
@@ -611,17 +700,29 @@ function applyStateFromEnvelope(envelope) {
   if (state.settings?.metaProgEnabled == null) {
     if (state.settings) state.settings.metaProgEnabled = false;
   }
+  if (!state.itemsProduced) state.itemsProduced = {};
+  if (!state.itemsConsumed) state.itemsConsumed = {};
+  if (!state.rateSnapshot) state.rateSnapshot = { time: 0, produced: {}, consumed: {} };
+  if (!state.saveCreatedAt) state.saveCreatedAt = Date.now();
+  if (state._deathHandled == null) state._deathHandled = false;
 
   // Merge meta state from save envelope
   if (isEnvelope && envelope.meta) {
     const def = defaultMetaState();
     const em  = envelope.meta;
+    // Merge saveBlacklist from both envelope.meta and the current in-memory metaState
+    // (current metaState was loaded from localStorage in loadMetaState() at startup)
+    const mergedBlacklist = Array.from(new Set([
+      ...(Array.isArray(em.saveBlacklist) ? em.saveBlacklist : []),
+      ...(Array.isArray(metaState.saveBlacklist) ? metaState.saveBlacklist : []),
+    ]));
     metaState = {
       ...def,
       ...em,
       perks: { ...def.perks, ...(em.perks ?? {}) },
       gamerModule: { ...def.gamerModule, ...(em.gamerModule ?? {}) },
       buildingUpgrades: { ...(em.buildingUpgrades ?? {}) },
+      saveBlacklist: mergedBlacklist,
     };
     saveMetaState();
   }
@@ -635,6 +736,15 @@ function applyStateFromEnvelope(envelope) {
   _pendingScriptRestore = isEnvelope
     ? { content: envelope.scriptContent ?? '', autoContent: envelope.scriptAutoContent ?? '', autoRun: envelope.scriptAutoRun ?? false }
     : null;
+
+  // Blacklist check: if this save's timestamp is blacklisted, refuse to load it
+  const _ts = state.saveCreatedAt;
+  if (_ts && metaState.saveBlacklist?.includes(_ts)) {
+    notify('This save has been permanently ended (world was ended or all buildings were destroyed).', 'warning');
+    state = null;
+    return false;
+  }
+  return true;
 }
 
 async function saveGame() {
@@ -668,7 +778,8 @@ async function loadGameFromFile(filename) {
   if (!json) { notify('Save file not found.', 'warning'); return; }
   let envelope;
   try { envelope = JSON.parse(json); } catch { notify('Invalid save file.', 'warning'); return; }
-  applyStateFromEnvelope(envelope);
+  const ok = applyStateFromEnvelope(envelope);
+  if (!ok) return; // blocked by blacklist
   currentSaveFile = filename;
   showGame();
 }
@@ -685,7 +796,8 @@ async function importSaveFromFile() {
     if (!json) return;
     let envelope;
     try { envelope = JSON.parse(json); } catch { notify('Invalid save file.', 'warning'); return; }
-    applyStateFromEnvelope(envelope);
+    const ok = applyStateFromEnvelope(envelope);
+    if (!ok) return;
     currentSaveFile = null;
     showGame();
   } else {
@@ -696,7 +808,8 @@ async function importSaveFromFile() {
       if (!file) return;
       let envelope;
       try { envelope = JSON.parse(await file.text()); } catch { notify('Invalid save file.', 'warning'); return; }
-      applyStateFromEnvelope(envelope);
+      const ok = applyStateFromEnvelope(envelope);
+      if (!ok) return;
       currentSaveFile = null;
       showGame();
     };
@@ -708,7 +821,8 @@ function tryLoadFromLocalStorage() {
   let saved;
   try { saved = JSON.parse(localStorage.getItem('fi_save')); } catch { saved = null; }
   if (!saved) { notify('No browser save found.', 'warning'); return; }
-  applyStateFromEnvelope(saved);
+  const ok = applyStateFromEnvelope(saved);
+  if (!ok) return; // blocked by blacklist
   currentSaveFile = null;
   showGame();
 }
@@ -794,19 +908,9 @@ function updateSaveFilenameDisplay() {
 // ── Group Helpers ─────────────────────────────────────────────
 
 function groupKey(b) {
-  if (b.type === 'miner')           return `miner:${b.resource}`;
-  if (b.type === 'electricMiner')   return `electricMiner:${b.resource}`;
-  if (b.type === 'furnace')         return `furnace:${b.recipe}`;
-  if (b.type === 'steelFurnace')    return `steelFurnace:${b.recipe}`;
-  if (b.type === 'electricFurnace') return `electricFurnace:${b.recipe}`;
-  if (b.type === 'assembly')        return `assembly:${b.recipe}`;
-  if (b.type === 'assembly2')       return `assembly2:${b.recipe}`;
-  if (b.type === 'assembly3')       return `assembly3:${b.recipe}`;
-  if (b.type === 'oilRefinery')     return `oilRefinery:${b.recipe}`;
-  if (b.type === 'chemicalPlant')   return `chemicalPlant:${b.recipe}`;
-  if (b.type === 'centrifuge')      return `centrifuge:${b.recipe}`;
-  if (b.type === 'rocketSilo')      return `rocketSilo:${b.recipe}`;
-  if (b.type === 'pumpjack')        return `pumpjack:${b.resource}`;
+  const def = BUILDING_DEFS[b.type];
+  if (def?.hasRecipe)   return `${b.type}:${b.recipe ?? ''}`;
+  if (def?.hasResource) return `${b.type}:${b.resource ?? ''}`;
   return b.type;
 }
 
@@ -1032,13 +1136,11 @@ function completeResearch(key) {
   renderUI();
 }
 
-const INFINITE_TECH_PREREQS = {
-  'robot:speed':         'robotics',
-  'robot:cargo':         'robotics',
-  'mining:productivity': 'electricMiningDrill',
-  'gun:damage':          'gunTurret',
-  'laser:damage':        'laserTurretTech',
-};
+const INFINITE_TECH_PREREQS = Object.fromEntries(
+  Object.entries(INFINITE_TECHS)
+    .filter(([, v]) => v.prereq)
+    .map(([k, v]) => [k, v.prereq])
+);
 
 function startInfiniteTech(type) {
   if (state.buildings.filter(b => b.type === 'lab').length === 0) {
@@ -1078,32 +1180,14 @@ function startInfiniteTech(type) {
 function startRobotResearch(type) { startInfiniteTech(type); }
 
 function completeRobotResearch(type) {
-  if (type === 'robot:speed') {
-    state.research.robotSpeedLevel = (state.research.robotSpeedLevel ?? 0) + 1;
-    notify(`✅ Worker Robot Speed Level ${state.research.robotSpeedLevel}!`, 'info');
-  } else if (type === 'robot:cargo') {
-    state.research.robotCargoLevel = (state.research.robotCargoLevel ?? 0) + 1;
-    notify(`✅ Worker Robot Cargo Size Level ${state.research.robotCargoLevel}!`, 'info');
-  } else if (type === 'mining:productivity') {
-    state.research.miningProdLevel = (state.research.miningProdLevel ?? 0) + 1;
-    notify(`✅ Mining Productivity Level ${state.research.miningProdLevel}! (+${(state.research.miningProdLevel * 10)}% ore yield)`, 'info');
-  } else if (type === 'gun:damage') {
-    state.research.gunDamageLevel = (state.research.gunDamageLevel ?? 0) + 1;
-    notify(`✅ Physical Projectile Damage Level ${state.research.gunDamageLevel}! (${((gunDamageMult(state.research.gunDamageLevel) - 1) * 100).toFixed(0)}% total bonus)`, 'info');
-  } else if (type === 'laser:damage') {
-    state.research.laserDamageLevel = (state.research.laserDamageLevel ?? 0) + 1;
-    notify(`✅ Laser Weapons Damage Level ${state.research.laserDamageLevel}! (${((laserDamageMult(state.research.laserDamageLevel) - 1) * 100).toFixed(0)}% total bonus)`, 'info');
-  } else if (type === 'artillery:range') {
-    state.research.artilleryRangeLevel = (state.research.artilleryRangeLevel ?? 0) + 1;
-    // Sync perimeter range level with research level
-    if (state.perimeter) state.perimeter.artilleryRangeLevel = state.research.artilleryRangeLevel;
-    notify(`✅ Artillery Range Level ${state.research.artilleryRangeLevel}!`, 'info');
-  } else if (type === 'artillery:damage') {
-    state.research.artilleryDamageLevel = (state.research.artilleryDamageLevel ?? 0) + 1;
-    // Sync perimeter damage level with research level
-    if (state.perimeter) state.perimeter.artilleryDamageLevel = state.research.artilleryDamageLevel;
-    notify(`✅ Artillery Damage Level ${state.research.artilleryDamageLevel}! (+${Math.round((artilleryDamageMult(state.research.artilleryDamageLevel) - 1) * 100)}% damage)`, 'info');
-  }
+  const def = INFINITE_TECHS[type];
+  if (!def) return;
+  state.research[def.stateField] = (state.research[def.stateField] ?? 0) + 1;
+  const level = state.research[def.stateField];
+  notify(`✅ ${def.displayName} Level ${level}!`, 'info');
+  // Sync artillery-specific perimeter state
+  if (type === 'artillery:range' && state.perimeter) state.perimeter.artilleryRangeLevel = level;
+  if (type === 'artillery:damage' && state.perimeter) state.perimeter.artilleryDamageLevel = level;
   state.research.current = null;
   state.research.totalConsumed = 0;
   getGS('lab').packAcc = 0;
@@ -1174,7 +1258,7 @@ function revealChunk() {
     if (!state.patches.uraniumOre) state.patches.uraniumOre = { remaining: 0, nodes: 0, pendingFinds: [] };
     addPatchFind('uraniumOre', amount, nodes);
     const inPerim = state.chunksRevealed < Math.pow(state.perimeter.sideLength, 2);
-    const techNote = state.research?.done?.centrifugeTech ? '' : ' (requires Nuclear Power tech to harvest)';
+    const techNote = state.research?.done?.uraniumProcessing ? '' : ' (requires Uranium Processing tech to harvest)';
     notify(`💚 Found Uranium Ore deposit! +${amount.toLocaleString()}${inPerim ? '' : ' (outside perimeter)'}${techNote}`, 'info', { radar: true });
     return;
   }
@@ -1202,35 +1286,39 @@ function patchInPerimeter(resource) {
   return (patch.remaining > 0 || patch.nodes > 0);
 }
 
+// ── Production / Consumption Tracking Helpers ─────────────────
+
+function recordProduced(key, amount) {
+  if (!amount || amount <= 0) return;
+  state.itemsProduced[key] = (state.itemsProduced[key] ?? 0) + amount;
+  state.inventory[key] = (state.inventory[key] ?? 0) + amount;
+}
+
+function recordConsumed(key, amount) {
+  if (!amount || amount <= 0) return;
+  state.itemsConsumed[key] = (state.itemsConsumed[key] ?? 0) + amount;
+  state.inventory[key] = Math.max(0, (state.inventory[key] ?? 0) - amount);
+}
+
+// Rate snapshot state (module-level, not persisted)
+let rateTickCount = 0;
+const RATE_WINDOW_SECS = 5;
+
 // ── Game Loop ─────────────────────────────────────────────────
 
 function tick() {
   const dt     = TICK_MS / 1000 * (state?.devTickSpeed ?? 1);
   const groups = buildGroupMap();
 
-  // Snapshot inventory at start of tick — used to split deltas into gross
-  // production/consumption for the production graph.
-  tickPrevInv = { ...state.inventory };
-
   // ── Compute total power demand (uses last tick's powerKw) ──
   let totalDemand = 0;
   for (const b of state.buildings) {
     const gs = getGS(groupKey(b));
     if (!gs.enabled) continue;
-    if (b.type === 'assembly')        totalDemand += ASSEMBLY_KW        * metaEnergyMult('assembly');
-    if (b.type === 'assembly2')       totalDemand += ASSEMBLY2_KW       * metaEnergyMult('assembly2');
-    if (b.type === 'assembly3')       totalDemand += ASSEMBLY3_KW       * metaEnergyMult('assembly3');
-    if (b.type === 'electricMiner')   totalDemand += ELECTRIC_MINER_KW  * metaEnergyMult('electricMiner');
-    if (b.type === 'electricFurnace') totalDemand += ELECTRIC_FURNACE_KW* metaEnergyMult('electricFurnace');
-    if (b.type === 'pumpjack')        totalDemand += PUMPJACK_KW        * metaEnergyMult('pumpjack');
-    if (b.type === 'oilRefinery')     totalDemand += OIL_REFINERY_KW    * metaEnergyMult('oilRefinery');
-    if (b.type === 'chemicalPlant')   totalDemand += CHEMICAL_PLANT_KW  * metaEnergyMult('chemicalPlant');
-    if (b.type === 'centrifuge')      totalDemand += CENTRIFUGE_KW      * metaEnergyMult('centrifuge');
-    if (b.type === 'rocketSilo')      totalDemand += ROCKET_SILO_KW     * metaEnergyMult('rocketSilo');
-    if (b.type === 'lab')             totalDemand += LAB_KW             * metaEnergyMult('lab');
-    if (b.type === 'radar')           totalDemand += RADAR_KW;
+    const baseKw = BUILDING_KW_TABLE[b.type];
+    if (baseKw) totalDemand += baseKw * metaEnergyMult(b.type);
   }
-  totalDemand += (state.perimeter?.laserTurrets ?? 0) * LASER_KW_PER_TURRET;
+  // Laser turrets only fire during biter waves — energy is drawn at wave resolution, not continuously
   if (state.allPaused) totalDemand = 0;
   state.powerDemandKw = totalDemand;
   const powerRatio = totalDemand > 0 ? Math.min(1, state.powerKw / totalDemand) : 1;
@@ -1250,9 +1338,12 @@ function tick() {
     if (gs.coalAcc >= 1) {
       const needed = Math.floor(gs.coalAcc);
       if (state.inventory.coal >= needed) {
-        state.inventory.coal -= needed; gs.coalAcc -= needed; gs.starved = false;
+        recordConsumed('coal', needed); gs.coalAcc -= needed; gs.starved = false;
       } else {
-        state.inventory.coal = 0; gs.coalAcc = 0; gs.starved = true;
+        const avail = state.inventory.coal;
+        if (avail > 0) recordConsumed('coal', avail);
+        else state.inventory.coal = 0;
+        gs.coalAcc = 0; gs.starved = true;
       }
     } else { gs.starved = (state.inventory.coal <= 0); }
   }
@@ -1270,7 +1361,8 @@ function tick() {
     b.acc = (b.acc ?? 0) + MINE_SPEED * dt;
     if (b.acc >= 1) {
       const n = Math.min(Math.floor(b.acc), patch.remaining);
-      state.inventory[b.resource] = (state.inventory[b.resource] ?? 0) + n * miningProdMult();
+      const produced = n * miningProdMult();
+      recordProduced(b.resource, produced);
       patch.remaining -= n; b.acc -= n;
     }
   }
@@ -1294,11 +1386,11 @@ function tick() {
       if (group.resource === 'uraniumOre') {
         n = Math.min(n, Math.floor(state.inventory.sulfuricAcid ?? 0));
         if (n <= 0) { gs.acidStarved = true; gs.acc = 0; continue; }
-        state.inventory.sulfuricAcid -= n;
+        recordConsumed('sulfuricAcid', n);
         gs.acidStarved = false;
       }
       const prod = group.resource === 'uraniumOre' ? 1 : miningProdMult();
-      state.inventory[group.resource] = (state.inventory[group.resource] ?? 0) + n * prod;
+      recordProduced(group.resource, n * prod);
       patch.remaining -= n; gs.acc -= n;
     }
   }
@@ -1327,12 +1419,12 @@ function tick() {
           const byLimit = gs.limit === Infinity ? cycles : Math.max(0, Math.floor((gs.limit - inv) / outAmt));
           const actual = Math.min(afford, byLimit, cycles);
           if (actual > 0) {
-            for (const [k, v] of Object.entries(recipe.inputs)) state.inventory[k] = (state.inventory[k] ?? 0) - v * actual;
+            for (const [k, v] of Object.entries(recipe.inputs)) recordConsumed(k, v * actual);
             for (const [k, v] of Object.entries(recipe.outputs)) {
               const tot = v * actual * (1 + prodBonus);
               gs.prodFrac[k] = (gs.prodFrac[k] ?? 0) + tot;
               const w = Math.floor(gs.prodFrac[k]); gs.prodFrac[k] -= w;
-              state.inventory[k] = (state.inventory[k] ?? 0) + w;
+              if (w > 0) recordProduced(k, w);
             }
             gs.progress -= actual; gs.active = true;
           } else { gs.progress = 0; gs.active = false; }
@@ -1365,12 +1457,12 @@ function tick() {
           const byLimit = gs.limit === Infinity ? cycles : Math.max(0, Math.floor((gs.limit - inv) / outAmt));
           const actual = Math.min(afford, byLimit, cycles);
           if (actual > 0) {
-            for (const [k, v] of Object.entries(recipe.inputs)) state.inventory[k] = (state.inventory[k] ?? 0) - v * actual;
+            for (const [k, v] of Object.entries(recipe.inputs)) recordConsumed(k, v * actual);
             for (const [k, v] of Object.entries(recipe.outputs)) {
               const tot = v * actual * (1 + prodBonus);
               gs.prodFrac[k] = (gs.prodFrac[k] ?? 0) + tot;
               const w = Math.floor(gs.prodFrac[k]); gs.prodFrac[k] -= w;
-              state.inventory[k] = (state.inventory[k] ?? 0) + w;
+              if (w > 0) recordProduced(k, w);
             }
             gs.progress -= actual; gs.active = true;
           } else { gs.progress = 0; gs.active = false; }
@@ -1404,12 +1496,12 @@ function tick() {
           const byLimit = gs.limit === Infinity ? cycles : Math.max(0, Math.floor((gs.limit - inv) / outAmt));
           const actual = Math.min(afford, byLimit, cycles);
           if (actual > 0) {
-            for (const [k, v] of Object.entries(recipe.inputs)) state.inventory[k] = (state.inventory[k] ?? 0) - v * actual;
+            for (const [k, v] of Object.entries(recipe.inputs)) recordConsumed(k, v * actual);
             for (const [k, v] of Object.entries(recipe.outputs)) {
               const tot = v * actual * (1 + prodBonus);
               gs.prodFrac[k] = (gs.prodFrac[k] ?? 0) + tot;
               const w = Math.floor(gs.prodFrac[k]); gs.prodFrac[k] -= w;
-              state.inventory[k] = (state.inventory[k] ?? 0) + w;
+              if (w > 0) recordProduced(k, w);
             }
             gs.progress -= actual; gs.active = true;
           } else { gs.progress = 0; gs.active = false; }
@@ -1443,12 +1535,12 @@ function tick() {
           const byLimit = gs.limit === Infinity ? cycles : Math.max(0, Math.floor((gs.limit - inv) / outAmt));
           const actual = Math.min(afford, byLimit, cycles);
           if (actual > 0) {
-            for (const [k, v] of Object.entries(recipe.inputs)) state.inventory[k] = (state.inventory[k] ?? 0) - v * actual;
+            for (const [k, v] of Object.entries(recipe.inputs)) recordConsumed(k, v * actual);
             for (const [k, v] of Object.entries(recipe.outputs)) {
               const tot = v * actual * (1 + prodBonus);
               gs.prodFrac[k] = (gs.prodFrac[k] ?? 0) + tot;
               const w = Math.floor(gs.prodFrac[k]); gs.prodFrac[k] -= w;
-              state.inventory[k] = (state.inventory[k] ?? 0) + w;
+              if (w > 0) recordProduced(k, w);
             }
             gs.progress -= actual; gs.active = true;
           } else { gs.progress = 0; gs.active = false; }
@@ -1482,12 +1574,12 @@ function tick() {
           const byLimit = gs.limit === Infinity ? cycles : Math.max(0, Math.floor((gs.limit - inv) / outAmt));
           const actual = Math.min(afford, byLimit, cycles);
           if (actual > 0) {
-            for (const [k, v] of Object.entries(recipe.inputs)) state.inventory[k] = (state.inventory[k] ?? 0) - v * actual;
+            for (const [k, v] of Object.entries(recipe.inputs)) recordConsumed(k, v * actual);
             for (const [k, v] of Object.entries(recipe.outputs)) {
               const tot = v * actual * (1 + prodBonus);
               gs.prodFrac[k] = (gs.prodFrac[k] ?? 0) + tot;
               const w = Math.floor(gs.prodFrac[k]); gs.prodFrac[k] -= w;
-              state.inventory[k] = (state.inventory[k] ?? 0) + w;
+              if (w > 0) recordProduced(k, w);
             }
             gs.progress -= actual; gs.active = true;
           } else { gs.progress = 0; gs.active = false; }
@@ -1521,12 +1613,12 @@ function tick() {
           const byLimit = gs.limit === Infinity ? cycles : Math.max(0, Math.floor((gs.limit - inv) / outAmt));
           const actual = Math.min(afford, byLimit, cycles);
           if (actual > 0) {
-            for (const [k, v] of Object.entries(recipe.inputs)) state.inventory[k] = (state.inventory[k] ?? 0) - v * actual;
+            for (const [k, v] of Object.entries(recipe.inputs)) recordConsumed(k, v * actual);
             for (const [k, v] of Object.entries(recipe.outputs)) {
               const tot = v * actual * (1 + prodBonus);
               gs.prodFrac[k] = (gs.prodFrac[k] ?? 0) + tot;
               const w = Math.floor(gs.prodFrac[k]); gs.prodFrac[k] -= w;
-              state.inventory[k] = (state.inventory[k] ?? 0) + w;
+              if (w > 0) recordProduced(k, w);
             }
             gs.progress -= actual; gs.active = true;
           } else { gs.progress = 0; gs.active = false; }
@@ -1546,7 +1638,7 @@ function tick() {
     gs.starved = false;
     const extracted = Math.min(PUMPJACK_SPEED * dt * powerRatio, patch.remaining);
     patch.remaining -= extracted;
-    state.inventory[b.resource] = (state.inventory[b.resource] ?? 0) + extracted;
+    recordProduced(b.resource, extracted);
   }
 
   // ── Oil Refineries — aggregated ──
@@ -1574,12 +1666,12 @@ function tick() {
           const byLimit = gs.limit === Infinity ? cycles : Math.max(0, Math.floor((gs.limit - inv) / outAmt));
           const actual = Math.min(afford, byLimit, cycles);
           if (actual > 0) {
-            for (const [k, v] of Object.entries(recipe.inputs)) state.inventory[k] = (state.inventory[k] ?? 0) - v * actual;
+            for (const [k, v] of Object.entries(recipe.inputs)) recordConsumed(k, v * actual);
             for (const [k, v] of Object.entries(recipe.outputs)) {
               const tot = v * actual * (1 + prodBonus);
               gs.prodFrac[k] = (gs.prodFrac[k] ?? 0) + tot;
               const w = Math.floor(gs.prodFrac[k]); gs.prodFrac[k] -= w;
-              state.inventory[k] = (state.inventory[k] ?? 0) + w;
+              if (w > 0) recordProduced(k, w);
             }
             gs.progress -= actual; gs.active = true;
           } else { gs.progress = 0; gs.active = false; }
@@ -1613,12 +1705,12 @@ function tick() {
           const byLimit = gs.limit === Infinity ? cycles : Math.max(0, Math.floor((gs.limit - inv) / outAmt));
           const actual = Math.min(afford, byLimit, cycles);
           if (actual > 0) {
-            for (const [k, v] of Object.entries(recipe.inputs)) state.inventory[k] = (state.inventory[k] ?? 0) - v * actual;
+            for (const [k, v] of Object.entries(recipe.inputs)) recordConsumed(k, v * actual);
             for (const [k, v] of Object.entries(recipe.outputs)) {
               const tot = v * actual * (1 + prodBonus);
               gs.prodFrac[k] = (gs.prodFrac[k] ?? 0) + tot;
               const w = Math.floor(gs.prodFrac[k]); gs.prodFrac[k] -= w;
-              state.inventory[k] = (state.inventory[k] ?? 0) + w;
+              if (w > 0) recordProduced(k, w);
             }
             gs.progress -= actual; gs.active = true;
           } else { gs.progress = 0; gs.active = false; }
@@ -1652,19 +1744,19 @@ function tick() {
           const byLimit = gs.limit === Infinity ? cycles : Math.max(0, Math.floor((gs.limit - inv) / outAmt));
           const actual = Math.min(afford, byLimit, cycles);
           if (actual > 0) {
-            for (const [k, v] of Object.entries(recipe.inputs)) state.inventory[k] = (state.inventory[k] ?? 0) - v * actual;
+            for (const [k, v] of Object.entries(recipe.inputs)) recordConsumed(k, v * actual);
             if (group.recipe === 'uraniumProcessing') {
               for (let i = 0; i < actual; i++) {
                 state.uraniumProcessingCount = (state.uraniumProcessingCount ?? 0) + 1;
-                if (state.uraniumProcessingCount % 143 === 0) state.inventory.uranium235 = (state.inventory.uranium235 ?? 0) + 1;
-                else state.inventory.uranium238 = (state.inventory.uranium238 ?? 0) + 1;
+                if (state.uraniumProcessingCount % 143 === 0) recordProduced('uranium235', 1);
+                else recordProduced('uranium238', 1);
               }
             } else {
               for (const [k, v] of Object.entries(recipe.outputs)) {
                 const tot = v * actual * (1 + prodBonus);
                 gs.prodFrac[k] = (gs.prodFrac[k] ?? 0) + tot;
                 const w = Math.floor(gs.prodFrac[k]); gs.prodFrac[k] -= w;
-                state.inventory[k] = (state.inventory[k] ?? 0) + w;
+                if (w > 0) recordProduced(k, w);
               }
             }
             gs.progress -= actual; gs.active = true;
@@ -1699,12 +1791,12 @@ function tick() {
           const byLimit = gs.limit === Infinity ? cycles : Math.max(0, Math.floor((gs.limit - inv) / outAmt));
           const actual = Math.min(afford, byLimit, cycles);
           if (actual > 0) {
-            for (const [k, v] of Object.entries(recipe.inputs)) state.inventory[k] = (state.inventory[k] ?? 0) - v * actual;
+            for (const [k, v] of Object.entries(recipe.inputs)) recordConsumed(k, v * actual);
             for (const [k, v] of Object.entries(recipe.outputs)) {
               const tot = v * actual * (1 + prodBonus);
               gs.prodFrac[k] = (gs.prodFrac[k] ?? 0) + tot;
               const w = Math.floor(gs.prodFrac[k]); gs.prodFrac[k] -= w;
-              state.inventory[k] = (state.inventory[k] ?? 0) + w;
+              if (w > 0) recordProduced(k, w);
             }
             gs.progress -= actual; gs.active = true;
           } else { gs.progress = 0; gs.active = false; }
@@ -1717,7 +1809,7 @@ function tick() {
   const pumpGroup = groups['offshoreP'];
   if (pumpGroup) {
     const gs = getGS('offshoreP');
-    if (gs.enabled) { state.water = Math.min(WATER_MAX, state.water + pumpGroup.buildings.length * 1200 * dt); gs.starved = false; }
+    if (gs.enabled) { state.water = Math.min(WATER_MAX, state.water + pumpGroup.buildings.length * OFFSHORE_PUMP_WATER_PER_SEC * dt); gs.starved = false; }
     else gs.starved = true;
   }
 
@@ -1727,18 +1819,18 @@ function tick() {
     const gs = getGS('boiler');
     const count = boilerGroup.buildings.length;
     if (gs.enabled) {
-      gs.coalAcc = (gs.coalAcc ?? 0) + count * 0.45 * dt;
+      gs.coalAcc = (gs.coalAcc ?? 0) + count * BOILER_COAL_PER_SEC * dt;
       let coalOk = true;
       if (gs.coalAcc >= 1) {
         const needed = Math.floor(gs.coalAcc);
-        if (state.inventory.coal >= needed) { state.inventory.coal -= needed; gs.coalAcc -= needed; }
-        else { state.inventory.coal = 0; gs.coalAcc = 0; coalOk = false; }
+        if (state.inventory.coal >= needed) { recordConsumed('coal', needed); gs.coalAcc -= needed; }
+        else { const coalLeft = state.inventory.coal ?? 0; if (coalLeft > 0) recordConsumed('coal', coalLeft); gs.coalAcc = 0; coalOk = false; }
       }
-      const waterNeeded = count * 6 * dt;
+      const waterNeeded = count * BOILER_WATER_PER_SEC * dt;
       const waterOk = state.water >= waterNeeded;
       if (coalOk && waterOk) {
         state.water -= waterNeeded;
-        state.steam = Math.min(STEAM_MAX, state.steam + count * 60 * dt);
+        state.steam = Math.min(STEAM_MAX, state.steam + count * BOILER_STEAM_PER_SEC * dt);
         gs.starved = false; gs.noWater = false;
       } else { gs.starved = true; gs.noWater = !waterOk; }
     } else { gs.starved = true; }
@@ -1765,7 +1857,7 @@ function tick() {
       if (gs.fuelAcc >= 1) {
         const needed = Math.floor(gs.fuelAcc);
         if ((state.inventory.uraniumFuelCell ?? 0) >= needed) {
-          state.inventory.uraniumFuelCell -= needed;
+          recordConsumed('uraniumFuelCell', needed);
           gs.fuelAcc -= needed;
         } else {
           gs.fuelAcc = 0;
@@ -1782,7 +1874,7 @@ function tick() {
   if (engineGroup) {
     const gs        = getGS('steamEngine');
     const count     = engineGroup.buildings.length;
-    const maxKw     = count * 900;
+    const maxKw     = count * STEAM_ENGINE_KW;
     const shortfall = Math.max(0, totalDemand * 1.05 - state.powerKw);
     if (!gs.enabled) {
       gs.starved = false; gs.standby = false;
@@ -1797,12 +1889,12 @@ function tick() {
     } else {
       gs.standby = false;
       const fraction      = Math.min(1, shortfall / maxKw);
-      const steamToUse    = fraction * count * 30 * dt;
+      const steamToUse    = fraction * count * STEAM_ENGINE_STEAM_PER_SEC * dt;
       if (state.steam >= steamToUse) {
         state.steam    -= steamToUse;
         state.powerKw  += fraction * maxKw;
       } else {
-        const partFrac  = state.steam / (count * 30 * dt);
+        const partFrac  = state.steam / (count * STEAM_ENGINE_STEAM_PER_SEC * dt);
         state.powerKw  += partFrac * maxKw;
         state.steam     = 0;
       }
@@ -1858,7 +1950,7 @@ function tick() {
         const free = state.devFreeResearch && state.devMode;
         const hasAllPacks = free || Object.keys(techData.cost).every(pk => (state.inventory[pk] ?? 0) >= 1);
         if (hasAllPacks) {
-          if (!free) for (const pk of Object.keys(techData.cost)) state.inventory[pk]--;
+          if (!free) for (const pk of Object.keys(techData.cost)) recordConsumed(pk, 1);
           state.research.totalConsumed++;
           gs.packAcc--;
           gs.starved = false;
@@ -1877,7 +1969,7 @@ function tick() {
     const { key } = state.craftQueue[0];
     const recipe = PLAYER_RECIPES[key];
     if (recipe && canAfford(recipe.inputs)) {
-      spend(recipe.inputs);
+      for (const [k, v] of Object.entries(recipe.inputs)) recordConsumed(k, v);
       state.craftActive = { key, progress: 0 };
       state.craftQueue.shift();
     }
@@ -1888,7 +1980,7 @@ function tick() {
       state.craftActive.progress += dt / recipe.time;
       if (state.craftActive.progress >= 1) {
         for (const [item, amt] of Object.entries(recipe.outputs))
-          state.inventory[item] = (state.inventory[item] ?? 0) + amt;
+          recordProduced(item, amt);
         state.craftActive = null;
       }
     } else {
@@ -1903,50 +1995,45 @@ function tick() {
     if (v > 0) state.seen[k] = true;
   }
 
-  // ── Per-tick gross production / consumption tracking ──
-  // Compare current inventory to the snapshot taken at start of tick.
-  // Positive deltas accumulate as gross production, negative as consumption.
-  if (tickPrevInv) {
-    const allKeys = new Set([...Object.keys(state.inventory), ...Object.keys(tickPrevInv)]);
-    for (const k of allKeys) {
-      const d = (state.inventory[k] ?? 0) - (tickPrevInv[k] ?? 0);
-      if (d > 0) prodAccum[k] = (prodAccum[k] ?? 0) + d;
-      else if (d < 0) consAccum[k] = (consAccum[k] ?? 0) + (-d);
+  // ── Rate snapshot: derive inventoryDelta from explicit produced/consumed counters ──
+  rateTickCount++;
+  if (rateTickCount >= RATE_WINDOW_SECS * 10) { // 10 ticks/sec
+    rateTickCount = 0;
+    const snap = state.rateSnapshot;
+    const elapsed = RATE_WINDOW_SECS;
+
+    state.inventoryDelta = {};
+    state.productionRates = {};
+    state.consumptionRates = {};
+
+    const allKeys = new Set([...Object.keys(state.itemsProduced), ...Object.keys(state.itemsConsumed)]);
+    for (const key of allKeys) {
+      const prod = (state.itemsProduced[key] ?? 0) - (snap.produced[key] ?? 0);
+      const cons = (state.itemsConsumed[key] ?? 0) - (snap.consumed[key] ?? 0);
+      const net  = prod - cons;
+      if (Math.abs(net) > 0.0001)      state.inventoryDelta[key]    = net  / elapsed;
+      if (prod > 0)                     state.productionRates[key]   = prod / elapsed;
+      if (cons > 0)                     state.consumptionRates[key]  = cons / elapsed;
     }
-  }
 
-  // ── Inventory delta tracking ──
-  snapshotTimer += dt;
-  if (snapshotTimer >= 1.0) {
-    const snap = { ...state.inventory };
-    if (inventorySnapshot) {
-      state.inventoryDelta = {};
-      for (const k of Object.keys(state.inventory))
-        state.inventoryDelta[k] = ((snap[k] ?? 0) - (inventorySnapshot[k] ?? 0)) / snapshotTimer;
-      // Collect production history samples (net + gross production + gross consumption)
-      if (!state.productionHistory) state.productionHistory = { samples: [], prodSamples: [], consSamples: [] };
-      if (!state.productionHistory.prodSamples) state.productionHistory.prodSamples = [];
-      if (!state.productionHistory.consSamples) state.productionHistory.consSamples = [];
+    // Update snapshot
+    state.rateSnapshot = {
+      time: Date.now(),
+      produced: { ...state.itemsProduced },
+      consumed: { ...state.itemsConsumed },
+    };
 
-      const netSample  = { ...state.inventoryDelta };
-      const prodSample = {};
-      const consSample = {};
-      for (const k of Object.keys(prodAccum)) prodSample[k] = prodAccum[k] / snapshotTimer;
-      for (const k of Object.keys(consAccum)) consSample[k] = consAccum[k] / snapshotTimer;
+    // Populate productionHistory samples for graph using new rates
+    if (!state.productionHistory) state.productionHistory = { samples: [], prodSamples: [], consSamples: [] };
+    if (!state.productionHistory.prodSamples) state.productionHistory.prodSamples = [];
+    if (!state.productionHistory.consSamples) state.productionHistory.consSamples = [];
 
-      state.productionHistory.samples.push(netSample);
-      state.productionHistory.prodSamples.push(prodSample);
-      state.productionHistory.consSamples.push(consSample);
-      if (state.productionHistory.samples.length     > 120) state.productionHistory.samples.shift();
-      if (state.productionHistory.prodSamples.length > 120) state.productionHistory.prodSamples.shift();
-      if (state.productionHistory.consSamples.length > 120) state.productionHistory.consSamples.shift();
-
-      // Reset gross accumulators for the next window
-      prodAccum = {};
-      consAccum = {};
-    }
-    inventorySnapshot = snap;
-    snapshotTimer = 0;
+    state.productionHistory.samples.push({ ...state.inventoryDelta });
+    state.productionHistory.prodSamples.push({ ...state.productionRates });
+    state.productionHistory.consSamples.push({ ...state.consumptionRates });
+    if (state.productionHistory.samples.length     > 120) state.productionHistory.samples.shift();
+    if (state.productionHistory.prodSamples.length > 120) state.productionHistory.prodSamples.shift();
+    if (state.productionHistory.consSamples.length > 120) state.productionHistory.consSamples.shift();
   }
 
   // ── Auto-run script ──
@@ -1965,6 +2052,13 @@ function tick() {
       state.biterTimer = 0;
       fightBiterWave();
     }
+  }
+
+  // ── Death check: if biters are enabled and all buildings are gone ──
+  if (state.settings?.biters && state.buildings.length === 0 && !state._deathHandled) {
+    state._deathHandled = true;
+    handleRunEnd('death');
+    return; // stop further processing this tick
   }
 
   renderUI();
@@ -1991,17 +2085,6 @@ function placeBuilding(type, triggerEl) {
 
   const countEl = triggerEl?.closest('.place-row')?.querySelector('.place-count');
   const count = Math.max(1, parseInt(countEl?.value ?? '1') || 1);
-
-  const names = {
-    miner: 'Burner Miner', furnace: 'Stone Furnace', offshoreP: 'Offshore Pump',
-    boiler: 'Boiler', steamEngine: 'Steam Engine', assembly: 'Assembly Machine',
-    radar: 'Radar', lab: 'Lab', electricMiner: 'Electric Mining Drill',
-    steelFurnace: 'Steel Furnace', assembly2: 'Assembly Machine Mk2',
-    solarPanel: 'Solar Panel', accumulator: 'Accumulator',
-    pumpjack: 'Pumpjack', oilRefinery: 'Oil Refinery', chemicalPlant: 'Chemical Plant',
-    electricFurnace: 'Electric Furnace', assembly3: 'Assembly Machine Mk3',
-    centrifuge: 'Centrifuge', rocketSilo: 'Rocket Silo', nuclearReactor: 'Nuclear Reactor',
-  };
 
   const pr = state.placementRecipes ?? defaultPlacementRecipes();
   const costs = BUILDING_COSTS[type];
@@ -2035,15 +2118,14 @@ function placeBuilding(type, triggerEl) {
     } else if (type === 'pumpjack') {
       spend(costs);
       target = { type, resource: 'crudeOil', acc: 0 };
-    } else if (['furnace','steelFurnace','electricFurnace','assembly','assembly2','assembly3',
-                'oilRefinery','chemicalPlant','centrifuge','rocketSilo'].includes(type)) {
+    } else if (BUILDING_DEFS[type]?.hasRecipe) {
       spend(costs);
       target = { type, recipe: pr[type] ?? '', active: false, progress: 0 };
     } else {
       spend(costs);
       target = { type };
     }
-    target.displayName = names[type] ?? type;
+    target.displayName = BUILDING_DEFS[type]?.name ?? type;
     placeQueue.push(target);
     placed++;
   }
@@ -2051,6 +2133,12 @@ function placeBuilding(type, triggerEl) {
   if (placed > 0) {
     updatePlacementUI();
     if (!placing) processNextPlacement();
+    // Visual feedback: briefly flash the place button
+    if (triggerEl) {
+      const btn = triggerEl.closest('.btn-place') ?? triggerEl;
+      btn.classList.add('btn-active-flash');
+      setTimeout(() => btn.classList.remove('btn-active-flash'), 250);
+    }
   }
 }
 
@@ -2107,7 +2195,7 @@ function manualMine(resource) {
   if (!patchInPerimeter(resource)) { notify('Resource patch is outside your perimeter.', 'warning'); return; }
   const patch = state.patches[resource];
   if (!patch || patch.remaining <= 0) return;
-  state.inventory[resource]++;
+  recordProduced(resource, 1);
   patch.remaining--;
   miningCooldowns[resource] = true;
   setTimeout(() => { delete miningCooldowns[resource]; renderMining(); }, 500);
@@ -2127,7 +2215,7 @@ function cancelCraftQueue(key) {
     const recipe = PLAYER_RECIPES[key];
     if (recipe) {
       for (const [item, amt] of Object.entries(recipe.inputs))
-        state.inventory[item] = (state.inventory[item] ?? 0) + amt;
+        recordProduced(item, amt);
     }
     state.craftActive = null;
   }
@@ -2145,6 +2233,11 @@ function toggleGroup(key) {
   gs.starved = !enabling;
   if (enabling && state.allPaused) state.allPaused = false;
   renderBuildings();
+}
+
+function setBuildingAddCount(key, val) {
+  const n = Math.max(1, parseInt(val) || 1);
+  buildingAddCounts[key] = n;
 }
 
 function removeOneFromGroup(key) {
@@ -2224,7 +2317,6 @@ function renderUI() {
   if (active.id === 'tab-script')    renderScript();
   if (active.id === 'tab-settings')  renderSettings();
   if (active.id === 'tab-defense')   renderPerimeter();
-  if (active.id === 'tab-meta')      renderMetaProgression();
   if (active.id === 'tab-graph')     { renderGraph(); renderGraphLegend(); }
 }
 
@@ -2507,7 +2599,11 @@ function renderOnePlacementPicker(ptype, host) {
 
   let entries = [];
   if (ptype === 'miner' || ptype === 'electricMiner') {
-    const ores = ['ironOre','copperOre','coal','stone'];
+    const ores = Object.keys(PATCHES).filter(k => {
+      if (k === 'crudeOil') return false; // fluid, handled by pumpjack
+      if (k === 'uraniumOre' && !state.research?.done?.uraniumProcessing) return false;
+      return true;
+    });
     entries = ores.map(k => [k, null, ITEMS[k]?.name ?? k, itemIcon(k)]);
   } else if (ptype === 'furnace' || ptype === 'steelFurnace' || ptype === 'electricFurnace') {
     entries = Object.entries(FURNACE_RECIPES)
@@ -2806,15 +2902,12 @@ function renderBuildings() {
       if (res.current?.includes(':')) {
         const rd = currentRobotTechData();
         totalNeeded = rd?.totalNeeded ?? 0;
-        const nameMap = {
-          'robot:speed':         `Robot Speed Lvl ${(res.robotSpeedLevel ?? 0) + 1}`,
-          'robot:cargo':         `Robot Cargo Lvl ${(res.robotCargoLevel ?? 0) + 1}`,
-          'mining:productivity': `Mining Prod Lvl ${(res.miningProdLevel ?? 0) + 1}`,
-          'gun:damage':          `Gun Damage Lvl ${(res.gunDamageLevel ?? 0) + 1}`,
-          'laser:damage':        `Laser Damage Lvl ${(res.laserDamageLevel ?? 0) + 1}`,
-          'artillery:range':     `Artillery Range Lvl ${(res.artilleryRangeLevel ?? 0) + 1}`,
-          'artillery:damage':    `Artillery Damage Lvl ${(res.artilleryDamageLevel ?? 0) + 1}`,
-        };
+        const nameMap = Object.fromEntries(
+          Object.entries(INFINITE_TECHS).map(([k, v]) => [
+            k,
+            `${v.displayName} Lvl ${(res[v.stateField] ?? 0) + 1}`
+          ])
+        );
         techName = nameMap[res.current] ?? res.current;
       } else if (res.current) {
         const tech = TECHNOLOGIES[res.current];
@@ -2831,7 +2924,7 @@ function renderBuildings() {
 
     if (type === 'offshoreP') {
       return buildingCard('💧', 'Offshore Pump', count, 'no fuel cost',
-        gs.enabled ? `${(count * 1200).toLocaleString()} water/sec` : 'Disabled',
+        gs.enabled ? `${(count * OFFSHORE_PUMP_WATER_PER_SEC).toLocaleString()} water/sec` : 'Disabled',
         gs.enabled, state.water / WATER_MAX, key);
     }
 
@@ -2839,9 +2932,9 @@ function renderBuildings() {
       const statusTxt = !gs.enabled ? 'Disabled'
                        : gs.noWater  ? '💧 No Water'
                        : gs.starved  ? '⚡ No Coal'
-                                     : `${count * 60} steam/sec`;
+                                     : `${count * BOILER_STEAM_PER_SEC} steam/sec`;
       return buildingCard('♨️', 'Boiler', count,
-        `coal: ${(count * 0.45).toFixed(3)}/sec · water: ${count * 6}/sec`,
+        `coal: ${(count * BOILER_COAL_PER_SEC).toFixed(3)}/sec · water: ${count * BOILER_WATER_PER_SEC}/sec`,
         statusTxt, gs.enabled && !gs.starved, state.steam / STEAM_MAX, key);
     }
 
@@ -2852,7 +2945,7 @@ function renderBuildings() {
                         : gs.starved  ? '♨️ No Steam'
                                       : `${pw} kW`;
       return buildingCard('⚡', 'Steam Engine', count,
-        `${count * 30} steam/sec → ${count * 900} kW max`,
+        `${count * STEAM_ENGINE_STEAM_PER_SEC} steam/sec → ${count * STEAM_ENGINE_KW} kW max`,
         steamStatus, gs.enabled && !gs.standby && state.steam > 0, state.steam / STEAM_MAX, key);
     }
 
@@ -3068,7 +3161,6 @@ function adjustGroupModules(key, modType, amount) {
   }
   newVal = Math.max(0, newVal);
   gs.modules[modType] = newVal;
-  saveState();
   renderBuildings();
 }
 
@@ -3090,7 +3182,6 @@ function fillGroupModules(key, modType) {
   if (actualAdded === 0) { notify(`No ${MODULE_DATA[modType]?.name ?? modType} in inventory`, 'warning'); return; }
   state.inventory[modType] = inInv - actualAdded;
   gs.modules[modType] = current + actualAdded;
-  saveState();
   renderBuildings();
 }
 
@@ -3101,7 +3192,6 @@ function clearGroupModules(key) {
     if (n > 0) state.inventory[mtype] = (state.inventory[mtype] ?? 0) + n;
   }
   gs.modules = {};
-  saveState();
   renderBuildings();
 }
 
@@ -3154,7 +3244,7 @@ function buildingCard(icon, name, count, meta, statusTxt, isActive, barFill, key
       <div class="mini-bar"><div class="mini-fill ${isActive ? 'fill-active' : ''}" style="width:${fillPct}%"></div></div>
       <div class="building-add-row">
         <button class="btn-add-building" data-add="${key}">+ Add</button>
-        <input type="number" class="add-count-input" data-add-count="${key}" min="1" value="1">
+        <input type="number" class="add-count-input" data-add-count="${key}" min="1" value="${buildingAddCounts[key] ?? 1}" onchange="setBuildingAddCount('${key}', this.value)">
       </div>
     </div>
     <div class="building-actions">
@@ -3421,7 +3511,7 @@ function renderResearchStatus() {
     : '—';
 
   const queue = res.queue ?? [];
-  const INF_NAMES = { 'robot:speed': 'Robot Speed', 'robot:cargo': 'Robot Cargo', 'mining:productivity': 'Mining Prod', 'gun:damage': 'Gun Dmg', 'laser:damage': 'Laser Dmg' };
+  const INF_NAMES = Object.fromEntries(Object.entries(INFINITE_TECHS).map(([k, v]) => [k, v.displayName]));
   const queueStr = queue.length
     ? `<div class="research-queue-line">Queue: ${queue.map(k => TECHNOLOGIES[k]?.name ?? INF_NAMES[k] ?? k).join(' → ')}</div>`
     : '';
@@ -3608,20 +3698,25 @@ function perimeterMaxArtillery() {
   return total;
 }
 
-// Returns the player's science tier (0–4+) based on highest science pack crafted/researched.
+// Returns the player's science tier (0–3) based on highest non-rainbow pack crafted/researched.
 function getPlayerScienceTier() {
-  const inv  = state.inventory ?? {};
-  const done = state.research?.done ?? {};
-  const has  = key => (inv[key] ?? 0) > 0 || !!done[key];
-  if (has('blueScience'))  return 3;
-  if (has('greenScience')) return 2;
-  if (has('redScience'))   return 1;
+  const nonRainbow = SCIENCE_PACKS.filter(p => p !== 'rainbowScience');
+  for (let i = nonRainbow.length - 1; i >= 0; i--) {
+    const pk = nonRainbow[i];
+    // Check inventory OR ever produced (so tier doesn't drop when packs are consumed)
+    if ((state.inventory[pk] ?? 0) > 0 || (state.itemsProduced?.[pk] ?? 0) > 0) {
+      if (i === 0) return 1;  // red science
+      if (i === 1) return 2;  // green science
+      return 3;               // blue and above
+    }
+  }
   return 0;
 }
 
 // Returns true if the rainbow science pack has ever been crafted or researched.
 function hasRainbowScience() {
-  return (state.inventory?.rainbowScience ?? 0) > 0 || !!state.research?.done?.['rainbowSciencePack'];
+  const rk = SCIENCE_PACKS[SCIENCE_PACKS.length - 1]; // 'rainbowScience'
+  return (state.inventory?.[rk] ?? 0) > 0 || !!state.research?.done?.['rainbowSciencePack'];
 }
 
 function getBiterWaveStats() {
@@ -3633,21 +3728,20 @@ function getBiterWaveStats() {
   return { count, hp, armor, dps };
 }
 
-function calcDefenseDPS(waveArmor) {
-  const p          = state.perimeter;
-  const ammoType   = p.ammoType ?? 'firearmMagazine';
-  const powerRatio = state.powerRatio ?? 1;
-  const gMult      = gunDamageMult(state.research?.gunDamageLevel ?? 0);
-  const lMult      = laserDamageMult(state.research?.laserDamageLevel ?? 0);
+function calcDefenseDPS(waveArmor, laserRatio = 1) {
+  const p     = state.perimeter;
+  const ammoType = p.ammoType ?? 'firearmMagazine';
+  const gMult = gunDamageMult(state.research?.gunDamageLevel ?? 0);
+  const lMult = laserDamageMult(state.research?.laserDamageLevel ?? 0);
 
   const stats = GUN_TURRET_STATS[ammoType] ?? GUN_TURRET_STATS.firearmMagazine;
-  const effectiveDmg  = Math.max(0, stats.dmgPerShot * gMult - waveArmor * stats.armorMult);
+  const effectiveDmg    = Math.max(0, stats.dmgPerShot * gMult - waveArmor * stats.armorMult);
   const gunDpsPerTurret = stats.shotsPerSec * effectiveDmg;
 
   const ammoAvail     = state.inventory[ammoType] ?? 0;
   const effectiveGuns = ammoAvail > 0 ? p.gunTurrets : 0;
   const gunDPS        = effectiveGuns * gunDpsPerTurret;
-  const laserDPS      = p.laserTurrets * LASER_DPS_PER_TURRET * powerRatio * lMult;
+  const laserDPS      = p.laserTurrets * LASER_DPS_PER_TURRET * laserRatio * lMult;
   return { gunDPS, laserDPS, totalDPS: gunDPS + laserDPS, gunDpsPerTurret, stats, effectiveDmg };
 }
 
@@ -3664,9 +3758,9 @@ function fightBiterWave() {
   } else {
     const tier = getPlayerScienceTier();
     let pointsPerWave;
-    if      (tier <= 1) pointsPerWave = state.settings?.biterPointsPreRed  ?? BITER_POINTS_PRE_RED;
-    else if (tier === 2) pointsPerWave = BITER_POINTS_POST_RED;
-    else if (tier === 3) pointsPerWave = BITER_POINTS_POST_GREEN;
+    if      (tier === 0) pointsPerWave = state.settings?.biterPointsPreRed  ?? BITER_POINTS_PRE_RED;
+    else if (tier === 1) pointsPerWave = BITER_POINTS_POST_RED;
+    else if (tier === 2) pointsPerWave = BITER_POINTS_POST_GREEN;
     else                 pointsPerWave = state.settings?.biterPointsPostBlue ?? BITER_POINTS_POST_BLUE;
     const cap = state.settings?.biterPointsCap ?? BITER_POINTS_CAP_LINEAR;
     state.biterThreatPoints = Math.min(cap, (state.biterThreatPoints ?? 0) + pointsPerWave);
@@ -3684,7 +3778,24 @@ function fightBiterWave() {
   const totalBiterDPS= actualCount * actualDPS;
   const totalWallHP  = p.walls * WALL_HP;
 
-  const { gunDPS, laserDPS, totalDPS } = calcDefenseDPS(actualArmor);
+  // ── Laser energy: computed from accumulators + grid surplus at wave time ──
+  const laserCount   = p.laserTurrets ?? 0;
+  const laserMaxKw   = laserCount * LASER_KW_PER_TURRET;
+  let laserRatio = 1;
+  if (laserMaxKw > 0) {
+    // Pass 1: estimate kill time assuming full laser power
+    const { totalDPS: dps1 } = calcDefenseDPS(actualArmor, 1);
+    const sectionHP1   = (remainingBiterHP / Math.max(1, sectionsAttacked));
+    const sectionDPS1  = dps1 / Math.max(1, perimeterTiles());
+    const killEst      = sectionDPS1 > 0 ? sectionHP1 / sectionDPS1 : biterInterval();
+    const energyNeeded = laserMaxKw * killEst;
+    // Available: accumulator charge + grid surplus over the fight duration
+    const gridSurplus   = Math.max(0, (state.powerKw ?? 0) - (state.powerDemandKw ?? 0));
+    const energyAvail   = (state.accumulatorCharge ?? 0) + gridSurplus * killEst;
+    laserRatio = energyNeeded > 0 ? Math.min(1, energyAvail / energyNeeded) : 1;
+  }
+
+  const { gunDPS, laserDPS, totalDPS } = calcDefenseDPS(actualArmor, laserRatio);
 
   // ── Artillery pre-wave fire (fires during biter approach) ─────
   const artDmgPerShell  = ARTILLERY_BASE_DAMAGE * artilleryDamageMult(p.artilleryDamageLevel ?? 0);
@@ -3693,7 +3804,7 @@ function fightBiterWave() {
   const artShellsAvail  = state.inventory.artilleryShell ?? 0;
   const artShellsUsed   = Math.min(shellsWanted, artShellsAvail);
   const artPreDamage    = artShellsUsed * artDmgPerShell;
-  if (artShellsUsed > 0) state.inventory.artilleryShell = artShellsAvail - artShellsUsed;
+  if (artShellsUsed > 0) recordConsumed('artilleryShell', artShellsUsed);
   const remainingBiterHP     = Math.max(0, totalBiterHP - artPreDamage);
   const waveKilledByArtillery = remainingBiterHP <= 0 && (p.artillery ?? 0) > 0;
   state.waveKilledByArtillery = waveKilledByArtillery;
@@ -3746,7 +3857,18 @@ function fightBiterWave() {
   const ammoType      = p.ammoType ?? 'firearmMagazine';
   const ammoAvail     = state.inventory[ammoType] ?? 0;
   const actualAmmoUsed= Math.min(ammoUsed, ammoAvail);
-  if (actualAmmoUsed > 0) state.inventory[ammoType] -= actualAmmoUsed;
+  if (actualAmmoUsed > 0) recordConsumed(ammoType, actualAmmoUsed);
+
+  // Consume laser energy from accumulators + grid surplus
+  const laserEnergyUsed = laserMaxKw > 0 && killTime != null
+    ? laserRatio * laserMaxKw * killTime
+    : 0;
+  if (laserEnergyUsed > 0) {
+    const gridSurplus  = Math.max(0, (state.powerKw ?? 0) - (state.powerDemandKw ?? 0));
+    const fromGrid     = Math.min(laserEnergyUsed, gridSurplus * killTime);
+    const fromAcc      = laserEnergyUsed - fromGrid;
+    state.accumulatorCharge = Math.max(0, (state.accumulatorCharge ?? 0) - fromAcc);
+  }
 
   // ── Atomic bomb defense ───────────────────────────────────────
   p.atomicBombsUsedThisWave = 0;
@@ -3780,13 +3902,17 @@ function fightBiterWave() {
     state.biterThreatPoints = (state.biterThreatPoints ?? 0) + irradiationBonus;
   }
 
-  // ── Meta progression: track kills and award points ───────────
+  // ── Meta progression: track kills and award pending points ───
   if (state.settings?.biters) {
     const killMult = (bombsUsed > 0) ? 0.01 : 1;
     const waveWeightedKills = actualCount * killMult;
     state.bitersKilled = (state.bitersKilled ?? 0) + actualCount;
-    metaState.weightedKills = (metaState.weightedKills ?? 0) + waveWeightedKills;
-    metaState.totalPoints = Math.log10(1 + metaState.weightedKills * 1e-4) * 10;
+    // Compute the incremental point delta from this wave's kills
+    const prevWeightedKills = metaState.weightedKills ?? 0;
+    const pointDelta = Math.log10(1 + (prevWeightedKills + waveWeightedKills) * 1e-4) * 10
+                     - Math.log10(1 + prevWeightedKills * 1e-4) * 10;
+    metaState.weightedKills = prevWeightedKills + waveWeightedKills;
+    metaState.pendingPoints = (metaState.pendingPoints ?? 0) + pointDelta;
     saveMetaState();
   }
 
@@ -3838,30 +3964,30 @@ function addPerimeterDefense(type, amount) {
     const max   = perimeterMaxWalls();
     const toAdd = Math.min(amount, max - p.walls, state.inventory.stoneWall ?? 0);
     if (toAdd <= 0) { notify('Not enough Stone Walls or perimeter is full', 'warning'); return; }
-    state.inventory.stoneWall -= toAdd;
+    recordConsumed('stoneWall', toAdd);
     p.walls += toAdd;
   } else if (type === 'gunTurrets') {
     const max   = perimeterMaxTurrets();
     const toAdd = Math.min(amount, max - p.gunTurrets - p.laserTurrets, state.inventory.gunTurretItem ?? 0);
     if (toAdd <= 0) { notify('Not enough Gun Turrets or perimeter is full', 'warning'); return; }
-    state.inventory.gunTurretItem -= toAdd;
+    recordConsumed('gunTurretItem', toAdd);
     p.gunTurrets += toAdd;
   } else if (type === 'laserTurrets') {
     const max   = perimeterMaxTurrets();
     const toAdd = Math.min(amount, max - p.gunTurrets - p.laserTurrets, state.inventory.laserTurretItem ?? 0);
     if (toAdd <= 0) { notify('Not enough Laser Turrets or perimeter is full', 'warning'); return; }
-    state.inventory.laserTurretItem -= toAdd;
+    recordConsumed('laserTurretItem', toAdd);
     p.laserTurrets += toAdd;
   } else if (type === 'artillery') {
     const max   = perimeterMaxArtillery();
     const toAdd = Math.min(amount, max - (p.artillery ?? 0), state.inventory.artilleryTurretItem ?? 0);
     if (toAdd <= 0) { notify('Not enough Artillery Turrets or perimeter is full', 'warning'); return; }
-    state.inventory.artilleryTurretItem -= toAdd;
+    recordConsumed('artilleryTurretItem', toAdd);
     p.artillery = (p.artillery ?? 0) + toAdd;
   } else if (type === 'spidertrons') {
     const toAdd = Math.min(amount, state.inventory.spidertronItem ?? 0);
     if (toAdd <= 0) { notify('Not enough Spidertrons in inventory', 'warning'); return; }
-    state.inventory.spidertronItem -= toAdd;
+    recordConsumed('spidertronItem', toAdd);
     p.spidertrons = (p.spidertrons ?? 0) + toAdd;
   }
 }
@@ -3871,23 +3997,23 @@ function removePerimeterDefense(type, amount) {
   if (type === 'walls') {
     const n = Math.min(amount, p.walls);
     p.walls -= n;
-    state.inventory.stoneWall = (state.inventory.stoneWall ?? 0) + n;
+    recordProduced('stoneWall', n);
   } else if (type === 'gunTurrets') {
     const n = Math.min(amount, p.gunTurrets);
     p.gunTurrets -= n;
-    state.inventory.gunTurretItem = (state.inventory.gunTurretItem ?? 0) + n;
+    recordProduced('gunTurretItem', n);
   } else if (type === 'laserTurrets') {
     const n = Math.min(amount, p.laserTurrets);
     p.laserTurrets -= n;
-    state.inventory.laserTurretItem = (state.inventory.laserTurretItem ?? 0) + n;
+    recordProduced('laserTurretItem', n);
   } else if (type === 'artillery') {
     const n = Math.min(amount, p.artillery ?? 0);
     p.artillery = (p.artillery ?? 0) - n;
-    state.inventory.artilleryTurretItem = (state.inventory.artilleryTurretItem ?? 0) + n;
+    recordProduced('artilleryTurretItem', n);
   } else if (type === 'spidertrons') {
     const n = Math.min(amount, p.spidertrons ?? 0);
     p.spidertrons = (p.spidertrons ?? 0) - n;
-    state.inventory.spidertronItem = (state.inventory.spidertronItem ?? 0) + n;
+    recordProduced('spidertronItem', n);
   }
 }
 
@@ -3895,8 +4021,8 @@ function expandPerimeter() {
   const newSideLength = state.perimeter.sideLength + 1;
   const chunksNeeded  = Math.pow(newSideLength, 2);
   const chunks        = state.chunksRevealed ?? 0;
-  if (Math.sqrt(chunks) <= newSideLength) {
-    notify(`Need more explored chunks to expand — need √${chunks} > ${newSideLength} (explore ${Math.max(0, chunksNeeded - chunks)} more)`, 'warning');
+  if (chunks < Math.pow(newSideLength, 2)) {
+    notify(`Need ${Math.max(0, Math.pow(newSideLength, 2) - chunks)} more explored chunks`, 'warning');
     return;
   }
   const concreteCost = state.perimeter.sideLength * 10;
@@ -3904,7 +4030,7 @@ function expandPerimeter() {
     notify(`Expanding requires ${concreteCost} Concrete (you have ${Math.floor(state.inventory.concrete ?? 0)})`, 'warning');
     return;
   }
-  state.inventory.concrete -= concreteCost;
+  recordConsumed('concrete', concreteCost);
   state.perimeter.sideLength = newSideLength;
   // Unlock pending patch finds that are now inside the perimeter
   for (const patch of Object.values(state.patches)) {
@@ -4022,7 +4148,9 @@ function renderPerimeter() {
   // Ammo/power estimates for wave prediction
   const previewKillTimeSec = previewSectionDefDPS > 0 ? previewSectionBiterHP / previewSectionDefDPS : null;
   const previewAmmoEst     = previewKillTimeSec != null ? Math.ceil(p.gunTurrets * (gunStats?.ammoCostPerSec ?? 0.25) * previewKillTimeSec) : null;
-  const laserPowerDrawKw   = p.laserTurrets * LASER_KW_PER_TURRET;
+  const laserEnergyPerWave = p.laserTurrets > 0 && previewKillTimeSec != null
+    ? Math.round(p.laserTurrets * LASER_KW_PER_TURRET * previewKillTimeSec)
+    : null;
 
   const concreteCost = p.sideLength * 10;
   const newSL   = p.sideLength + 1;
@@ -4250,7 +4378,7 @@ function renderPerimeter() {
       <span>Est. total biter damage</span><strong>~${parseFloat(previewDamage).toLocaleString()} · Wall HP: ${totalWallHP.toLocaleString()}</strong>
     </div>
     ${previewAmmoEst != null ? `<div class="perimeter-stat-row"><span>Est. ammo used</span><strong>${previewAmmoEst.toLocaleString()} × ${ITEMS[ammoType]?.name ?? ammoType} (${Math.floor(state.inventory[ammoType] ?? 0).toLocaleString()} in inv)</strong></div>` : ''}
-    ${laserPowerDrawKw > 0 ? `<div class="perimeter-stat-row"><span>Laser power draw</span><strong>${laserPowerDrawKw.toLocaleString()} kW (${Math.round((state.powerRatio ?? 1) * 100)}% power)</strong></div>` : ''}
+    ${laserEnergyPerWave != null ? `<div class="perimeter-stat-row"><span>Est. laser energy/wave</span><strong>${laserEnergyPerWave.toLocaleString()} kJ (from accumulators)</strong></div>` : ''}
     ${artPreviewDmg > 0 ? `<div class="perimeter-stat-row"><span>Artillery pre-damage</span><strong>~${artPreviewDmg.toLocaleString()} (${artShellsPerWave} shells) · ${artPreviewDmg >= nextBiterHP ? '✅ kills wave' : Math.round(artPreviewDmg / nextBiterHP * 100) + '% of wave HP'}</strong></div>` : ''}
     <div class="perimeter-outcome ${previewOverflow > 0 && totalDPS <= 0 ? 'perimeter-outcome-danger' : previewOverflow > 0 ? 'perimeter-outcome-warn' : 'perimeter-outcome-ok'}">${previewSurvive}</div>
   </div>`;
@@ -4516,6 +4644,53 @@ function renderGraph() {
   });
 }
 
+function handleRunEnd(reason) {
+  // 1. Award pending points
+  metaState.totalPoints = (metaState.totalPoints ?? 0) + (metaState.pendingPoints ?? 0);
+  metaState.pendingPoints = 0;
+
+  // 2. Blacklist this save's timestamp
+  const ts = state.saveCreatedAt;
+  if (ts && !metaState.saveBlacklist.includes(ts)) {
+    metaState.saveBlacklist.push(ts);
+    if (metaState.saveBlacklist.length > 1000) metaState.saveBlacklist = metaState.saveBlacklist.slice(-500);
+  }
+
+  saveMetaState();
+
+  // 3. Stop the game loop
+  if (gameLoopId) { clearInterval(gameLoopId); gameLoopId = null; }
+
+  // 4. Show result modal
+  const msg = reason === 'death'
+    ? `All buildings were destroyed! You earned ${(metaState.totalPoints).toFixed(2)} total meta points.`
+    : `World ended! You earned ${(metaState.totalPoints).toFixed(2)} total meta points.`;
+
+  showRunEndModal(msg);
+}
+
+function showRunEndModal(msg) {
+  document.getElementById('run-end-msg').textContent = msg;
+  document.getElementById('run-end-modal').classList.remove('hidden');
+}
+
+function closeRunEndModal() {
+  document.getElementById('run-end-modal').classList.add('hidden');
+  returnToStartScreen();
+}
+
+function returnToStartScreen() {
+  state = null;
+  document.getElementById('game-screen').classList.add('hidden');
+  document.getElementById('start-screen').classList.remove('hidden');
+  refreshSaveList();
+}
+
+function confirmEndWorld() {
+  if (!confirm('End this world? You will receive all pending meta points and this save will be permanently closed.')) return;
+  handleRunEnd('prestige');
+}
+
 function returnToMainMenu() {
   const unsaved = lastSaveMs === 0 || (Date.now() - lastSaveMs > 30000);
   if (unsaved && !confirm('You have unsaved progress. Return to main menu anyway?')) return;
@@ -4550,71 +4725,7 @@ function updatePlaceButtonStates() {
 //  switchScriptTab, toggleScriptAuto, renderScript)
 // All defined in script.js loaded after this file.
 
-/* ── block removed — all scripting code is in script.js ── */
-function _scriptEngineStub() { // never called; exists only to close the block below
-  void 0;
-  const KEYWORDS = {
-    if:'IF', elif:'ELIF', else:'ELSE', while:'WHILE', for:'FOR',
-    in:'IN', and:'AND', or:'OR', not:'NOT',
-    pass:'PASS', break:'BREAK', continue:'CONTINUE',
-    True:'TRUE', False:'FALSE', None:'NONE',
-  };
-  const tokens = [];
-  const lines = src.replace(/\t/g, '    ').split('\n');
-  const stack = [0];
-
-  for (const rawLine of lines) {
-    const line = rawLine.trimEnd();
-    if (!line || line.trimStart().startsWith('#')) continue;
-
-    let indent = 0;
-    while (indent < line.length && line[indent] === ' ') indent++;
-
-    if (indent > stack[stack.length - 1]) {
-      stack.push(indent);
-      tokens.push({ type: 'INDENT' });
-    } else {
-      while (indent < stack[stack.length - 1]) { stack.pop(); tokens.push({ type: 'DEDENT' }); }
-    }
-
-    let pos = indent;
-    while (pos < line.length) {
-      if (line[pos] === ' ') { pos++; continue; }
-      if (line[pos] === '#') break;
-
-      if (line[pos] === '"' || line[pos] === "'") {
-        const q = line[pos++]; let s = '';
-        while (pos < line.length && line[pos] !== q) s += line[pos++];
-        if (pos < line.length) pos++;
-        tokens.push({ type: 'STRING', value: s }); continue;
-      }
-
-      if (/\d/.test(line[pos])) {
-        let s = '';
-        while (pos < line.length && /[\d.]/.test(line[pos])) s += line[pos++];
-        tokens.push({ type: 'NUMBER', value: parseFloat(s) }); continue;
-      }
-
-      if (/[a-zA-Z_]/.test(line[pos])) {
-        let s = '';
-        while (pos < line.length && /[a-zA-Z0-9_]/.test(line[pos])) s += line[pos++];
-        const kw = KEYWORDS[s];
-        tokens.push(kw ? { type: kw } : { type: 'NAME', value: s }); continue;
-      }
-
-      const two = line.slice(pos, pos + 2);
-      if (['<=', '>=', '==', '!=', '**'].includes(two)) {
-        tokens.push({ type: 'OP', value: two }); pos += 2; continue;
-      }
-      tokens.push({ type: 'OP', value: line[pos++] });
-    }
-    tokens.push({ type: 'NEWLINE' });
-  }
-
-  while (stack.length > 1) { stack.pop(); tokens.push({ type: 'DEDENT' }); }
-  tokens.push({ type: 'EOF' });
-  return tokens;
-}
+// All scripting code is in script.js (loaded after this file).
 
 // ── Screen / Tab Management ───────────────────────────────────
 
@@ -4663,6 +4774,13 @@ function showGame() {
     if (autoEl) autoEl.value = _pendingScriptRestore.autoContent ?? '';
     scriptAutoRun = _pendingScriptRestore.autoRun;
     _pendingScriptRestore = null;
+    // Sync the Auto ON/OFF button visual state to match the restored value
+    const autoBtn = document.getElementById('script-auto-btn');
+    if (autoBtn) {
+      autoBtn.textContent = scriptAutoRun ? 'Auto ON' : 'Auto OFF';
+      if (scriptAutoRun) { autoBtn.classList.remove('btn-secondary'); autoBtn.classList.add('btn-primary'); }
+      else               { autoBtn.classList.remove('btn-primary');   autoBtn.classList.add('btn-secondary'); }
+    }
   }
   switchScriptTab(scriptActiveTab);
   renderAllPlacementPickers();
@@ -4727,7 +4845,7 @@ function setupEventDelegation() {
     const add = e.target.closest('[data-add]');
     if (add) {
       const countEl = add.closest('.building-add-row')?.querySelector('[data-add-count]');
-      const count = Math.max(1, parseInt(countEl?.value ?? '1') || 1);
+      const count = Math.max(1, parseInt(countEl?.value ?? String(buildingAddCounts[add.dataset.add] ?? 1)) || 1);
       addBuildingFromGroup(add.dataset.add, count);
       return;
     }
@@ -4797,7 +4915,21 @@ function setupEventDelegation() {
     renderOnePlacementPicker(ptype, host);
   });
 
-  // Script editors — values read on demand, no listeners needed
+  // Script editors — Tab key inserts 4 spaces instead of losing focus
+  function handleScriptEditorTab(e) {
+    if (e.key !== 'Tab') return;
+    e.preventDefault();
+    const ta = e.target;
+    const start = ta.selectionStart;
+    const end   = ta.selectionEnd;
+    const spaces = '    '; // 4 spaces
+    ta.value = ta.value.substring(0, start) + spaces + ta.value.substring(end);
+    ta.selectionStart = ta.selectionEnd = start + spaces.length;
+  }
+  const manualEditor = document.getElementById('script-manual-editor');
+  const autoEditor   = document.getElementById('script-auto-editor');
+  if (manualEditor) manualEditor.addEventListener('keydown', handleScriptEditorTab);
+  if (autoEditor)   autoEditor.addEventListener('keydown', handleScriptEditorTab);
 
   document.getElementById('tech-tree-wrap').addEventListener('click', e => {
     const resBtn = e.target.closest('[data-research]');
@@ -4826,34 +4958,15 @@ function notify(msg, type = 'info', opts = {}) {
 
 // ── Meta Progression Tab ──────────────────────────────────────
 
-const META_UPGRADEABLE_TYPES = [
-  'electricMiner', 'lab', 'furnace', 'steelFurnace', 'electricFurnace',
-  'assembly', 'assembly2', 'assembly3',
-  'boiler', 'pumpjack', 'oilRefinery', 'chemicalPlant',
-  'centrifuge', 'rocketSilo',
-];
+const META_UPGRADEABLE_TYPES = Object.keys(BUILDING_DEFS).filter(k => BUILDING_DEFS[k].upgradeable);
+const META_TYPE_NAMES = Object.fromEntries(
+  Object.entries(BUILDING_DEFS).map(([k, v]) => [k, v.name])
+);
 
-const META_TYPE_NAMES = {
-  electricMiner: 'Electric Miner',
-  lab: 'Lab',
-  furnace: 'Stone Furnace',
-  steelFurnace: 'Steel Furnace',
-  electricFurnace: 'Electric Furnace',
-  assembly: 'Assembly Mk1',
-  assembly2: 'Assembly Mk2',
-  assembly3: 'Assembly Mk3',
-  boiler: 'Boiler',
-  pumpjack: 'Pumpjack',
-  oilRefinery: 'Oil Refinery',
-  chemicalPlant: 'Chemical Plant',
-  centrifuge: 'Centrifuge',
-  rocketSilo: 'Rocket Silo',
-};
-
-function setMetaSubTab(tab) {
+function setMetaSubTab(tab, containerId = 'start-meta-panel') {
   metaSubTab = tab;
   lastMetaHtml = '';
-  renderMetaProgression();
+  renderMetaProgression(containerId);
 }
 
 function metaUpgradeCost(currentLevel) {
@@ -4861,160 +4974,140 @@ function metaUpgradeCost(currentLevel) {
 }
 
 function buyMetaBuildingUpgrade(type) {
-  const current = metaState.buildingUpgrades[type] ?? 0;
-  if (current >= 2) return;
-  const cost = metaUpgradeCost(current);
-  if (metaState.totalPoints < cost) { notify('Not enough meta points.', 'warning'); return; }
+  const level = metaState.buildingUpgrades?.[type] ?? 0;
+  if (level >= 2) return;
+  const cost = level === 0 ? 2 : 5;
+  if ((metaState.totalPoints ?? 0) < cost) { notify('Not enough meta points.', 'warning'); return; }
   metaState.totalPoints -= cost;
-  metaState.buildingUpgrades[type] = current + 1;
+  if (!metaState.buildingUpgrades) metaState.buildingUpgrades = {};
+  metaState.buildingUpgrades[type] = level + 1;
   saveMetaState();
   lastMetaHtml = '';
 }
 
 function buyMetaPerk(perkKey) {
-  if (perkKey === 'quickStart') {
-    if (metaState.perks.quickStart) return;
-    const cost = 10;
-    if (metaState.totalPoints < cost) { notify('Not enough meta points.', 'warning'); return; }
-    metaState.totalPoints -= cost;
-    metaState.perks.quickStart = true;
-    saveMetaState();
-    lastMetaHtml = '';
-  }
-}
-
-function investGamerModule(type) {
-  const costMap = { speedPoints: 3, prodPoints: 5 };
-  const cost = costMap[type];
-  if (!cost) return;
-  if (metaState.totalPoints < cost) { notify('Not enough meta points.', 'warning'); return; }
+  if (metaState.perks?.[perkKey]) return;
+  const cost = 10;
+  if ((metaState.totalPoints ?? 0) < cost) { notify('Not enough meta points.', 'warning'); return; }
   metaState.totalPoints -= cost;
-  metaState.gamerModule[type] = (metaState.gamerModule[type] ?? 0) + 1;
+  if (!metaState.perks) metaState.perks = {};
+  metaState.perks[perkKey] = true;
   saveMetaState();
   lastMetaHtml = '';
 }
 
-function renderMetaProgression() {
-  const el = document.getElementById('meta-content');
+function investGamerModule(type) {
+  // Accept both 'speed'/'prod' and 'speedPoints'/'prodPoints' for compatibility
+  const fieldMap = { speed: 'speedPoints', prod: 'prodPoints', speedPoints: 'speedPoints', prodPoints: 'prodPoints' };
+  const costMap  = { speedPoints: 3, prodPoints: 5 };
+  const field = fieldMap[type];
+  if (!field) return;
+  const cost = costMap[field];
+  if ((metaState.totalPoints ?? 0) < cost) { notify('Not enough meta points.', 'warning'); return; }
+  metaState.totalPoints -= cost;
+  if (!metaState.gamerModule) metaState.gamerModule = { speedPoints: 0, prodPoints: 0 };
+  metaState.gamerModule[field] = (metaState.gamerModule[field] ?? 0) + 1;
+  saveMetaState();
+  lastMetaHtml = '';
+}
+
+function renderMetaProgression(containerId = 'start-meta-panel') {
+  const el = document.getElementById(containerId);
   if (!el) return;
 
-  const pts = metaState.totalPoints.toFixed(2);
-  const rawKills = Math.floor(metaState.rawKills).toLocaleString();
-  const metaEnabled = state?.settings?.metaProgEnabled ?? false;
-  const tabs = ['buildings', 'perks', 'gamerModule'];
-  const tabLabels = { buildings: 'Building Upgrades', perks: 'Skill Tree', gamerModule: 'Gamer Module' };
+  const spendable = metaState.totalPoints ?? 0;
+  const pending   = metaState.pendingPoints ?? 0;
+  const inGame    = !!state;
 
-  const subTabNav = tabs.map(t =>
-    `<button class="tab-btn${metaSubTab === t ? ' active' : ''}" onclick="setMetaSubTab('${t}')" style="margin:0 2px 6px">${tabLabels[t]}</button>`
-  ).join('');
+  const tabs = [
+    { key: 'buildings', label: '🏭 Buildings' },
+    { key: 'skills',    label: '🌟 Skills' },
+    { key: 'gamer',     label: '🎮 Gamer Module' },
+  ];
 
-  let body = '';
+  let content = '';
 
   if (metaSubTab === 'buildings') {
     const rows = META_UPGRADEABLE_TYPES.map(type => {
-      const level = metaState.buildingUpgrades[type] ?? 0;
-      const cost  = metaUpgradeCost(level);
+      const level = metaState.buildingUpgrades?.[type] ?? 0;
       const maxed = level >= 2;
-      const canAffordUpg = metaState.totalPoints >= cost;
-      const btnDisabled  = maxed || !canAffordUpg;
-      const speedPct = (level * 25);
-      const energyPct = (level * 25);
-      return `<div class="stat-row">
-        <span class="stat-label">${META_TYPE_NAMES[type] ?? type}</span>
-        <span class="stat-value">Lv ${level}/2 (+${speedPct}% speed, -${energyPct}% energy)</span>
-        <button class="btn-sm" onclick="buyMetaBuildingUpgrade('${type}')" ${btnDisabled ? 'disabled' : ''}>
-          ${maxed ? 'Maxed' : `Upgrade (${cost} pts)`}
-        </button>
+      const cost  = level === 0 ? 2 : 5;
+      const canAffordUpg = spendable >= cost && !maxed;
+      const name  = META_TYPE_NAMES[type] ?? type;
+      const effect = level > 0 ? `+${level * 25}% speed · −${level * 25}% energy` : 'No bonus yet';
+      return `<div class="perimeter-stat-row">
+        <span>${name}</span>
+        <strong>${maxed ? '✅ Max' : `Lv ${level}/2 · ${effect}`}</strong>
+        ${!maxed ? `<button class="btn-sm${canAffordUpg ? '' : ' cant-afford'}" onclick="buyMetaBuildingUpgrade('${type}')">${cost} pts</button>` : ''}
       </div>`;
     }).join('');
-    body = rows;
-  } else if (metaSubTab === 'perks') {
-    const purchased = metaState.perks.quickStart;
-    const cost = 10;
-    const canAff = metaState.totalPoints >= cost;
-    body = `<div class="stat-row">
-      <span class="stat-label">Quick Start</span>
-      <span class="stat-value">${purchased ? '✓ Purchased' : `Cost: ${cost} pts`}</span>
-    </div>
-    <div style="margin:0 0 8px;color:var(--text-muted);font-size:0.85em">
-      Start new games with: 1 extra lab, 1 boiler, 1 steam engine, 5 coal miners,
-      5 iron miners + furnaces, 5 copper miners + furnaces. Requires Meta Progression enabled on new game.
-    </div>
-    <button class="btn-sm" onclick="buyMetaPerk('quickStart')" ${purchased || !canAff ? 'disabled' : ''}>
-      ${purchased ? 'Purchased' : `Buy (${cost} pts)`}
-    </button>`;
-  } else if (metaSubTab === 'gamerModule') {
-    const spd = metaState.gamerModule.speedPoints ?? 0;
-    const prd = metaState.gamerModule.prodPoints ?? 0;
-    const spdPct = (getGamerModuleSpeedBonus() * 100).toFixed(0);
-    const prdPct = (getGamerModuleProdBonus()  * 100).toFixed(0);
-    body = `
-      <div class="stat-row"><span class="stat-label">Speed Points</span><span class="stat-value">${spd} (+${spdPct}% speed per slot)</span></div>
-      <div class="stat-row"><span class="stat-label">Prod Points</span><span class="stat-value">${prd} (+${prdPct}% prod per slot)</span></div>
-      <div style="margin:8px 0;display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn-sm" onclick="investGamerModule('speedPoints')" ${metaState.totalPoints < 3 ? 'disabled' : ''}>
-          +1 Speed Point (3 pts)
-        </button>
-        <button class="btn-sm" onclick="investGamerModule('prodPoints')" ${metaState.totalPoints < 5 ? 'disabled' : ''}>
-          +1 Prod Point (5 pts)
-        </button>
+    content = `<div class="perimeter-card" style="grid-column:1/-1"><div class="perimeter-card-title">🏭 Building Upgrades</div>${rows}</div>`;
+
+  } else if (metaSubTab === 'skills') {
+    const hasPerk = metaState.perks?.quickStart;
+    content = `<div class="perimeter-card" style="grid-column:1/-1">
+      <div class="perimeter-card-title">🌟 Quick Start</div>
+      <div class="perimeter-stat-row"><span>Effect</span><strong>Start with extra lab, boiler, steam engine, 5 coal miners, 5 iron+copper miners &amp; furnaces</strong></div>
+      ${hasPerk
+        ? `<div class="perimeter-stat-row"><span>Status</span><strong>✅ Purchased</strong></div>`
+        : `<div class="perimeter-btn-row"><button class="btn-sm${spendable >= 10 ? '' : ' cant-afford'}" onclick="buyMetaPerk('quickStart')">Buy · 10 pts</button></div>`}
+    </div>`;
+
+  } else if (metaSubTab === 'gamer') {
+    const sp = metaState.gamerModule?.speedPoints ?? 0;
+    const pp = metaState.gamerModule?.prodPoints  ?? 0;
+    content = `<div class="perimeter-card" style="grid-column:1/-1">
+      <div class="perimeter-card-title">🎮 Gamer Module</div>
+      <div class="perimeter-stat-row"><span>Speed points</span><strong>${sp} → +${(sp * 5)}% speed per slot</strong></div>
+      <div class="perimeter-stat-row"><span>Prod points</span><strong>${pp} → +${(pp * 2)}% prod per slot</strong></div>
+      <div class="perimeter-btn-row" style="margin-top:.5rem">
+        <button class="btn-sm${spendable >= 3 ? '' : ' cant-afford'}" onclick="investGamerModule('speed')">Speed +1 · 3 pts</button>
+        <button class="btn-sm${spendable >= 5 ? '' : ' cant-afford'}" onclick="investGamerModule('prod')">Prod +1 · 5 pts</button>
       </div>
-      <p style="font-size:0.82em;color:var(--text-muted)">
-        Gamer Modules are craftable items that can be slotted into buildings. Each slot adds the above bonuses per slot invested.
-      </p>`;
+    </div>`;
   }
 
-  const metaNote = metaEnabled
-    ? ''
-    : '<p style="color:var(--warn-text,#f59e0b);font-size:0.85em;margin-top:8px">⚠ Meta Progression is not enabled on the current save. Enable it when starting a new game to apply bonuses.</p>';
-
   const html = `
-    <div class="card" style="margin-bottom:8px">
-      <div class="stat-row"><span class="stat-label">Meta Points</span><span class="stat-value" style="font-weight:700;color:var(--accent)">${pts}</span></div>
-      <div class="stat-row"><span class="stat-label">Lifetime Biters Killed</span><span class="stat-value">${rawKills}</span></div>
-      ${metaNote}
+    <div style="margin-bottom:.75rem">
+      <strong style="font-size:1.1rem">⭐ Meta Progression</strong>
+      ${inGame ? `<span style="color:var(--dim); font-size:.85rem; margin-left:.75rem">(Points available after run ends)</span>` : ''}
     </div>
-    <div style="margin-bottom:8px">${subTabNav}</div>
-    <div class="card">${body}</div>
+    <div class="perimeter-stat-row" style="margin-bottom:.5rem">
+      <span>Spendable points</span><strong>${spendable.toFixed(2)}</strong>
+    </div>
+    ${inGame ? `<div class="perimeter-stat-row" style="margin-bottom:.75rem">
+      <span>Pending (this run)</span><strong>${pending.toFixed(2)}</strong>
+    </div>` : ''}
+    <div class="perimeter-btn-row" style="margin-bottom:1rem">
+      ${tabs.map(t => `<button class="btn-sm${metaSubTab === t.key ? ' btn-primary' : ''}" onclick="setMetaSubTab('${t.key}', '${containerId}')">${t.label}</button>`).join('')}
+    </div>
+    <div class="perimeter-grid">${content}</div>
   `;
 
   if (html === lastMetaHtml) return;
   lastMetaHtml = html;
   el.innerHTML = html;
+
+  const ewEl = document.getElementById('end-world-points');
+  if (ewEl) {
+    ewEl.textContent = pending > 0 ? `+${pending.toFixed(2)} pts on end` : '';
+  }
 }
 
 // ── Start-screen meta panel ───────────────────────────────────
 
+let startMetaPanelOpen = false;
 function toggleStartMetaPanel() {
-  const panel = document.getElementById('start-meta-panel');
-  if (!panel) return;
-  panel.classList.toggle('hidden');
-  if (!panel.classList.contains('hidden')) renderStartMetaPanel();
-}
-
-function renderStartMetaPanel() {
-  const panel = document.getElementById('start-meta-panel');
-  if (!panel) return;
-  const pts = metaState.totalPoints.toFixed(2);
-  const rawKills = Math.floor(metaState.rawKills).toLocaleString();
-  const upgrades = META_UPGRADEABLE_TYPES
-    .filter(t => (metaState.buildingUpgrades[t] ?? 0) > 0)
-    .map(t => `${META_TYPE_NAMES[t] ?? t} Lv${metaState.buildingUpgrades[t]}`)
-    .join(', ') || 'None';
-  panel.innerHTML = `
-    <div class="card" style="max-width:480px;margin:0 auto">
-      <h3 style="margin:0 0 8px">Meta Progression</h3>
-      <div class="stat-row"><span class="stat-label">Meta Points</span><span class="stat-value">${pts}</span></div>
-      <div class="stat-row"><span class="stat-label">Lifetime Kills</span><span class="stat-value">${rawKills}</span></div>
-      <div class="stat-row"><span class="stat-label">Quick Start</span><span class="stat-value">${metaState.perks.quickStart ? '✓ Purchased' : 'Not purchased'}</span></div>
-      <div class="stat-row"><span class="stat-label">Building Upgrades</span><span class="stat-value">${upgrades}</span></div>
-      <div class="stat-row"><span class="stat-label">Gamer Spd Pts</span><span class="stat-value">${metaState.gamerModule.speedPoints}</span></div>
-      <div class="stat-row"><span class="stat-label">Gamer Prod Pts</span><span class="stat-value">${metaState.gamerModule.prodPoints}</span></div>
-      <p style="font-size:0.82em;color:var(--text-muted);margin-top:8px">
-        Points are earned by defeating biter waves. Open the in-game Meta tab to spend points.
-      </p>
-    </div>
-  `;
+  startMetaPanelOpen = !startMetaPanelOpen;
+  const el = document.getElementById('start-meta-panel');
+  if (!el) return;
+  if (startMetaPanelOpen) {
+    el.classList.remove('hidden');
+    lastMetaHtml = '';
+    renderMetaProgression('start-meta-panel');
+  } else {
+    el.classList.add('hidden');
+  }
 }
 
 document.addEventListener('DOMContentLoaded', () => {

@@ -170,6 +170,7 @@
     <a href="#inventory">Inventory vars</a>
     <a href="#delta">Delta vars</a>
     <a href="#buildings">Building counts</a>
+    <a href="#inv-buildings">Inventory buildings</a>
     <a href="#power">Power vars</a>
     <a href="#perimeter">Perimeter vars</a>
     <a href="#queue">Queue vars</a>
@@ -282,49 +283,14 @@
 
   <!-- ── place() recipes ───────────────────────────────────── -->
   <div class="section" id="place-recipes">
-    <div class="section-title">place() — Recipes (2nd argument for furnace / assembly / refinery / chemical plant)</div>
-    <table>
-      <tr><th>Alias(es)</th><th>Recipe</th></tr>
-      <tr><td><code>iron_plate</code></td><td>Iron Plate</td></tr>
-      <tr><td><code>copper_plate</code></td><td>Copper Plate</td></tr>
-      <tr><td><code>stone_brick</code></td><td>Stone Brick</td></tr>
-      <tr><td><code>steel</code></td><td>Steel Plate</td></tr>
-      <tr><td><code>iron_gear</code> · <code>gear</code></td><td>Iron Gear Wheel</td></tr>
-      <tr><td><code>copper_cable</code> · <code>cable</code></td><td>Copper Cable</td></tr>
-      <tr><td><code>pipe</code></td><td>Pipe</td></tr>
-      <tr><td><code>iron_stick</code></td><td>Iron Stick</td></tr>
-      <tr><td><code>circuit</code> · <code>green_circuit</code> · <code>electronic_circuit</code></td><td>Electronic Circuit</td></tr>
-      <tr><td><code>advanced_circuit</code> · <code>red_circuit</code></td><td>Advanced Circuit</td></tr>
-      <tr><td><code>processing_unit</code> · <code>blue_circuit</code></td><td>Processing Unit</td></tr>
-      <tr><td><code>inserter</code></td><td>Inserter</td></tr>
-      <tr><td><code>transport_belt</code> · <code>belt</code></td><td>Transport Belt</td></tr>
-      <tr><td><code>engine_unit</code> · <code>engine</code></td><td>Engine Unit</td></tr>
-      <tr><td><code>electric_engine</code> · <code>electric_engine_unit</code></td><td>Electric Engine Unit</td></tr>
-      <tr><td><code>flying_robot_frame</code></td><td>Flying Robot Frame</td></tr>
-      <tr><td><code>red_science</code></td><td>Automation Science Pack</td></tr>
-      <tr><td><code>green_science</code></td><td>Logistic Science Pack</td></tr>
-      <tr><td><code>blue_science</code></td><td>Chemical Science Pack</td></tr>
-      <tr><td><code>black_science</code></td><td>Military Science Pack</td></tr>
-      <tr><td><code>purple_science</code></td><td>Production Science Pack</td></tr>
-      <tr><td><code>yellow_science</code></td><td>Utility Science Pack</td></tr>
-      <tr><td><code>plastic</code> · <code>plastic_bar</code></td><td>Plastic Bar (chemical plant)</td></tr>
-      <tr><td><code>sulfur</code></td><td>Sulfur (chemical plant)</td></tr>
-      <tr><td><code>sulfuric_acid</code></td><td>Sulfuric Acid (chemical plant)</td></tr>
-      <tr><td><code>battery</code></td><td>Battery (chemical plant)</td></tr>
-      <tr><td><code>lubricant</code></td><td>Lubricant (chemical plant)</td></tr>
-      <tr><td><code>solid_fuel</code></td><td>Solid Fuel from Light Oil (chemical plant)</td></tr>
-      <tr><td><code>rocket_fuel</code></td><td>Rocket Fuel (chemical plant)</td></tr>
-      <tr><td><code>low_density_structure</code> · <code>lds</code></td><td>Low Density Structure</td></tr>
-      <tr><td><code>basic_oil</code></td><td>Basic Oil Processing (refinery)</td></tr>
-      <tr><td><code>advanced_oil</code></td><td>Advanced Oil Processing (refinery)</td></tr>
-      <tr><td><code>heavy_oil_cracking</code></td><td>Heavy Oil Cracking (chemical plant)</td></tr>
-      <tr><td><code>light_oil_cracking</code></td><td>Light Oil Cracking (chemical plant)</td></tr>
-      <tr><td><code>uranium_processing</code></td><td>Uranium Processing (centrifuge)</td></tr>
-      <tr><td><code>kovarex</code></td><td>Kovarex Enrichment (centrifuge)</td></tr>
-      <tr><td><code>uranium_fuel_cell</code></td><td>Uranium Fuel Cell</td></tr>
-      <tr><td><code>nuclear_fuel</code></td><td>Nuclear Fuel (centrifuge)</td></tr>
-      <tr><td><code>concrete</code></td><td>Concrete</td></tr>
-    </table>
+    <div class="section-title">place() — Recipes (2nd argument for furnace / assembly / refinery / chemical plant / centrifuge / silo)</div>
+    <p style="color:var(--text2);margin-bottom:.8rem">
+      Recipes are <strong>auto-generated</strong> from <code>data/recipes.js</code>. Adding a new recipe there automatically creates a usable script alias.
+      The <em>canonical</em> alias is the snake_case version of the recipe key. Extra shorthand aliases are listed alongside.
+    </p>
+    <div id="docs-place-recipes">
+      <p style="color:var(--dim)">Loading from PLAYER_RECIPES…</p>
+    </div>
   </div>
 
   <!-- ── craft() items ─────────────────────────────────────── -->
@@ -457,63 +423,12 @@
   <div class="section" id="inventory">
     <div class="section-title">Inventory Variables (read-only integers)</div>
     <p style="color:var(--text2);margin-bottom:.8rem">All item counts are floored to integers. The variable name is the camelCase item key converted to SCREAMING_SNAKE_CASE.</p>
-    <table>
-      <tr><th>Variable</th><th>Item</th></tr>
-      <tr><td><code>IRON_ORE</code></td><td>Iron Ore</td></tr>
-      <tr><td><code>COPPER_ORE</code></td><td>Copper Ore</td></tr>
-      <tr><td><code>COAL</code></td><td>Coal</td></tr>
-      <tr><td><code>STONE</code></td><td>Stone</td></tr>
-      <tr><td><code>URANIUM_ORE</code></td><td>Uranium Ore</td></tr>
-      <tr><td><code>IRON_PLATE</code></td><td>Iron Plate</td></tr>
-      <tr><td><code>COPPER_PLATE</code></td><td>Copper Plate</td></tr>
-      <tr><td><code>STONE_BRICK</code></td><td>Stone Brick</td></tr>
-      <tr><td><code>STEEL</code></td><td>Steel Plate</td></tr>
-      <tr><td><code>IRON_GEAR</code></td><td>Iron Gear Wheel</td></tr>
-      <tr><td><code>COPPER_CABLE</code></td><td>Copper Cable</td></tr>
-      <tr><td><code>PIPE</code></td><td>Pipe</td></tr>
-      <tr><td><code>IRON_STICK</code></td><td>Iron Stick</td></tr>
-      <tr><td><code>ELECTRONIC_CIRCUIT</code></td><td>Electronic Circuit</td></tr>
-      <tr><td><code>ADVANCED_CIRCUIT</code></td><td>Advanced Circuit</td></tr>
-      <tr><td><code>PROCESSING_UNIT</code></td><td>Processing Unit</td></tr>
-      <tr><td><code>PETROLEUM_GAS</code></td><td>Petroleum Gas</td></tr>
-      <tr><td><code>HEAVY_OIL</code></td><td>Heavy Oil</td></tr>
-      <tr><td><code>LIGHT_OIL</code></td><td>Light Oil</td></tr>
-      <tr><td><code>SULFUR</code></td><td>Sulfur</td></tr>
-      <tr><td><code>SULFURIC_ACID</code></td><td>Sulfuric Acid</td></tr>
-      <tr><td><code>PLASTIC_BAR</code></td><td>Plastic Bar</td></tr>
-      <tr><td><code>BATTERY</code></td><td>Battery</td></tr>
-      <tr><td><code>LUBRICANT</code></td><td>Lubricant</td></tr>
-      <tr><td><code>EXPLOSIVES</code></td><td>Explosives</td></tr>
-      <tr><td><code>SOLID_FUEL</code></td><td>Solid Fuel</td></tr>
-      <tr><td><code>ENGINE_UNIT</code></td><td>Engine Unit</td></tr>
-      <tr><td><code>ELECTRIC_ENGINE_UNIT</code></td><td>Electric Engine Unit</td></tr>
-      <tr><td><code>FLYING_ROBOT_FRAME</code></td><td>Flying Robot Frame</td></tr>
-      <tr><td><code>CONSTRUCTION_ROBOT_ITEM</code></td><td>Construction Robot</td></tr>
-      <tr><td><code>ROCKET_FUEL</code></td><td>Rocket Fuel</td></tr>
-      <tr><td><code>LOW_DENSITY_STRUCTURE</code></td><td>Low Density Structure</td></tr>
-      <tr><td><code>URANIUM235</code></td><td>Uranium-235</td></tr>
-      <tr><td><code>URANIUM238</code></td><td>Uranium-238</td></tr>
-      <tr><td><code>URANIUM_FUEL_CELL</code></td><td>Uranium Fuel Cell</td></tr>
-      <tr><td><code>NUCLEAR_FUEL</code></td><td>Nuclear Fuel</td></tr>
-      <tr><td><code>CONCRETE</code></td><td>Concrete</td></tr>
-      <tr><td><code>LANDFILL</code></td><td>Landfill</td></tr>
-      <tr><td><code>INSERTER</code></td><td>Inserter</td></tr>
-      <tr><td><code>TRANSPORT_BELT</code></td><td>Transport Belt</td></tr>
-      <tr><td><code>REPAIR_PACK</code></td><td>Repair Pack</td></tr>
-      <tr><td><code>RAIL</code></td><td>Rail</td></tr>
-      <tr><td><code>RED_SCIENCE</code></td><td>Automation Science Pack</td></tr>
-      <tr><td><code>GREEN_SCIENCE</code></td><td>Logistic Science Pack</td></tr>
-      <tr><td><code>BLUE_SCIENCE</code></td><td>Chemical Science Pack</td></tr>
-      <tr><td><code>BLACK_SCIENCE</code></td><td>Military Science Pack</td></tr>
-      <tr><td><code>PURPLE_SCIENCE</code></td><td>Production Science Pack</td></tr>
-      <tr><td><code>YELLOW_SCIENCE</code></td><td>Utility Science Pack</td></tr>
-      <tr><td><code>SPACE_SCIENCE</code></td><td>Space Science Pack</td></tr>
-      <tr><td><code>SPEED_MODULE</code> · <code>SPEED_MODULE2</code> · <code>SPEED_MODULE3</code></td><td>Speed Modules</td></tr>
-      <tr><td><code>PRODUCTIVITY_MODULE</code> · <code>PRODUCTIVITY_MODULE2</code> · <code>PRODUCTIVITY_MODULE3</code></td><td>Productivity Modules</td></tr>
-      <tr><td><code>FIREARM_MAGAZINE</code> · <code>PIERCING_ROUNDS_MAG</code> · <code>URANIUM_ROUNDS_MAG</code></td><td>Ammunition</td></tr>
-      <tr><td><code>STONE_WALL</code> · <code>GUN_TURRET_ITEM</code> · <code>LASER_TURRET_ITEM</code></td><td>Defense items</td></tr>
-      <tr><td><code>SATELLITE</code> · <code>SPIDERTRON</code> · <code>LOCOMOTIVE</code></td><td>Late-game items</td></tr>
-    </table>
+    <div id="docs-inv-vars">
+      <table>
+        <tr><th>Variable</th><th>Item</th></tr>
+        <tr><td colspan="2" style="color:var(--dim);font-style:italic">Loading from ITEMS…</td></tr>
+      </table>
+    </div>
   </div>
 
   <!-- ── Delta vars ─────────────────────────────────────────── -->
@@ -522,53 +437,74 @@
     <p style="color:var(--text2);margin-bottom:.8rem">
       Every inventory variable has a corresponding <code>DELTA_*</code> version that shows the rate of change per second (updated every 1 second). Negative values mean consumption.
     </p>
-    <table>
-      <tr><th>Variable</th><th>Meaning</th></tr>
-      <tr><td><code>DELTA_IRON_ORE</code></td><td>Iron Ore per second (mining rate)</td></tr>
-      <tr><td><code>DELTA_COPPER_ORE</code></td><td>Copper Ore per second</td></tr>
-      <tr><td><code>DELTA_IRON_PLATE</code></td><td>Iron Plate per second</td></tr>
-      <tr><td><code>DELTA_COPPER_PLATE</code></td><td>Copper Plate per second</td></tr>
-      <tr><td><code>DELTA_STEEL</code></td><td>Steel per second</td></tr>
-      <tr><td><code>DELTA_IRON_GEAR</code></td><td>Iron Gear per second</td></tr>
-      <tr><td><code>DELTA_RED_SCIENCE</code></td><td>Red Science per second</td></tr>
-      <tr><td colspan="2" style="color:var(--dim);font-style:italic">… and DELTA_ prefix for every other inventory variable</td></tr>
-    </table>
+    <div id="docs-delta-vars">
+      <table>
+        <tr><th>Variable</th><th>Meaning</th></tr>
+        <tr><td colspan="2" style="color:var(--dim);font-style:italic">Loading from ITEMS…</td></tr>
+      </table>
+    </div>
   </div>
 
   <!-- ── Building counts ───────────────────────────────────── -->
   <div class="section" id="buildings">
-    <div class="section-title">Building Count Variables (read-only)</div>
-    <table>
-      <tr><th>Variable</th><th>Counts</th></tr>
-      <tr><td><code>MINERS_IRON</code></td><td>Burner miners on Iron Ore</td></tr>
-      <tr><td><code>MINERS_COPPER</code></td><td>Burner miners on Copper Ore</td></tr>
-      <tr><td><code>MINERS_COAL</code></td><td>Burner miners on Coal</td></tr>
-      <tr><td><code>MINERS_STONE</code></td><td>Burner miners on Stone</td></tr>
-      <tr><td><code>E_MINERS_IRON</code></td><td>Electric miners on Iron Ore</td></tr>
-      <tr><td><code>E_MINERS_COPPER</code></td><td>Electric miners on Copper Ore</td></tr>
-      <tr><td><code>E_MINERS_COAL</code></td><td>Electric miners on Coal</td></tr>
-      <tr><td><code>E_MINERS_STONE</code></td><td>Electric miners on Stone</td></tr>
-      <tr><td><code>FURNACES</code></td><td>Stone Furnaces</td></tr>
-      <tr><td><code>STEEL_FURNACES</code></td><td>Steel Furnaces</td></tr>
-      <tr><td><code>ELECTRIC_FURNACES</code></td><td>Electric Furnaces</td></tr>
-      <tr><td><code>ASSEMBLERS</code></td><td>Assembly Machine Mk1</td></tr>
-      <tr><td><code>ASSEMBLERS2</code></td><td>Assembly Machine Mk2</td></tr>
-      <tr><td><code>ASSEMBLERS3</code></td><td>Assembly Machine Mk3</td></tr>
-      <tr><td><code>LABS</code></td><td>Labs</td></tr>
-      <tr><td><code>BOILERS</code></td><td>Boilers</td></tr>
-      <tr><td><code>STEAM_ENGINES</code></td><td>Steam Engines</td></tr>
-      <tr><td><code>PUMPS</code></td><td>Offshore Pumps</td></tr>
-      <tr><td><code>RADARS</code></td><td>Radars</td></tr>
-      <tr><td><code>SOLAR_PANELS</code></td><td>Solar Panels</td></tr>
-      <tr><td><code>ACCUMULATORS</code></td><td>Accumulators</td></tr>
-      <tr><td><code>PUMPJACKS</code></td><td>Pumpjacks</td></tr>
-      <tr><td><code>OIL_REFINERIES</code></td><td>Oil Refineries</td></tr>
-      <tr><td><code>CHEMICAL_PLANTS</code></td><td>Chemical Plants</td></tr>
-      <tr><td><code>CENTRIFUGES</code></td><td>Centrifuges</td></tr>
-      <tr><td><code>ROCKET_SILOS</code></td><td>Rocket Silos</td></tr>
-      <tr><td><code>NUCLEAR_REACTORS</code></td><td>Nuclear Reactor complexes</td></tr>
-      <tr><td><code>CHUNKS_EXPLORED</code></td><td>Radar chunks explored</td></tr>
-    </table>
+    <div class="section-title">Building Count Variables (placed buildings, read-only)</div>
+    <div id="docs-building-vars">
+      <table>
+        <tr><th>Variable</th><th>Counts</th></tr>
+        <tr><td><code>MINERS_IRON</code></td><td>Burner miners on Iron Ore</td></tr>
+        <tr><td><code>MINERS_COPPER</code></td><td>Burner miners on Copper Ore</td></tr>
+        <tr><td><code>MINERS_COAL</code></td><td>Burner miners on Coal</td></tr>
+        <tr><td><code>MINERS_STONE</code></td><td>Burner miners on Stone</td></tr>
+        <tr><td><code>E_MINERS_IRON</code></td><td>Electric miners on Iron Ore</td></tr>
+        <tr><td><code>E_MINERS_COPPER</code></td><td>Electric miners on Copper Ore</td></tr>
+        <tr><td><code>E_MINERS_COAL</code></td><td>Electric miners on Coal</td></tr>
+        <tr><td><code>E_MINERS_STONE</code></td><td>Electric miners on Stone</td></tr>
+        <tr><td><code>FURNACES</code></td><td>Stone Furnaces placed</td></tr>
+        <tr><td><code>STEEL_FURNACES</code></td><td>Steel Furnaces placed</td></tr>
+        <tr><td><code>ELECTRIC_FURNACES</code></td><td>Electric Furnaces placed</td></tr>
+        <tr><td><code>ASSEMBLERS</code></td><td>Assembling Machine Mk1 placed</td></tr>
+        <tr><td><code>ASSEMBLERS2</code></td><td>Assembling Machine Mk2 placed</td></tr>
+        <tr><td><code>ASSEMBLERS3</code></td><td>Assembling Machine Mk3 placed</td></tr>
+        <tr><td><code>LABS</code></td><td>Labs placed</td></tr>
+        <tr><td><code>BOILERS</code></td><td>Boilers placed</td></tr>
+        <tr><td><code>STEAM_ENGINES</code></td><td>Steam Engines placed</td></tr>
+        <tr><td><code>PUMPS</code></td><td>Offshore Pumps placed</td></tr>
+        <tr><td><code>RADARS</code></td><td>Radars placed</td></tr>
+        <tr><td><code>SOLAR_PANELS</code></td><td>Solar Panels placed</td></tr>
+        <tr><td><code>ACCUMULATORS</code></td><td>Accumulators placed</td></tr>
+        <tr><td><code>PUMPJACKS</code></td><td>Pumpjacks placed</td></tr>
+        <tr><td><code>OIL_REFINERIES</code></td><td>Oil Refineries placed</td></tr>
+        <tr><td><code>CHEMICAL_PLANTS</code></td><td>Chemical Plants placed</td></tr>
+        <tr><td><code>CENTRIFUGES</code></td><td>Centrifuges placed</td></tr>
+        <tr><td><code>ROCKET_SILOS</code></td><td>Rocket Silos placed</td></tr>
+        <tr><td><code>NUCLEAR_REACTORS</code></td><td>Nuclear Reactor complexes placed</td></tr>
+        <tr><td><code>CHUNKS_EXPLORED</code></td><td>Radar chunks explored</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── Inventory building counts ─────────────────────────── -->
+  <div class="section" id="inv-buildings">
+    <div class="section-title">Inventory Building Item Counts (in stock, not placed) <span class="tag tag-new">NEW</span></div>
+    <p style="color:var(--text2);margin-bottom:.8rem">
+      These variables count how many of each placeable building item you have in your inventory.
+      Use them to check whether you have buildings ready to place before calling <code>place()</code>.
+      The <code>INV_</code> prefix distinguishes them from placed building counts (e.g. <code>ASSEMBLERS</code>).
+    </p>
+    <div id="docs-inv-buildings">
+      <table>
+        <tr><th>Variable</th><th>Description</th></tr>
+        <tr><td colspan="2" style="color:var(--dim);font-style:italic">Loading from BUILDING_DEFS_DOCS…</td></tr>
+      </table>
+    </div>
+    <div class="note" style="margin-top:.8rem">
+      <strong>Short-name aliases</strong> (backwards compat): <code>ELECTRIC_MINER</code>, <code>BURNER_MINER</code>,
+      <code>STONE_FURNACE</code>, <code>ELEC_FURNACE</code>, <code>LAB_ITEM</code>, <code>BOILER_ITEM</code>,
+      <code>STEAM_ENGINE_ITEM</code>, <code>SOLAR_PANEL_ITEM</code>, <code>ACCUMULATOR_ITEM</code>,
+      <code>RADAR_ITEM</code>, <code>PUMPJACK_ITEM</code>, <code>OIL_REFINERY_ITEM</code>,
+      <code>CHEM_PLANT_ITEM</code>, <code>CENTRIFUGE_ITEM</code>, <code>ROCKET_SILO_ITEM</code>,
+      <code>GUN_TURRET_ITEM</code>, <code>LASER_TURRET_ITEM</code>.
+    </div>
   </div>
 
   <!-- ── Power ─────────────────────────────────────────────── -->
@@ -706,5 +642,143 @@
   </div>
 
 </div>
+
+<script src="data/recipes.js"></script>
+<script src="docs-data.js"></script>
+<script>
+(function() {
+  // Convert camelCase to SCREAMING_SNAKE_CASE
+  function toScreamingSnake(key) {
+    return key.replace(/([A-Z])/g, '_$1').toUpperCase();
+  }
+
+  function makeTable(headers, rows) {
+    const ths = headers.map(h => `<th>${h}</th>`).join('');
+    return `<table><tr>${ths}</tr>${rows}</table>`;
+  }
+
+  // ── place() recipe table — auto-generated from PLAYER_RECIPES + FURNACE_RECIPES
+  function buildPlaceRecipesTable() {
+    const el = document.getElementById('docs-place-recipes');
+    if (!el || typeof PLAYER_RECIPES === 'undefined' || typeof FURNACE_RECIPES === 'undefined') return;
+
+    // Must mirror camelToSnake() in script.js
+    function camelToSnake(str) {
+      return str.replace(/([A-Z])/g, m => '_' + m.toLowerCase());
+    }
+
+    // Must mirror SCRIPT_RECIPE_EXTRA_ALIASES in script.js
+    const EXTRA_ALIASES = {
+      gear: 'ironGear', cable: 'copperCable', belt: 'transportBelt',
+      engine: 'engineUnit', electric_engine: 'electricEngineUnit',
+      plastic: 'plasticBar', circuit: 'electronicCircuit',
+      green_circuit: 'electronicCircuit', red_circuit: 'advancedCircuit',
+      blue_circuit: 'processingUnit', lds: 'lowDensityStructure',
+      ammo: 'firearmMagazine', piercing: 'piercingRoundsMag',
+      piercing_rounds: 'piercingRoundsMag', construction_robot: 'constructionRobotItem',
+      kovarex: 'kovarexEnrichment', solid_fuel: 'solidFuelLight',
+      basic_oil: 'basicOilProcessing', advanced_oil: 'advancedOilProcessing',
+      science_pack_1: 'redScience', science_pack_2: 'greenScience',
+      science_pack_3: 'blueScience', military_science: 'blackScience',
+      production_science: 'purpleScience', utility_science: 'yellowScience',
+    };
+
+    // Build reverse map: camelKey → [extra alias strings]
+    const extraByKey = {};
+    for (const [alias, camelKey] of Object.entries(EXTRA_ALIASES)) {
+      if (!extraByKey[camelKey]) extraByKey[camelKey] = [];
+      extraByKey[camelKey].push(alias);
+    }
+
+    // Machinery type → group label
+    const MACHINERY_LABEL = {
+      undefined:   'Assembly Machine (default)',
+      assembly:    'Assembly Machine',
+      chemical:    'Chemical Plant',
+      refinery:    'Oil Refinery',
+      centrifuge:  'Centrifuge',
+      rocket_silo: 'Rocket Silo',
+    };
+
+    // Bucket recipes into groups preserving insertion order
+    const groupOrder = ['Furnace', 'Assembly Machine (default)', 'Assembly Machine',
+                        'Chemical Plant', 'Oil Refinery', 'Centrifuge', 'Rocket Silo'];
+    const groups = {};
+    groupOrder.forEach(g => { groups[g] = []; });
+
+    for (const [camelKey, recipe] of Object.entries(FURNACE_RECIPES)) {
+      groups['Furnace'].push([camelKey, recipe]);
+    }
+    for (const [camelKey, recipe] of Object.entries(PLAYER_RECIPES)) {
+      const label = MACHINERY_LABEL[recipe.machinery] ?? 'Assembly Machine (default)';
+      groups[label].push([camelKey, recipe]);
+    }
+
+    let html = '';
+    for (const groupName of groupOrder) {
+      const recipes = groups[groupName];
+      if (!recipes || recipes.length === 0) continue;
+      html += `<p style="color:var(--accent);font-weight:600;margin:1rem 0 .3rem;font-size:.95em">${groupName}</p>`;
+      html += `<table><tr><th>Canonical alias</th><th>Extra aliases</th><th>Recipe</th></tr>`;
+      for (const [camelKey, recipe] of recipes) {
+        const canonical = camelToSnake(camelKey);
+        const extras = (extraByKey[camelKey] || [])
+          .filter(a => a !== canonical)
+          .map(a => `<code>${a}</code>`)
+          .join(' · ');
+        html += `<tr><td><code>${canonical}</code></td><td>${extras}</td><td>${recipe.name}</td></tr>`;
+      }
+      html += `</table>`;
+    }
+    el.innerHTML = html;
+  }
+
+  // ── Inventory variable table (from ITEMS in recipes.js)
+  function buildInvVarsTable() {
+    const el = document.getElementById('docs-inv-vars');
+    if (!el || typeof ITEMS === 'undefined') return;
+    const rows = Object.entries(ITEMS).map(([key, item]) => {
+      const varName = toScreamingSnake(key);
+      return `<tr><td><code>${varName}</code></td><td>${item.name ?? key}</td></tr>`;
+    }).join('');
+    el.innerHTML = makeTable(['Variable', 'Item'], rows);
+  }
+
+  // ── Delta variable table (auto-generated from ITEMS)
+  function buildDeltaVarsTable() {
+    const el = document.getElementById('docs-delta-vars');
+    if (!el || typeof ITEMS === 'undefined') return;
+    const rows = Object.entries(ITEMS).map(([key, item]) => {
+      const varName = 'DELTA_' + toScreamingSnake(key);
+      return `<tr><td><code>${varName}</code></td><td>Net production rate of ${item.name ?? key} per second</td></tr>`;
+    }).join('');
+    el.innerHTML = makeTable(['Variable', 'Meaning'], rows);
+  }
+
+  // ── Inventory building item counts table (from BUILDING_DEFS_DOCS in docs-data.js)
+  function buildInvBuildingsTable() {
+    const el = document.getElementById('docs-inv-buildings');
+    if (!el || typeof BUILDING_DEFS_DOCS === 'undefined') return;
+    const rows = Object.entries(BUILDING_DEFS_DOCS).map(([type, def]) => {
+      const varName = 'INV_' + type.replace(/([A-Z])/g, '_$1').toUpperCase();
+      return `<tr><td><code>${varName}</code></td><td>Count of ${def.name} in inventory (not placed)</td></tr>`;
+    }).join('');
+    el.innerHTML = makeTable(['Variable', 'Description'], rows);
+  }
+
+  function init() {
+    buildPlaceRecipesTable();
+    buildInvVarsTable();
+    buildDeltaVarsTable();
+    buildInvBuildingsTable();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+</script>
 </body>
 </html>

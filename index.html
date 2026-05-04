@@ -99,6 +99,16 @@
   </div>
 </div>
 
+<!-- ── Run End Modal ─────────────────────────────────────── -->
+<div id="run-end-modal" class="modal hidden">
+  <div class="modal-box" style="text-align:center">
+    <h2 id="run-end-title">Run Complete</h2>
+    <p id="run-end-msg" style="margin:1rem 0; font-size:1.1rem"></p>
+    <p style="color:var(--dim); font-size:.9rem">Points have been added to your meta progression.</p>
+    <button class="btn-primary" style="margin-top:1rem" onclick="closeRunEndModal()">Return to Home</button>
+  </div>
+</div>
+
 <!-- ── Game Screen ──────────────────────────────────────── -->
 <div id="game-screen" class="hidden">
 
@@ -125,7 +135,6 @@
     <button class="tab-btn"        onclick="switchTab('buildings', this)">🏭 Buildings</button>
     <button class="tab-btn"        onclick="switchTab('research', this)">🔬 Research</button>
     <button class="tab-btn"        onclick="switchTab('defense', this)">🛡️ Defense</button>
-    <button class="tab-btn"        onclick="switchTab('meta', this)">⭐ Meta</button>
     <button class="tab-btn"        onclick="switchTab('recipes', this)">📖 Recipes</button>
     <button class="tab-btn"        onclick="switchTab('graph', this)">📈 Graph</button>
     <button class="tab-btn"        onclick="switchTab('script', this)">📜 Script</button>
@@ -313,7 +322,7 @@
             </div>
           </div>
 
-          <div class="buildable-card" data-requires-tech="electricDistribution1">
+          <div class="buildable-card" data-requires-tech="accumulators">
             <span class="card-icon">🔋</span>
             <div class="card-body">
               <h4>Accumulator</h4>
@@ -326,7 +335,7 @@
             </div>
           </div>
 
-          <div class="buildable-card" data-requires-tech="nuclearReactorTech">
+          <div class="buildable-card" data-requires-tech="nuclearPowerTech">
             <span class="card-icon">⚛️</span>
             <div class="card-body">
               <h4>Nuclear Reactor</h4>
@@ -413,7 +422,7 @@
             </div>
           </div>
 
-          <div class="buildable-card" data-requires-tech="centrifugeTech">
+          <div class="buildable-card" data-requires-tech="uraniumProcessing">
             <span class="card-icon">⭕</span>
             <div class="card-body">
               <h4>Centrifuge</h4>
@@ -501,12 +510,6 @@
       <div id="perimeter-content"></div>
     </section>
 
-    <!-- Meta Progression Tab -->
-    <section id="tab-meta" class="tab-panel hidden">
-      <h3 class="section-label">Meta Progression</h3>
-      <div id="meta-content"></div>
-    </section>
-
     <!-- Recipes Tab -->
     <section id="tab-recipes" class="tab-panel hidden">
       <h3 class="section-label">Recipe Reference</h3>
@@ -581,6 +584,14 @@
               <button class="btn-secondary" onclick="returnToMainMenu()">Return to Menu</button>
             </div>
           </div>
+        </div>
+        <div style="margin-top:2rem; padding-top:1rem; border-top:1px solid var(--border)">
+          <div style="color:var(--dim); font-size:.85rem; margin-bottom:.5rem">
+            Ending the world awards all pending meta points and returns you to the home screen.
+            This save cannot be loaded again.
+          </div>
+          <button class="btn-danger" onclick="confirmEndWorld()">End The World</button>
+          <span id="end-world-points" style="margin-left:.75rem;font-size:.85rem;color:var(--accent)"></span>
         </div>
       </div>
     </section>

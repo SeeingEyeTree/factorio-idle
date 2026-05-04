@@ -211,7 +211,7 @@ const TECHNOLOGIES = {
     cost: { redScience: 100, greenScience: 100, blueScience: 100 }, timePerPack: 30,
     prereqs: ['robotics'],
     description: 'Unlocks Construction Robots (active deployment coming soon)',
-    unlockRecipes: ['constructionRobotItem', 'roboportItem'], unlockBuildings: ['roboport'],
+    unlockRecipes: ['constructionRobotItem'], unlockBuildings: [],
   },
   // ── Production / Military / Utility tier ─────────────────────
   railTech: {
@@ -376,6 +376,7 @@ const TECHNOLOGIES = {
     description: 'Why use small bomb when big bomb do trick?',
     unlockRecipes: ['atomicBomb'], unlockBuildings: [],
   },
+  /*
   flamethrowerTech: {
     name: 'Flamethrower', icon: '🔥',
     cost: { redScience: 50, greenScience: 50, blackScience: 50 }, timePerPack: 30,
@@ -389,7 +390,7 @@ const TECHNOLOGIES = {
     prereqs: ['militarySciencePack', 'oilProcessingTech'],
     description: 'Unlocks Land Mine for defensive purposes def not war crimes',
     unlockRecipes: ['landMine'], unlockBuildings: [],
-  },
+  },*/
   uraniumAmmoTech: {
     name: 'Uranium Ammo', icon: '☢️',
     cost: { redScience: 1000, greenScience: 1000, blueScience: 1000 ,yellowScience: 1000,blackScience: 1000}, timePerPack: 45,
@@ -428,7 +429,7 @@ const TECHNOLOGIES = {
   rocketFuelTech: {
     name: 'Rocket Fuel', icon: '🔥',
     cost: { redScience: 300, greenScience: 300, blueScience: 300 }, timePerPack: 45,
-    prereqs: ['advancedOilProcessing','flammables'],
+    prereqs: ['advancedOilProcessing'],
     description: 'Unlocks Rocket Fuel production',
     unlockRecipes: ['rocketFuel'], unlockBuildings: [],
   },
@@ -482,13 +483,13 @@ const TECHNOLOGIES = {
     description: 'Unlocks Explosives crafting',
     unlockRecipes: ['explosives'], unlockBuildings: [],
   },
-  /*nuclearFuelReprocessing: {
-    name: 'Nuclear Fuel Reprocessing', icon: '⚛️',
-    cost: { redScience: 50, greenScience: 50, blueScience: 50, purpleScience: 50 }, timePerPack: 30,
-    prereqs: ['uraniumProcessing', 'productionSciencePack'],
-    description: 'Unlocks Nuclear Fuel Reprocessing — recycle used uranium fuel cells',
-    unlockRecipes: ['nuclearFuelReprocessing'], unlockBuildings: [],
-  },*/
+  gamerModule: {
+    name: 'Gamer Module', icon: '⚛️',
+    cost: { rainbowScience: 1000 }, timePerPack: 60,
+    prereqs: ['rainbowSciencePack'],
+    description: 'Unlocks Gamer Module — only for the most elite of gamers',
+    unlockRecipes: ['gamerModule'], unlockBuildings: [],
+  },
 };
 
 
