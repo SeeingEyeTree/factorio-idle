@@ -294,7 +294,7 @@ const PLAYER_RECIPES = {
   nuclearFuel:          { name: 'Nuclear Fuel',             inputs: { rocketFuel: 1, uranium235: 1 },                        outputs: { nuclearFuel: 1 },          time: 90.0, machinery: 'centrifuge' },
 
   // ── Rocket / late game ────────────────────────────────────────
-  lowDensityStructure:  { name: 'Low Density Structure',    inputs: { steel: 2, copperPlate: 20, plasticBar: 5 },            outputs: { lowDensityStructure: 1 },  time: 30.0 },
+  lowDensityStructure:  { name: 'Low Density Structure',    inputs: { steel: 2, copperPlate: 20, plasticBar: 5 },            outputs: { lowDensityStructure: 1 },  time: 15.0 },
   //rocketControlUnit:    { name: 'Rocket Control Unit',      inputs: { processingUnit: 1, speedModule: 1 },                   outputs: { rocketControlUnit: 1 },    time: 30.0 },
   satellite:            { name: 'Satellite',                inputs: { processingUnit: 100, lowDensityStructure: 100, rocketFuel: 50, solarPanelItem: 100, accumulatorItem: 100, radarItem: 5 }, outputs: { satellite: 1 }, time: 5.0 },
   rocketPart:           { name: 'Rocket Part',              inputs: { lowDensityStructure: 10, rocketFuel: 10, rocketControlUnit: 10 }, outputs: { rocketPart: 1 }, time: 3.0, machinery: 'rocket_silo' },

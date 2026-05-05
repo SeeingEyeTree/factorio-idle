@@ -601,6 +601,33 @@
       <div class="script-layout">
 
         <div class="script-editor-col">
+          <div class="script-toolbar" style="margin-bottom:.5rem">
+            <h3 class="section-label" style="margin:0;flex:1">Recipe Calculator</h3>
+          </div>
+          <div class="calc-controls" style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:.5rem">
+            <select id="calc-item" style="flex:1;min-width:160px"></select>
+            <input id="calc-rate" type="number" min="0.01" step="1" value="60" style="width:70px">
+            <select id="calc-unit">
+              <option value="min">per min</option>
+              <option value="sec">per sec</option>
+            </select>
+            <select id="calc-asm-tier" title="Assembly machine tier">
+              <option value="assembly">AM Mk1</option>
+              <option value="assembly2">AM Mk2</option>
+              <option value="assembly3">AM Mk3</option>
+            </select>
+            <select id="calc-furnace-tier" title="Furnace tier">
+              <option value="furnace">Stone Furnace</option>
+              <option value="steelFurnace">Steel Furnace</option>
+              <option value="electricFurnace">Electric Furnace</option>
+            </select>
+            <button class="btn-primary script-btn" onclick="runCalculator()">Generate</button>
+          </div>
+          <textarea id="calc-output" class="script-textarea" readonly spellcheck="false" style="height:160px;font-size:.8rem;margin-bottom:.5rem" placeholder="# Select an item and click Generate"></textarea>
+          <div style="display:flex;justify-content:flex-end;margin-bottom:.75rem">
+            <button class="script-file-btn" onclick="loadCalcToEditor()">Load into Editor</button>
+          </div>
+
           <div class="script-toolbar">
             <h3 class="section-label" style="margin:0;flex:1">Script Editor</h3>
             <button class="script-file-btn" onclick="importScript()">↑ Import</button>
@@ -674,5 +701,6 @@
 <script src="data/technologies.js"></script>
 <script src="game.js"></script>
 <script src="script.js"></script>
+<script src="calculator.js"></script>
 </body>
 </html>

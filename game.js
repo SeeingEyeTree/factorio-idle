@@ -40,9 +40,9 @@ const PUMPJACK_SPEED       = 1.0;  // crude oil units/sec per pumpjack
 const PUMPJACK_KW          = 90;
 const OIL_REFINERY_SPEED   = 1.0;
 const OIL_REFINERY_KW      = 420;
-const CHEMICAL_PLANT_SPEED = 1.25;
+const CHEMICAL_PLANT_SPEED = 1.0;
 const CHEMICAL_PLANT_KW    = 210;
-const CENTRIFUGE_SPEED     = 0.75;
+const CENTRIFUGE_SPEED     = 1.0;
 const CENTRIFUGE_KW        = 350;
 const ROCKET_SILO_SPEED    = 1.0;
 const ROCKET_SILO_KW       = 4000;
@@ -2269,6 +2269,14 @@ function setGroupLimit(key, rawValue) {
     : parseFloat(s);
   getGS(key).limit = isNaN(v) ? 50 : Math.max(0, v);
 }
+
+// ── AGENT WARNING: Button flicker in re-rendered lists ──────────────────────
+// Buttons inside innerHTML-replaced containers flicker on hover and miss clicks.
+// Use all three guards: (1) HTML caching — only set innerHTML when content
+// changed, (2) event delegation — attach handlers on stable parent elements,
+// (3) mouseHeld guard — track mousedown so fast clicks still register.
+// Do NOT put onclick= handlers in template literals inside render functions.
+// ────────────────────────────────────────────────────────────────────────────
 
 // ── Rendering ─────────────────────────────────────────────────
 
