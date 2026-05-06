@@ -10,4 +10,6 @@ contextBridge.exposeInMainWorld('fileAPI', {
   showOpenDialog: ()               => ipcRenderer.invoke('show-open-dialog'),
   saveScript:     (content)        => ipcRenderer.invoke('save-script', content),
   importScript:   ()               => ipcRenderer.invoke('import-script'),
+  saveMeta:       (json)           => ipcRenderer.invoke('save-meta', json),
+  loadMeta:       ()               => ipcRenderer.invoke('load-meta'),
 });

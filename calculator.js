@@ -407,18 +407,34 @@ function calcGenerateScript(targetItem, targetRatePerMin, assemblyTier = 'assemb
 
 // ── UI helpers ────────────────────────────────────────────────
 
-function calcPopulateDropdown() {
-  const sel = document.getElementById('calc-item');
-  if (!sel) return;
+let calcSelectedItem = null;
+
+function renderCalcPicker() {
+  const host = document.getElementById('calc-item-host');
+  if (!host) return;
   const allRecipes = { ...FURNACE_RECIPES, ...PLAYER_RECIPES };
-  const entries = Object.entries(allRecipes)
-    .map(([key, r]) => ({ key, name: r.name }))
-    .sort((a, b) => a.name.localeCompare(b.name));
-  sel.innerHTML = entries.map(e => `<option value="${e.key}">${e.name}</option>`).join('');
+  const search = (document.getElementById('calc-item-search')?.value ?? '').toLowerCase().trim();
+  let entries = Object.entries(allRecipes)
+    .map(([key, r]) => {
+      const outKey = Object.keys(r.outputs)[0];
+      return [key, r.name, itemIcon(outKey)];
+    })
+    .sort((a, b) => a[1].localeCompare(b[1]));
+  if (search) entries = entries.filter(([, name]) => name.toLowerCase().includes(search));
+  if (!entries.length) {
+    host.innerHTML = `<div class="recipe-picker"><span style="font-size:.75rem;color:var(--dim)">No recipes match</span></div>`;
+    return;
+  }
+  if (!calcSelectedItem || !entries.find(([k]) => k === calcSelectedItem))
+    calcSelectedItem = entries[0][0];
+  const btns = entries.map(([key, name, icon]) =>
+    `<button class="recipe-icon-btn${key === calcSelectedItem ? ' selected' : ''}" data-key="${key}" title="${name}">${icon}</button>`
+  ).join('');
+  host.innerHTML = `<div class="recipe-picker">${btns}</div>`;
 }
 
 function runCalculator() {
-  const itemKey      = document.getElementById('calc-item')?.value;
+  const itemKey      = calcSelectedItem;
   const rate         = parseFloat(document.getElementById('calc-rate')?.value ?? '60');
   const unit         = document.getElementById('calc-unit')?.value ?? 'min';
   const assemblyTier = document.getElementById('calc-asm-tier')?.value ?? 'assembly';
@@ -445,5 +461,12 @@ function loadCalcToEditor() {
   }
 }
 
-// Populate the dropdown once the DOM is ready
-document.addEventListener('DOMContentLoaded', calcPopulateDropdown);
+document.addEventListener('DOMContentLoaded', () => {
+  renderCalcPicker();
+  document.getElementById('calc-item-host')?.addEventListener('click', e => {
+    const btn = e.target.closest('.recipe-icon-btn[data-key]');
+    if (!btn) return;
+    calcSelectedItem = btn.dataset.key;
+    renderCalcPicker();
+  });
+});

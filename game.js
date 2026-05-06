@@ -149,7 +149,7 @@ const BUILDING_DEFS = {
   assembly:        { name: 'Assembling Machine Mk1',  icon: '🏭',  kw: ASSEMBLY_KW,          speed: ASSEMBLY_SPEED,        isElectric: true,  hasRecipe: true,  hasResource: false, scriptAlias: 'am1',           upgradeable: true  },
   assembly2:       { name: 'Assembling Machine Mk2',  icon: '🏭',  kw: ASSEMBLY2_KW,         speed: ASSEMBLY2_SPEED,       isElectric: true,  hasRecipe: true,  hasResource: false, scriptAlias: 'am2',           upgradeable: true  },
   assembly3:       { name: 'Assembling Machine Mk3',  icon: '🏭',  kw: ASSEMBLY3_KW,         speed: ASSEMBLY3_SPEED,       isElectric: true,  hasRecipe: true,  hasResource: false, scriptAlias: 'am3',           upgradeable: true  },
-  lab:             { name: 'Lab',                      icon: '🔬',  kw: LAB_KW,               speed: 1.0,                   isElectric: true,  hasRecipe: false, hasResource: false, scriptAlias: 'lab',           upgradeable: true  },
+  lab:             { name: 'Unpaid Interns',            icon: '🔬',  kw: LAB_KW,               speed: 1.0,                   isElectric: true,  hasRecipe: false, hasResource: false, scriptAlias: 'lab',           upgradeable: true  },
   boiler:          { name: 'Boiler',                   icon: '🫕',  kw: 0,                   speed: 1.0,                   isElectric: false, hasRecipe: false, hasResource: false, scriptAlias: 'boiler',        upgradeable: true  },
   steamEngine:     { name: 'Steam Engine',             icon: '⚙️',  kw: -STEAM_ENGINE_KW,    speed: 1.0,                   isElectric: false, hasRecipe: false, hasResource: false, scriptAlias: 'steam_engine',  upgradeable: false },
   offshoreP:       { name: 'Offshore Pump',            icon: '💧',  kw: 0,                   speed: 1.0,                   isElectric: false, hasRecipe: false, hasResource: false, scriptAlias: 'pump',          upgradeable: false },
@@ -231,6 +231,7 @@ function defaultMetaState() {
     weightedKills: 0,
     saveBlacklist: [],
     buildingUpgrades: {},
+    skillPerks: {},
     perks: {
       quickStart: false,
     },
@@ -243,30 +244,37 @@ function defaultMetaState() {
 
 let metaState = defaultMetaState();
 
-function loadMetaState() {
+function _applyMetaParsed(parsed) {
+  const def = defaultMetaState();
+  if (parsed.rawKills != null && parsed.weightedKills == null) parsed.weightedKills = parsed.rawKills;
+  metaState = {
+    ...def,
+    ...parsed,
+    perks: { ...def.perks, ...(parsed.perks ?? {}) },
+    gamerModule: { ...def.gamerModule, ...(parsed.gamerModule ?? {}) },
+    buildingUpgrades: { ...(parsed.buildingUpgrades ?? {}) },
+    skillPerks: { ...(parsed.skillPerks ?? {}) },
+    saveBlacklist: Array.isArray(parsed.saveBlacklist) ? parsed.saveBlacklist : [],
+  };
+}
+
+async function loadMetaState() {
   try {
-    const saved = localStorage.getItem('fi_meta');
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      const def = defaultMetaState();
-      // migrate rawKills → weightedKills
-      if (parsed.rawKills != null && parsed.weightedKills == null) parsed.weightedKills = parsed.rawKills;
-      metaState = {
-        ...def,
-        ...parsed,
-        perks: { ...def.perks, ...(parsed.perks ?? {}) },
-        gamerModule: { ...def.gamerModule, ...(parsed.gamerModule ?? {}) },
-        buildingUpgrades: { ...(parsed.buildingUpgrades ?? {}) },
-        saveBlacklist: Array.isArray(parsed.saveBlacklist) ? parsed.saveBlacklist : [],
-      };
+    let raw = null;
+    if (window.fileAPI?.loadMeta) {
+      raw = await window.fileAPI.loadMeta();
     }
+    if (!raw) raw = localStorage.getItem('fi_meta');
+    if (raw) _applyMetaParsed(JSON.parse(raw));
   } catch (e) {
     metaState = defaultMetaState();
   }
 }
 
 function saveMetaState() {
-  localStorage.setItem('fi_meta', JSON.stringify(metaState));
+  const json = JSON.stringify(metaState);
+  localStorage.setItem('fi_meta', json);
+  if (window.fileAPI?.saveMeta) window.fileAPI.saveMeta(json);
 }
 
 // ── Runtime State ─────────────────────────────────────────────
@@ -378,7 +386,8 @@ function getLaserDamageData(level) {
 
 function gunDamageMult(level) {
   const l = level ?? 0;
-  return 1 + Math.min(l, 2) * 0.10 + Math.min(Math.max(0, l - 2), 4) * 0.20 + Math.max(0, l - 6) * 0.40;
+  const base = hasMetaPerk('perk_gun_baseline') ? 1.10 : 1;
+  return base + Math.min(l, 2) * 0.10 + Math.min(Math.max(0, l - 2), 4) * 0.20 + Math.max(0, l - 6) * 0.40;
 }
 
 function laserDamageMult(level) {
@@ -407,7 +416,8 @@ function getArtilleryDamageTechData(level) {
 }
 
 function miningProdMult() {
-  return 1 + (state.research?.miningProdLevel ?? 0) * 0.10;
+  const baseline = hasMetaPerk('perk_mining_baseline') ? 0.10 : 0;
+  return 1 + baseline + (state.research?.miningProdLevel ?? 0) * 0.10;
 }
 
 // ── Infinite Tech Registry ────────────────────────────────────
@@ -467,7 +477,8 @@ function currentRobotTechData() {
 
 function computePlaceTimeSec() {
   const logisticsBonus = (state?.research?.done?.logistics ? 0.5 : 0) + (state?.research?.done?.logistics2 ? 0.5 : 0);
-  const baseTime = PLACE_TIME - logisticsBonus;
+  const placeSpeedBonus = hasMetaPerk('perk_place_speed') ? 0.5 : 0;
+  const baseTime = PLACE_TIME - logisticsBonus - placeSpeedBonus;
   const robotCount = Math.floor(state?.inventory?.constructionRobotItem ?? 0);
   if (robotCount === 0) return { time: baseTime, batch: 1 };
   const speedLevel = state.research?.robotSpeedLevel ?? 0;
@@ -497,7 +508,8 @@ function defaultPlacementRecipes() {
 
 function createState(settings) {
   const mult = DENSITY_MULT[settings.density] ?? 1.0;
-  const gracePeriod = settings.biterGracePeriod ?? 420;
+  const metaEnabled = !!(settings.metaProgEnabled && metaState.skillPerks?.perk_grace);
+  const gracePeriod = (settings.biterGracePeriod ?? 420) + (metaEnabled ? 60 : 0);
   const st = {
     settings: {
       defaultLimitBuilding: 10,
@@ -511,8 +523,9 @@ function createState(settings) {
     inventory: { ...Object.fromEntries(Object.keys(ITEMS).map(k => [k, 0])), coal: 50 },
     patches:   Object.fromEntries(
       Object.entries(PATCHES).map(([k, v]) => {
-        const base = Math.floor(v.base * mult);
-        const starterNodes = base > 0 ? Math.round((35 + Math.floor(Math.random() * 21)) * mult) : 0;
+        const patchMult = (settings.metaProgEnabled && metaState.skillPerks?.perk_patch_size) ? 1.25 : 1;
+        const base = Math.floor(v.base * mult * patchMult);
+        const starterNodes = base > 0 ? Math.round((35 + Math.floor(Math.random() * 21)) * mult * patchMult) : 0;
         return [k, {
           remaining:    base,
           nodes:        starterNodes,
@@ -999,6 +1012,10 @@ function metaEnergyMult(type) {
   if (!state?.settings?.metaProgEnabled) return 1;
   const pts = metaState?.buildingUpgrades?.[type] ?? 0;
   return Math.max(0.1, 1 - pts * 0.25);
+}
+
+function hasMetaPerk(id) {
+  return !!(state?.settings?.metaProgEnabled && metaState.skillPerks?.[id]);
 }
 
 function getGamerModuleSpeedBonus() {
@@ -1898,7 +1915,8 @@ function tick() {
   if (engineGroup) {
     const gs        = getGS('steamEngine');
     const count     = engineGroup.buildings.length;
-    const maxKw     = count * STEAM_ENGINE_KW;
+    const steamMult = hasMetaPerk('perk_steam_output') ? 1.10 : 1;
+    const maxKw     = count * STEAM_ENGINE_KW * steamMult;
     const shortfall = Math.max(0, totalDemand * 1.05 - state.powerKw);
     if (!gs.enabled) {
       gs.starved = false; gs.standby = false;
@@ -1952,8 +1970,9 @@ function tick() {
   if (radarGroup) {
     const gs = getGS('radar');
     if (gs.enabled) {
+      const effectiveRadarTime = hasMetaPerk('perk_radar_speed') ? RADAR_CHUNK_TIME / 1.5 : RADAR_CHUNK_TIME;
       gs.radarAcc = (gs.radarAcc ?? 0) + radarGroup.buildings.length * powerRatio * dt;
-      while (gs.radarAcc >= RADAR_CHUNK_TIME) { gs.radarAcc -= RADAR_CHUNK_TIME; revealChunk(); }
+      while (gs.radarAcc >= effectiveRadarTime) { gs.radarAcc -= effectiveRadarTime; revealChunk(); }
     }
   }
 
@@ -1969,7 +1988,8 @@ function tick() {
     })();
     if (gs.enabled && techData) {
       const { speedMult: labSpeedMult } = calcGroupModifiers('lab', count, gs.modules);
-      gs.packAcc = (gs.packAcc ?? 0) + count * labSpeedMult * powerRatio * dt / techData.timePerPack;
+      const labPerkMult = hasMetaPerk('perk_lab_speed_1') ? 1.15 : 1;
+      gs.packAcc = (gs.packAcc ?? 0) + count * labSpeedMult * labPerkMult * powerRatio * dt / techData.timePerPack;
       while (gs.packAcc >= 1) {
         const free = state.devFreeResearch && state.devMode;
         const hasAllPacks = free || Object.keys(techData.cost).every(pk => (state.inventory[pk] ?? 0) >= 1);
@@ -2347,8 +2367,9 @@ function setDevTickSpeed(n) {
 }
 
 function updateTabVisibility() {
-  // Script tab: hidden until scriptingTech is researched
-  const scriptUnlocked = !!state.research.done?.scriptingTech;
+  // Script tab: hidden until scriptingTech is researched OR script_unlock meta perk is owned (with meta prog enabled)
+  const scriptUnlocked = !!state.research.done?.scriptingTech
+    || (!!state?.settings?.metaProgEnabled && !!metaState.skillPerks?.script_unlock);
   const scriptBtn   = document.querySelector('[data-tab="script"]');
   const scriptPanel = document.getElementById('tab-script');
   if (scriptBtn) scriptBtn.style.display = scriptUnlocked ? '' : 'none';
@@ -2997,7 +3018,7 @@ function renderBuildings() {
                        : gs2.starved  ? '🔴 No Science Packs'
                        : state.powerRatio < 0.05 ? '⚡ No Power'
                                       : `Researching: ${techName ?? '?'} (${res.totalConsumed}/${totalNeeded})${powerRatioPct}`;
-      return buildingCard('🔬', 'Lab', count, 'processes science packs',
+      return buildingCard('🔬', 'Unpaid Interns', count, 'we give them monster and they do science, they don\'t get to sleep',
         statusTxt, gs2.enabled && !!res.current && !gs2.starved, progress, key, '', false, 'lab');
     }
 
@@ -3384,7 +3405,10 @@ function computeTechDepths() {
 function renderResearchTree() {
   const wrap = document.getElementById('tech-tree-wrap');
   if (!wrap) return;
-  const tiers = computeTechDepths();
+  const rawTiers = computeTechDepths();
+  const tiers = rawTiers.map(tier =>
+    tier.filter(k => k !== 'gamerModule' || !!state?.settings?.metaProgEnabled)
+  ).filter(t => t.length > 0);
 
   let html = '<div class="tech-tree-inner" id="tech-tree-inner">';
   for (const tier of tiers) {
@@ -3432,6 +3456,8 @@ function renderResearchTree() {
         ? `<div class="tech-node-unlocks">▶ ${unlockNames.join(', ')}</div>` : '';
       const descHtml = tech.description
         ? `<div class="tech-node-desc">${tech.description.slice(0, 80)}${tech.description.length > 80 ? '…' : ''}</div>` : '';
+      const prereqNames = (tech.prereqs ?? []).map(k => TECHNOLOGIES[k]?.name ?? k).join(', ');
+      const prereqHtml = prereqNames ? `<div class="tech-node-prereqs">Req: ${prereqNames}</div>` : '';
       html += `<div class="tech-node ${cls}" data-node-key="${key}" ${clickData} title="${tech.description}">
         <div class="tech-node-head">
           <span class="tech-node-icon">${techIconHtml(tech)}</span>
@@ -3440,16 +3466,16 @@ function renderResearchTree() {
             <div class="tech-node-cost">${costStr}</div>
           </div>
         </div>
-        ${descHtml}${unlocksHtml}${badge}
+        ${prereqHtml}${descHtml}${unlocksHtml}${badge}
       </div>`;
     }
     html += '</div>';
   }
-  html += '<svg class="tech-tree-svg" id="tech-tree-svg"></svg>';
+  // html += '<svg class="tech-tree-svg" id="tech-tree-svg"></svg>';
   html += '</div>';
 
   wrap.innerHTML = html;
-  requestAnimationFrame(drawTechLines);
+  // requestAnimationFrame(drawTechLines);
 }
 
 function drawTechLines() {
@@ -3632,6 +3658,7 @@ function renderResearchStatus() {
 }
 
 function renderRobotTechs() {
+  if (mouseHeld) return;
   const el = document.getElementById('robot-tech-section');
   if (!el) return;
 
@@ -3884,7 +3911,8 @@ function fightBiterWave() {
   const p            = state.perimeter;
   const totalBiterHP = actualCount * actualHP;
   const totalBiterDPS= actualCount * actualDPS;
-  const totalWallHP  = p.walls * WALL_HP;
+  const wallHpMult   = hasMetaPerk('perk_wall_hp') ? 1.5 : 1;
+  const totalWallHP  = p.walls * WALL_HP * wallHpMult;
 
   // ── Laser energy: computed from accumulators + grid surplus at wave time ──
   const laserCount   = p.laserTurrets ?? 0;
@@ -4188,7 +4216,7 @@ function renderPerimeter() {
 
   // Preview defense DPS with a mid-range armor estimate for next wave
   const { gunDPS, laserDPS, totalDPS, stats: gunStats, effectiveDmg } = calcDefenseDPS(base.armor);
-  const totalWallHP = p.walls * WALL_HP;
+  const totalWallHP = p.walls * WALL_HP * (hasMetaPerk('perk_wall_hp') ? 1.5 : 1);
   const nextBiterHP = base.count * base.hp;
   const nextBiterDPS= base.count * base.dps;
 
@@ -5170,7 +5198,100 @@ const META_TYPE_NAMES = Object.fromEntries(
   Object.entries(BUILDING_DEFS).map(([k, v]) => [k, v.name])
 );
 
-function setMetaSubTab(tab, containerId = 'start-meta-panel') {
+const META_BUILDING_ITEM_KEY = {
+  stoneFurnace: 'stoneFurnaceItem', steelFurnace: 'steelFurnaceItem', electricFurnace: 'electricFurnaceItem',
+  assembly: 'assemblyMachine1Item', assembly2: 'assemblyMachine2Item', assembly3: 'assemblyMachine3Item',
+  lab: 'labItem', boiler: 'boilerItem', radar: 'radarItem',
+  pumpjack: 'pumpjackItem', oilRefinery: 'oilRefineryItem', chemicalPlant: 'chemicalPlantItem',
+  centrifuge: 'centrifugeItem', nuclearReactor: 'nuclearReactorItem',
+};
+
+const META_SKILL_PERKS = [
+  // Quick Start
+  { id: 'qs_starter_pack',    tree: 'Quick Start', name: 'Starter Pack',         tier: 1, cost: 1, icon: '🪨', effect: '50 coal + 1 burner miner on each starter resource' },
+  { id: 'qs_mining_crew',     tree: 'Quick Start', name: 'Mining Crew',          tier: 2, cost: 2, icon: '👷', effect: '5 burner miners on each starter resource' },
+  { id: 'qs_iron_age',        tree: 'Quick Start', name: 'Iron Age',             tier: 3, cost: 2, icon: '🔩', effect: '+3 stone furnaces preset to iron plate' },
+  { id: 'qs_bronze_age',      tree: 'Quick Start', name: 'Bronze Age',           tier: 4, cost: 2, icon: '🔶', effect: '+3 stone furnaces preset to copper plate' },
+  { id: 'qs_power_basic',     tree: 'Quick Start', name: 'Power: Basic',         tier: 3, cost: 3, icon: '⚡', effect: 'Offshore pump + boiler + 2 steam engines pre-built' },
+  { id: 'qs_power_lab',       tree: 'Quick Start', name: 'Power: Lab',           tier: 4, cost: 2, icon: '🔬', effect: '+1 lab pre-built' },
+  { id: 'qs_power_solar',     tree: 'Quick Start', name: 'Power: Solar',         tier: 5, cost: 4, icon: '☀️', effect: '+5 solar panels and +2 accumulators pre-built' },
+  { id: 'qs_assembler_gear',  tree: 'Quick Start', name: 'Auto: Gears',          tier: 4, cost: 3, icon: '⚙️', effect: '+1 assembler preset to iron gears' },
+  { id: 'qs_assembler_cable', tree: 'Quick Start', name: 'Auto: Cables',         tier: 5, cost: 2, icon: '🟡', effect: '+1 assembler preset to copper cables' },
+  { id: 'qs_red_running',     tree: 'Quick Start', name: 'Red Science Running',  tier: 6, cost: 4, icon: '🔴', effect: '50 red science in inventory at start' },
+  { id: 'qs_perimeter',       tree: 'Quick Start', name: 'Defense: Perimeter',   tier: 2, cost: 2, icon: '🧱', effect: 'Stone walls fully built around starting perimeter' },
+  { id: 'qs_turrets',         tree: 'Quick Start', name: 'Defense: Turrets',     tier: 3, cost: 3, icon: '🗼', effect: '+4 gun turrets and +100 firearm magazines' },
+  { id: 'qs_armed',           tree: 'Quick Start', name: 'Defense: Piercing',    tier: 4, cost: 2, icon: '🎯', effect: '+50 piercing rounds in inventory' },
+  // Perks
+  { id: 'perk_place_speed',     tree: 'Perks', name: 'Quick Hands',        tier: 1, cost: 2, icon: '🤲', effect: 'Base place time −0.5s' },
+  { id: 'perk_logistics_speed', tree: 'Perks', name: 'Logistics Research', tier: 2, cost: 2, icon: '⏩', effect: 'Logistics techs 25% stronger' },
+  { id: 'perk_robot_punch',     tree: 'Perks', name: 'Robot Force',        tier: 2, cost: 3, icon: '🤖', effect: 'Construction robots +25% effectiveness' },
+  { id: 'perk_robot_swarm',     tree: 'Perks', name: 'Swarm Tactics',      tier: 3, cost: 4, icon: '🦾', effect: 'Construction robots +60% total effectiveness' },
+  { id: 'perk_mining_baseline', tree: 'Perks', name: 'Better Picks',       tier: 1, cost: 2, icon: '⛏️', effect: '+10% baseline mining productivity' },
+  { id: 'perk_patch_size',      tree: 'Perks', name: 'Generous Veins',     tier: 1, cost: 1, icon: '💎', effect: 'Starting ore patches +25% larger' },
+  { id: 'perk_steam_output',    tree: 'Perks', name: 'Pressurized',        tier: 1, cost: 2, icon: '💨', effect: 'Steam engines produce +10% power' },
+  { id: 'perk_accumulator_cap', tree: 'Perks', name: 'Charged Cells',      tier: 2, cost: 2, icon: '🔋', effect: 'Accumulators store +25% energy' },
+  { id: 'perk_nuclear_extension', tree: 'Perks', name: 'Spent Fuel Reuse', tier: 3, cost: 3, icon: '☢️', effect: 'Uranium fuel cells last +25% longer' },
+  { id: 'perk_wall_hp',         tree: 'Perks', name: 'Reinforced Walls',   tier: 1, cost: 2, icon: '🧱', effect: 'Stone walls +50% HP' },
+  { id: 'perk_gun_baseline',    tree: 'Perks', name: 'Sharper Rounds',     tier: 1, cost: 2, icon: '🔫', effect: 'Gun turret damage +10% baseline' },
+  { id: 'perk_grace',           tree: 'Perks', name: 'Slow Wakening',      tier: 1, cost: 1, icon: '🕐', effect: 'Biter grace period +60s (stackable ×3)' },
+  { id: 'perk_lab_speed_1',     tree: 'Perks', name: 'Faster Labs I',      tier: 1, cost: 2, icon: '🧪', effect: 'Labs research +15% faster' },
+  { id: 'perk_lab_speed_2',     tree: 'Perks', name: 'Faster Labs II',     tier: 2, cost: 3, icon: '⚗️', effect: 'Labs research +25% faster total' },
+  { id: 'perk_pack_efficiency', tree: 'Perks', name: 'Pack Efficiency',    tier: 2, cost: 3, icon: '📦', effect: 'Science pack crafts +10% productivity' },
+  { id: 'perk_radar_speed',     tree: 'Perks', name: 'Sweep Radar',        tier: 1, cost: 1, icon: '📡', effect: 'Radar reveals chunks +50% faster' },
+  // Scaling
+  { id: 'scl_robot_speed_exp_1', tree: 'Scaling', name: 'Robot Speed Research I',   tier: 1, cost: 5,  icon: '🤖', effect: 'Robot speed cost base 2.0 → 1.95 per level' },
+  { id: 'scl_robot_speed_exp_2', tree: 'Scaling', name: 'Robot Speed Research II',  tier: 2, cost: 8,  icon: '🤖', effect: 'Robot speed cost base 1.95 → 1.90' },
+  { id: 'scl_robot_speed_mag_1', tree: 'Scaling', name: 'Robot Speed Magnitude I',  tier: 1, cost: 4,  icon: '🏎️', effect: 'Speed bonus per level +5%' },
+  { id: 'scl_robot_speed_mag_2', tree: 'Scaling', name: 'Robot Speed Magnitude II', tier: 2, cost: 6,  icon: '🏎️', effect: 'Speed bonus per level +10% cumulative' },
+  { id: 'scl_mining_exp_1',      tree: 'Scaling', name: 'Mining Prod Research I',   tier: 1, cost: 5,  icon: '⛏️', effect: 'Mining productivity cost base reduced to 1.95' },
+  { id: 'scl_mining_mag_1',      tree: 'Scaling', name: 'Mining Prod Magnitude I',  tier: 1, cost: 4,  icon: '💎', effect: '+12% prod per level instead of +10%' },
+  { id: 'scl_gun_exp_1',         tree: 'Scaling', name: 'Gun Damage Research I',    tier: 1, cost: 5,  icon: '🔫', effect: 'Gun damage cost base 2.0 → 1.95' },
+  { id: 'scl_gun_mag_1',         tree: 'Scaling', name: 'Gun Damage Magnitude I',   tier: 1, cost: 4,  icon: '💥', effect: '+5% extra damage per level beyond lvl 6' },
+  { id: 'scl_laser_exp_1',       tree: 'Scaling', name: 'Laser Damage Research I',  tier: 1, cost: 5,  icon: '⚡', effect: 'Laser damage cost base 2.0 → 1.95' },
+  { id: 'scl_laser_mag_1',       tree: 'Scaling', name: 'Laser Damage Magnitude I', tier: 1, cost: 4,  icon: '🌟', effect: '+10 effective damage per level' },
+  { id: 'scl_artillery_exp_1',   tree: 'Scaling', name: 'Artillery Research I',     tier: 1, cost: 5,  icon: '💣', effect: 'Artillery cost bases reduced 0.05' },
+  { id: 'scl_artillery_mag_1',   tree: 'Scaling', name: 'Artillery Magnitude I',    tier: 1, cost: 4,  icon: '💥', effect: '+5% artillery damage per level' },
+  { id: 'scl_universal',         tree: 'Scaling', name: 'Universal Scaling',        tier: 3, cost: 20, icon: '🌐', effect: 'ALL infinite tech bases reduced by extra 0.05' },
+  // Scripting
+  { id: 'script_unlock',      tree: 'Scripting', name: 'Script Access',      tier: 1, cost: 1,  icon: '📜', effect: 'Unlocks the Script Editor tab' },
+  { id: 'script_conditions',  tree: 'Scripting', name: 'Conditions',         tier: 2, cost: 3,  icon: '🔀', effect: 'Enables if/elif/else, ==, !=, <, >, and/or/not' },
+  { id: 'script_loops',       tree: 'Scripting', name: 'Loops',              tier: 3, cost: 4,  icon: '🔄', effect: 'Enables while, for, range()' },
+  { id: 'script_variables',   tree: 'Scripting', name: 'Variables',          tier: 2, cost: 2,  icon: '📝', effect: 'Enables in-script assignment (x = 5, etc.)' },
+  { id: 'script_memory',      tree: 'Scripting', name: 'Persistent Memory',  tier: 3, cost: 4,  icon: '💾', effect: 'MEM_* variables persist across runs' },
+  { id: 'script_arithmetic',  tree: 'Scripting', name: 'Arithmetic',         tier: 2, cost: 2,  icon: '➕', effect: 'Enables +, −, *, /, %, **' },
+  { id: 'script_math_basic',  tree: 'Scripting', name: 'Math Builtins',      tier: 3, cost: 2,  icon: '🧮', effect: 'Enables floor, ceil, round, min, max, abs' },
+  { id: 'script_auto_tab',    tree: 'Scripting', name: 'Auto-Run Tab',       tier: 3, cost: 5,  icon: '⏰', effect: 'Unlocks auto-run tab (script runs every 10s)' },
+  { id: 'script_auto_5s',     tree: 'Scripting', name: 'Faster Auto (5s)',   tier: 4, cost: 3,  icon: '⚡', effect: 'Auto-run interval 10s → 5s' },
+  { id: 'script_auto_1s',     tree: 'Scripting', name: 'Real-Time Auto',     tier: 5, cost: 5,  icon: '🚀', effect: 'Auto-run interval 5s → 1s' },
+  { id: 'script_calculator',  tree: 'Scripting', name: 'Recipe Calculator',  tier: 5, cost: 10, icon: '🧮', effect: 'Unlocks Recipe Calculator tab' },
+];
+
+function buySkillPerk(id) {
+  const perk = META_SKILL_PERKS.find(p => p.id === id);
+  if (!perk) return;
+  if ((metaState.totalPoints ?? 0) < perk.cost) return;
+  if (metaState.skillPerks?.[id]) return;
+  metaState.totalPoints = (metaState.totalPoints ?? 0) - perk.cost;
+  if (!metaState.skillPerks) metaState.skillPerks = {};
+  metaState.skillPerks[id] = true;
+  saveMetaState();
+  lastMetaHtml = '';
+  renderMetaProgression('meta-screen-content');
+}
+
+function showMetaScreen() {
+  document.getElementById('start-screen').classList.add('hidden');
+  document.getElementById('meta-screen').classList.remove('hidden');
+  lastMetaHtml = '';
+  renderMetaProgression('meta-screen-content');
+}
+
+function showStartScreen() {
+  document.getElementById('meta-screen').classList.add('hidden');
+  document.getElementById('start-screen').classList.remove('hidden');
+}
+
+function setMetaSubTab(tab, containerId = 'meta-screen-content') {
   metaSubTab = tab;
   lastMetaHtml = '';
   renderMetaProgression(containerId);
@@ -5190,6 +5311,7 @@ function buyMetaBuildingUpgrade(type) {
   metaState.buildingUpgrades[type] = level + 1;
   saveMetaState();
   lastMetaHtml = '';
+  renderMetaProgression('meta-screen-content');
 }
 
 function buyMetaPerk(perkKey) {
@@ -5218,7 +5340,7 @@ function investGamerModule(type) {
   lastMetaHtml = '';
 }
 
-function renderMetaProgression(containerId = 'start-meta-panel') {
+function renderMetaProgression(containerId = 'meta-screen-content') {
   const el = document.getElementById(containerId);
   if (!el) return;
 
@@ -5228,8 +5350,7 @@ function renderMetaProgression(containerId = 'start-meta-panel') {
 
   const tabs = [
     { key: 'buildings', label: '🏭 Buildings' },
-    { key: 'skills',    label: '🌟 Skills' },
-    { key: 'gamer',     label: '🎮 Gamer Module' },
+    { key: 'skills',    label: '🌟 Perks' },
   ];
 
   let content = '';
@@ -5242,53 +5363,66 @@ function renderMetaProgression(containerId = 'start-meta-panel') {
       const canAffordUpg = spendable >= cost && !maxed;
       const name  = META_TYPE_NAMES[type] ?? type;
       const effect = level > 0 ? `+${level * 25}% speed · −${level * 25}% energy` : 'No bonus yet';
-      return `<div class="perimeter-stat-row">
-        <span>${name}</span>
-        <strong>${maxed ? '✅ Max' : `Lv ${level}/2 · ${effect}`}</strong>
+      const imgKey = META_BUILDING_ITEM_KEY[type];
+      const imgHtml = imgKey ? `<span class="meta-building-img">${itemIcon(imgKey)}</span>` : '';
+      return `<div class="meta-building-row">
+        ${imgHtml}
+        <div class="meta-building-info">
+          <strong>${name}</strong>
+          <span>${maxed ? '✅ Max' : `Lv ${level}/2 · ${effect}`}</span>
+        </div>
         ${!maxed ? `<button class="btn-sm${canAffordUpg ? '' : ' cant-afford'}" onclick="buyMetaBuildingUpgrade('${type}')">${cost} pts</button>` : ''}
       </div>`;
     }).join('');
-    content = `<div class="perimeter-card" style="grid-column:1/-1"><div class="perimeter-card-title">🏭 Building Upgrades</div>${rows}</div>`;
+    content = `<div class="meta-section">
+      <div class="meta-section-title">🏭 Building Upgrades</div>
+      <p class="meta-bldg-desc">Each building can be upgraded twice. Level 1 costs 2 pts, Level 2 costs 5 pts. Each upgrade adds <strong>+25% speed</strong> and reduces <strong>−25% energy use</strong> for that building type.</p>
+      ${rows}
+    </div>`;
 
   } else if (metaSubTab === 'skills') {
-    const hasPerk = metaState.perks?.quickStart;
-    content = `<div class="perimeter-card" style="grid-column:1/-1">
-      <div class="perimeter-card-title">🌟 Quick Start</div>
-      <div class="perimeter-stat-row"><span>Effect</span><strong>Start with extra lab, boiler, steam engine, 5 coal miners, 5 iron+copper miners &amp; furnaces</strong></div>
-      ${hasPerk
-        ? `<div class="perimeter-stat-row"><span>Status</span><strong>✅ Purchased</strong></div>`
-        : `<div class="perimeter-btn-row"><button class="btn-sm${spendable >= 10 ? '' : ' cant-afford'}" onclick="buyMetaPerk('quickStart')">Buy · 10 pts</button></div>`}
-    </div>`;
-
-  } else if (metaSubTab === 'gamer') {
-    const sp = metaState.gamerModule?.speedPoints ?? 0;
-    const pp = metaState.gamerModule?.prodPoints  ?? 0;
-    content = `<div class="perimeter-card" style="grid-column:1/-1">
-      <div class="perimeter-card-title">🎮 Gamer Module</div>
-      <div class="perimeter-stat-row"><span>Speed points</span><strong>${sp} → +${(sp * 5)}% speed per slot</strong></div>
-      <div class="perimeter-stat-row"><span>Prod points</span><strong>${pp} → +${(pp * 2)}% prod per slot</strong></div>
-      <div class="perimeter-btn-row" style="margin-top:.5rem">
-        <button class="btn-sm${spendable >= 3 ? '' : ' cant-afford'}" onclick="investGamerModule('speed')">Speed +1 · 3 pts</button>
-        <button class="btn-sm${spendable >= 5 ? '' : ' cant-afford'}" onclick="investGamerModule('prod')">Prod +1 · 5 pts</button>
-      </div>
-    </div>`;
+    const trees = ['Quick Start', 'Perks', 'Scaling', 'Scripting'];
+    const treeHtml = trees.map(treeName => {
+      const perks = META_SKILL_PERKS.filter(p => p.tree === treeName);
+      const maxTier = Math.max(...perks.map(p => p.tier));
+      // render tiers from T1 (top) down to highest tier (bottom)
+      const tierRows = [];
+      for (let t = 1; t <= maxTier; t++) {
+        const tierPerks = perks.filter(p => p.tier === t);
+        if (!tierPerks.length) continue;
+        const cards = tierPerks.map(perk => {
+          const owned = !!metaState.skillPerks?.[perk.id];
+          const isDemo = perk.tier > 1;
+          const canBuy = !owned && !isDemo && spendable >= perk.cost;
+          const tooltip = `${perk.name}\n${perk.effect}\nCost: ${perk.cost} pt${perk.cost !== 1 ? 's' : ''}${owned ? '\n✅ Owned' : isDemo ? '\n🔒 Not available in demo' : canBuy ? '' : `\nNeed ${perk.cost - Math.floor(spendable)} more pts`}`;
+          const icon = perk.icon ?? '⭐';
+          let cls = 'perk-icon-btn';
+          if (owned) cls += ' perk-icon-owned';
+          else if (isDemo) cls += ' perk-icon-demo';
+          else if (canBuy) cls += ' perk-icon-available';
+          else cls += ' perk-icon-locked';
+          const clickAttr = canBuy ? `onclick="buySkillPerk('${perk.id}')"` : '';
+          return `<div class="${cls}" title="${tooltip.replace(/"/g, '&quot;')}" ${clickAttr}>${icon}</div>`;
+        }).join('');
+        tierRows.push(`<div class="perk-tier-row"><span class="perk-tier-label">T${t}</span><div class="perk-tier-icons">${cards}</div></div>`);
+      }
+      return `<div class="perk-tree-section">
+        <div class="perk-tree-header">${treeName}</div>
+        ${tierRows.join('')}
+      </div>`;
+    }).join('');
+    content = `<div class="perk-trees">${treeHtml}</div>`;
   }
 
   const html = `
-    <div style="margin-bottom:.75rem">
-      <strong style="font-size:1.1rem">⭐ Meta Progression</strong>
-      ${inGame ? `<span style="color:var(--dim); font-size:.85rem; margin-left:.75rem">(Points available after run ends)</span>` : ''}
+    <div class="meta-points-bar">
+      <span>⭐ <strong>${spendable.toFixed(0)}</strong> pts available</span>
+      ${inGame ? `<span style="color:var(--dim); font-size:.85rem">· ${pending.toFixed(2)} pending this run</span>` : ''}
     </div>
-    <div class="perimeter-stat-row" style="margin-bottom:.5rem">
-      <span>Spendable points</span><strong>${spendable.toFixed(2)}</strong>
+    <div class="meta-tab-row">
+      ${tabs.map(t => `<button class="btn-sm${metaSubTab === t.key ? ' btn-primary' : ''}" onclick="setMetaSubTab('${t.key}')">${t.label}</button>`).join('')}
     </div>
-    ${inGame ? `<div class="perimeter-stat-row" style="margin-bottom:.75rem">
-      <span>Pending (this run)</span><strong>${pending.toFixed(2)}</strong>
-    </div>` : ''}
-    <div class="perimeter-btn-row" style="margin-bottom:1rem">
-      ${tabs.map(t => `<button class="btn-sm${metaSubTab === t.key ? ' btn-primary' : ''}" onclick="setMetaSubTab('${t.key}', '${containerId}')">${t.label}</button>`).join('')}
-    </div>
-    <div class="perimeter-grid">${content}</div>
+    <div class="meta-content">${content}</div>
   `;
 
   if (html === lastMetaHtml) return;
@@ -5296,29 +5430,11 @@ function renderMetaProgression(containerId = 'start-meta-panel') {
   el.innerHTML = html;
 
   const ewEl = document.getElementById('end-world-points');
-  if (ewEl) {
-    ewEl.textContent = pending > 0 ? `+${pending.toFixed(2)} pts on end` : '';
-  }
+  if (ewEl) ewEl.textContent = pending > 0 ? `+${pending.toFixed(2)} pts on end` : '';
 }
 
-// ── Start-screen meta panel ───────────────────────────────────
-
-let startMetaPanelOpen = false;
-function toggleStartMetaPanel() {
-  startMetaPanelOpen = !startMetaPanelOpen;
-  const el = document.getElementById('start-meta-panel');
-  if (!el) return;
-  if (startMetaPanelOpen) {
-    el.classList.remove('hidden');
-    lastMetaHtml = '';
-    renderMetaProgression('start-meta-panel');
-  } else {
-    el.classList.add('hidden');
-  }
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-  loadMetaState();
+document.addEventListener('DOMContentLoaded', async () => {
+  await loadMetaState();
   document.querySelectorAll('.density-btn').forEach(btn =>
     btn.addEventListener('click', () => {
       document.querySelectorAll('.density-btn').forEach(b => b.classList.remove('active'));

@@ -103,6 +103,18 @@ function registerIpcHandlers() {
     if (result.canceled || !result.filePaths.length) return null;
     return fs.readFileSync(result.filePaths[0], 'utf8');
   });
+
+  ipcMain.handle('save-meta', (_, json) => {
+    const p = path.join(app.getPath('userData'), 'meta.json');
+    fs.writeFileSync(p, json, 'utf8');
+    return { ok: true };
+  });
+
+  ipcMain.handle('load-meta', () => {
+    const p = path.join(app.getPath('userData'), 'meta.json');
+    if (!fs.existsSync(p)) return null;
+    return fs.readFileSync(p, 'utf8');
+  });
 }
 
 // ── App Lifecycle ─────────────────────────────────────────────

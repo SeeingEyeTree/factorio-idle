@@ -97,7 +97,7 @@ const ITEMS = {
   //artilleryWagon:       { name: 'Artillery Wagon',          icon: '💣' },
   //car:                  { name: 'Car',                      icon: '🚗' },
   //tankVehicle:          { name: 'Tank',                     icon: '🪖' },
-  spidertron:           { name: 'Spidertron',               icon: '🕷️', img: 'data/icon_imgs/spidertron.png' },
+  //spidertron:           { name: 'Spidertron',               icon: '🕷️', img: 'data/icon_imgs/spidertron.png' },
   //spidertronRemote:     { name: 'Spidertron Remote',        icon: '🎮' },
   //smallElectricPole:    { name: 'Small Electric Pole',      icon: '📶' },
   //mediumElectricPole:   { name: 'Medium Electric Pole',     icon: '🗼' },
@@ -131,7 +131,7 @@ const ITEMS = {
   oilRefineryItem:      { name: 'Oil Refinery',             icon: '🏭' },
   chemicalPlantItem:    { name: 'Chemical Plant',           icon: '🧫' },
   centrifugeItem:       { name: 'Centrifuge',               icon: '⭕' },
-  beaconItem:           { name: 'Beacon',                   icon: '📻' },
+  //beaconItem:           { name: 'Beacon',                   icon: '📻' },
   rocketSiloItem:       { name: 'Rocket Silo',              icon: '🚀' },
 
   // ── Military items ────────────────────────────────────────────
@@ -253,13 +253,13 @@ const PLAYER_RECIPES = {
   //trainStop:            { name: 'Train Stop',               inputs: { ironPlate: 6, steel: 3, ironGear: 6, electronicCircuit: 5 }, outputs: { trainStop: 1 }, time: 0.5 },
   //railSignal:           { name: 'Rail Signal',              inputs: { ironPlate: 5, electronicCircuit: 1 },                  outputs: { railSignal: 1 },           time: 0.5  },
   //railChainSignal:      { name: 'Rail Chain Signal',        inputs: { ironPlate: 5, electronicCircuit: 1 },                  outputs: { railChainSignal: 1 },      time: 0.5  },
-  locomotive:           { name: 'Locomotive',               inputs: { ironGear: 10, steel: 30, electronicCircuit: 10, engineUnit: 20 }, outputs: { locomotive: 1 }, time: 4.0 },
+  //locomotive:           { name: 'Locomotive',               inputs: { ironGear: 10, steel: 30, electronicCircuit: 10, engineUnit: 20 }, outputs: { locomotive: 1 }, time: 4.0 },
   //cargoWagon:           { name: 'Cargo Wagon',              inputs: { ironPlate: 20, steel: 20, ironGear: 10 },              outputs: { cargoWagon: 1 },           time: 1.0  },
   //fluidWagon:           { name: 'Fluid Wagon',              inputs: { steel: 16, ironGear: 10, storageTank: 1, pipe: 8 },    outputs: { fluidWagon: 1 },           time: 1.5  },
-  artilleryWagon:       { name: 'Artillery Wagon',          inputs: { steel: 40, ironGear: 20, advancedCircuit: 20, engineUnit: 64, pipe: 16 }, outputs: { artilleryWagon: 1 }, time: 4.0 },
+  //artilleryWagon:       { name: 'Artillery Wagon',          inputs: { steel: 40, ironGear: 20, advancedCircuit: 20, engineUnit: 64, pipe: 16 }, outputs: { artilleryWagon: 1 }, time: 4.0 },
   //car:                  { name: 'Car',                      inputs: { ironPlate: 20, steel: 5, engineUnit: 8 },              outputs: { car: 1 },                  time: 2.0  },
   //tankVehicle:          { name: 'Tank',                     inputs: { steel: 50, ironGear: 15, advancedCircuit: 10, engineUnit: 32 }, outputs: { tankVehicle: 1 }, time: 5.0 },
-  spidertron:           { name: 'Spidertron',               inputs: { processingUnit: 16, lowDensityStructure: 150, rocket: 4, radarItem: 2, rocketControlUnit: 16, electricEngineUnit: 4 }, outputs: { spidertron: 1 }, time: 10.0 },
+  //spidertron:           { name: 'Spidertron',               inputs: { processingUnit: 16, lowDensityStructure: 150, rocket: 4, radarItem: 2, rocketControlUnit: 16, electricEngineUnit: 4 }, outputs: { spidertron: 1 }, time: 10.0 },
   //spidertronRemote:     { name: 'Spidertron Remote',        inputs: { rocketControlUnit: 1, radarItem: 1 },                  outputs: { spidertronRemote: 1 },     time: 0.5  },
 
   // ── Engine / robot components ─────────────────────────────────
@@ -291,7 +291,7 @@ const PLAYER_RECIPES = {
   uraniumProcessing:    { name: 'Uranium Processing',       inputs: { uraniumOre: 10 },                                      outputs: { uranium238: 1 },               time: 12.0, machinery: 'centrifuge' },
   kovarexEnrichment:    { name: 'Kovarex Enrichment',       inputs: { uranium235: 40, uranium238: 5 },                       outputs: { uranium235: 41, uranium238: 2 }, time: 60.0, machinery: 'centrifuge' },
   uraniumFuelCell:      { name: 'Uranium Fuel Cell',        inputs: { ironPlate: 10, uranium235: 1, uranium238: 19 },        outputs: { uraniumFuelCell: 10 },     time: 10.0 },
-  nuclearFuel:          { name: 'Nuclear Fuel',             inputs: { rocketFuel: 1, uranium235: 1 },                        outputs: { nuclearFuel: 1 },          time: 90.0, machinery: 'centrifuge' },
+  //nuclearFuel:          { name: 'Nuclear Fuel',             inputs: { rocketFuel: 1, uranium235: 1 },                        outputs: { nuclearFuel: 1 },          time: 90.0, machinery: 'centrifuge' },
 
   // ── Rocket / late game ────────────────────────────────────────
   lowDensityStructure:  { name: 'Low Density Structure',    inputs: { steel: 2, copperPlate: 20, plasticBar: 5 },            outputs: { lowDensityStructure: 1 },  time: 15.0 },
@@ -309,7 +309,7 @@ const PLAYER_RECIPES = {
   productivityModule:   { name: 'Productivity Module',      inputs: { advancedCircuit: 5, electronicCircuit: 5 },            outputs: { productivityModule: 1 },   time: 15.0 },
   productivityModule2:  { name: 'Productivity Module 2',    inputs: { advancedCircuit: 5, productivityModule: 4, processingUnit: 5 }, outputs: { productivityModule2: 1 }, time: 30.0 },
   productivityModule3:  { name: 'Productivity Module 3',    inputs: { advancedCircuit: 5, productivityModule2: 4, processingUnit: 5 }, outputs: { productivityModule3: 1 }, time: 60.0 },
-  gamerModule:          { name: 'Gamer Module',             inputs: { speedModule3: 10, productivityModule3: 10, processingUnit: 20, advancedCircuit: 20 }, outputs: { gamerModule: 1 }, time: 60.0 },
+  //gamerModule:          { name: 'Gamer Module',             inputs: { speedModule3: 10, productivityModule3: 10, processingUnit: 20, advancedCircuit: 20 }, outputs: { gamerModule: 1 }, time: 60.0 },
 
   // ── Military ──────────────────────────────────────────────────
   firearmMagazine:      { name: 'Firearm Magazine',         inputs: { ironPlate: 4 },                                        outputs: { firearmMagazine: 1 },      time: 1.0  },
@@ -326,10 +326,10 @@ const PLAYER_RECIPES = {
   //explosiveRocket:      { name: 'Explosive Rocket',         inputs: { rocket: 1, explosives: 2 },                            outputs: { explosiveRocket: 1 },      time: 8.0  },
   atomicBomb:           { name: 'Atomic Bomb',              inputs: { explosives: 10, processingUnit: 10, uranium235: 30 }, outputs: { atomicBomb: 1 },          time: 50.0 },
   //flamethrowerAmmo:     { name: 'Flamethrower Ammo',        inputs: { steel: 5, lightOil: 100 },                             outputs: { flamethrowerAmmo: 1 },     time: 6.0,  machinery: 'chemical' },
-  grenade:              { name: 'Grenade',                  inputs: { ironPlate: 5, coal: 10 },                              outputs: { grenade: 1 },              time: 8.0  },
+  //grenade:              { name: 'Grenade',                  inputs: { ironPlate: 5, coal: 10 },                              outputs: { grenade: 1 },              time: 8.0  },
   //clusterGrenade:       { name: 'Cluster Grenade',          inputs: { steel: 5, explosives: 5, grenade: 7 },                 outputs: { clusterGrenade: 1 },       time: 8.0  },
-  slowdownCapsule:      { name: 'Slowdown Capsule',         inputs: { coal: 5, electronicCircuit: 2, steel: 2 },             outputs: { slowdownCapsule: 1 },      time: 8.0  },
-  poisonCapsule:        { name: 'Poison Capsule',           inputs: { coal: 10, electronicCircuit: 3, steel: 3 },            outputs: { poisonCapsule: 1 },        time: 8.0  },
+  //slowdownCapsule:      { name: 'Slowdown Capsule',         inputs: { coal: 5, electronicCircuit: 2, steel: 2 },             outputs: { slowdownCapsule: 1 },      time: 8.0  },
+  //poisonCapsule:        { name: 'Poison Capsule',           inputs: { coal: 10, electronicCircuit: 3, steel: 3 },            outputs: { poisonCapsule: 1 },        time: 8.0  },
   //defenderCapsule:      { name: 'Defender Capsule',         inputs: { piercingRoundsMag: 3, ironGear: 3, electronicCircuit: 3 }, outputs: { defenderCapsule: 3 }, time: 15.0 },
   //distractorCapsule:    { name: 'Distractor Capsule',       inputs: { advancedCircuit: 3, defenderCapsule: 4 },              outputs: { distractorCapsule: 3 },    time: 15.0 },
   //destroyerCapsule:     { name: 'Destroyer Capsule',        inputs: { speedModule: 1, processingUnit: 1, distractorCapsule: 4 }, outputs: { destroyerCapsule: 3 }, time: 15.0 },

@@ -14,8 +14,7 @@
     <h1 class="title">FACTORIO IDLE</h1>
     <p class="subtitle">Exponential Line Go Up</p>
     <button class="btn-primary" style="margin-bottom:1.5rem" onclick="openNewGameModal()">New Game</button>
-    <button class="btn-secondary" style="margin-bottom:1rem" onclick="toggleStartMetaPanel()">⭐ View Meta Progression</button>
-    <div id="start-meta-panel" class="hidden" style="margin-bottom:1rem"></div>
+    <button class="btn-secondary" style="margin-bottom:1rem" onclick="showMetaScreen()">⭐ Meta Progression</button>
     <div class="save-panel">
       <div class="save-panel-header">
         <span class="save-panel-title">Saves</span>
@@ -106,6 +105,17 @@
     <p id="run-end-msg" style="margin:1rem 0; font-size:1.1rem"></p>
     <p style="color:var(--dim); font-size:.9rem">Points have been added to your meta progression.</p>
     <button class="btn-primary" style="margin-top:1rem" onclick="closeRunEndModal()">Return to Home</button>
+  </div>
+</div>
+
+<!-- ── Meta Progression Screen ──────────────────────────── -->
+<div id="meta-screen" class="hidden">
+  <div class="meta-screen-inner">
+    <div class="meta-screen-header">
+      <button class="btn-secondary" onclick="showStartScreen()">← Back</button>
+      <h2>⭐ Meta Progression</h2>
+    </div>
+    <div id="meta-screen-content"></div>
   </div>
 </div>
 
@@ -605,8 +615,9 @@
           <div class="script-toolbar" style="margin-bottom:.5rem">
             <h3 class="section-label" style="margin:0;flex:1">Recipe Calculator</h3>
           </div>
+          <input class="picker-search" id="calc-item-search" type="text" placeholder="Search recipes…" oninput="renderCalcPicker()">
+          <div id="calc-item-host" style="margin-bottom:.5rem"></div>
           <div class="calc-controls" style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:.5rem">
-            <select id="calc-item" style="flex:1;min-width:160px"></select>
             <input id="calc-rate" type="number" min="0.01" step="1" value="60" style="width:70px">
             <select id="calc-unit">
               <option value="min">per min</option>
