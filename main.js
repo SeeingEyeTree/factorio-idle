@@ -15,12 +15,17 @@ function createWindow() {
     minWidth: 900,
     minHeight: 600,
     title: 'Factorio Idle',
+    autoHideMenuBar: true,
+    show: false,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js'),
     },
   });
+  win.setMenuBarVisibility(false);
+  win.maximize();
+  win.show();
   win.loadFile('index.html');
 }
 

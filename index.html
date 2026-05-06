@@ -114,6 +114,7 @@
     <div class="meta-screen-header">
       <button class="btn-secondary" onclick="showStartScreen()">← Back</button>
       <h2>⭐ Meta Progression</h2>
+      <button class="btn-secondary" style="margin-left:auto;color:var(--red,#e57373)" onclick="confirmResetMeta()">Reset Meta</button>
     </div>
     <div id="meta-screen-content"></div>
   </div>
@@ -143,7 +144,7 @@
     <button class="tab-btn"        onclick="switchTab('inventory', this)">🎒 Inventory</button>
     <button class="tab-btn"        onclick="switchTab('crafting', this)">🔧 Crafting</button>
     <button class="tab-btn active" onclick="switchTab('buildings', this)">🏭 Buildings</button>
-    <button class="tab-btn"        onclick="switchTab('research', this)">🔬 Research</button>
+    <button class="tab-btn" id="tab-btn-research" onclick="switchTab('research', this)">🔬 Research</button>
     <button class="tab-btn"        onclick="switchTab('defense', this)" data-tab="defense">🛡️ Defense</button>
     <button class="tab-btn"        onclick="switchTab('recipes', this)">📖 Recipes</button>
     <button class="tab-btn"        onclick="switchTab('graph', this)">📈 Graph</button>
@@ -180,6 +181,7 @@
 
         <div class="placement-col">
           <h3 class="section-label">Place Buildings</h3>
+          <p style="font-size:.72rem;color:var(--dim);margin:-.4rem 0 .6rem">Tip: <strong>Alt+click</strong> Place or + Add to jump to the front of the build queue.</p>
 
           <!-- Always-visible build queue status -->
           <div id="placement-status" class="placement-status">
@@ -201,7 +203,7 @@
               <div class="recipe-picker-host" data-ptype="miner"></div>
               <div class="place-row">
                 <input type="number" class="place-count" min="1" value="1">
-                <button class="btn-place" data-type="miner" onclick="placeBuilding('miner',this)">Place</button>
+                <button class="btn-place" data-type="miner" onclick="placeBuilding('miner',this,event)">Place</button>
               </div>
             </div>
           </div>
@@ -215,7 +217,7 @@
               <div class="recipe-picker-host" data-ptype="furnace"></div>
               <div class="place-row">
                 <input type="number" class="place-count" min="1" value="1">
-                <button class="btn-place" data-type="furnace" onclick="placeBuilding('furnace',this)">Place</button>
+                <button class="btn-place" data-type="furnace" onclick="placeBuilding('furnace',this,event)">Place</button>
               </div>
             </div>
           </div>
@@ -229,7 +231,7 @@
               <div class="recipe-picker-host" data-ptype="steelFurnace"></div>
               <div class="place-row">
                 <input type="number" class="place-count" min="1" value="1">
-                <button class="btn-place" data-type="steelFurnace" onclick="placeBuilding('steelFurnace',this)">Place</button>
+                <button class="btn-place" data-type="steelFurnace" onclick="placeBuilding('steelFurnace',this,event)">Place</button>
               </div>
             </div>
           </div>
@@ -244,7 +246,7 @@
               <div class="recipe-picker-host" data-ptype="assembly2"></div>
               <div class="place-row">
                 <input type="number" class="place-count" min="1" value="1">
-                <button class="btn-place" data-type="assembly2" onclick="placeBuilding('assembly2',this)">Place</button>
+                <button class="btn-place" data-type="assembly2" onclick="placeBuilding('assembly2',this,event)">Place</button>
               </div>
             </div>
           </div>
@@ -259,7 +261,7 @@
               <div class="recipe-picker-host" data-ptype="assembly3"></div>
               <div class="place-row">
                 <input type="number" class="place-count" min="1" value="1">
-                <button class="btn-place" data-type="assembly3" onclick="placeBuilding('assembly3',this)">Place</button>
+                <button class="btn-place" data-type="assembly3" onclick="placeBuilding('assembly3',this,event)">Place</button>
               </div>
             </div>
           </div>
@@ -273,7 +275,7 @@
               <div class="recipe-picker-host" data-ptype="electricFurnace"></div>
               <div class="place-row">
                 <input type="number" class="place-count" min="1" value="1">
-                <button class="btn-place" data-type="electricFurnace" onclick="placeBuilding('electricFurnace',this)">Place</button>
+                <button class="btn-place" data-type="electricFurnace" onclick="placeBuilding('electricFurnace',this,event)">Place</button>
               </div>
             </div>
           </div>
@@ -288,7 +290,7 @@
               <p class="card-cost">Cost: 1 × Offshore Pump</p>
               <div class="place-row">
                 <input type="number" class="place-count" min="1" value="1">
-                <button class="btn-place" data-type="offshoreP" onclick="placeBuilding('offshoreP',this)">Place</button>
+                <button class="btn-place" data-type="offshoreP" onclick="placeBuilding('offshoreP',this,event)">Place</button>
               </div>
             </div>
           </div>
@@ -301,7 +303,7 @@
               <p class="card-cost">Cost: 1 × Boiler</p>
               <div class="place-row">
                 <input type="number" class="place-count" min="1" value="1">
-                <button class="btn-place" data-type="boiler" onclick="placeBuilding('boiler',this)">Place</button>
+                <button class="btn-place" data-type="boiler" onclick="placeBuilding('boiler',this,event)">Place</button>
               </div>
             </div>
           </div>
@@ -314,7 +316,7 @@
               <p class="card-cost">Cost: 1 × Steam Engine</p>
               <div class="place-row">
                 <input type="number" class="place-count" min="1" value="1">
-                <button class="btn-place" data-type="steamEngine" onclick="placeBuilding('steamEngine',this)">Place</button>
+                <button class="btn-place" data-type="steamEngine" onclick="placeBuilding('steamEngine',this,event)">Place</button>
               </div>
             </div>
           </div>
@@ -327,7 +329,7 @@
               <p class="card-cost">Cost: 1 × Solar Panel</p>
               <div class="place-row">
                 <input type="number" class="place-count" min="1" value="1">
-                <button class="btn-place" data-type="solarPanel" onclick="placeBuilding('solarPanel',this)">Place</button>
+                <button class="btn-place" data-type="solarPanel" onclick="placeBuilding('solarPanel',this,event)">Place</button>
               </div>
             </div>
           </div>
@@ -340,7 +342,7 @@
               <p class="card-cost">Cost: 1 × Accumulator</p>
               <div class="place-row">
                 <input type="number" class="place-count" min="1" value="1">
-                <button class="btn-place" data-type="accumulator" onclick="placeBuilding('accumulator',this)">Place</button>
+                <button class="btn-place" data-type="accumulator" onclick="placeBuilding('accumulator',this,event)">Place</button>
               </div>
             </div>
           </div>
@@ -353,7 +355,7 @@
               <p class="card-cost">Cost: 4 × Nuclear Reactor + 4 × Offshore Pump + 180 × Pipe + 68 × Heat Pipe + 48 × Heat Exchanger + 84 × Steam Turbine</p>
               <div class="place-row">
                 <input type="number" class="place-count" min="1" value="1">
-                <button class="btn-place" data-type="nuclearReactor" onclick="placeBuilding('nuclearReactor',this)">Place</button>
+                <button class="btn-place" data-type="nuclearReactor" onclick="placeBuilding('nuclearReactor',this,event)">Place</button>
               </div>
             </div>
           </div>
@@ -370,7 +372,7 @@
               <div class="recipe-picker-host" data-ptype="assembly"></div>
               <div class="place-row">
                 <input type="number" class="place-count" min="1" value="1">
-                <button class="btn-place" data-type="assembly" onclick="placeBuilding('assembly',this)">Place</button>
+                <button class="btn-place" data-type="assembly" onclick="placeBuilding('assembly',this,event)">Place</button>
               </div>
             </div>
           </div>
@@ -384,7 +386,7 @@
               <div class="recipe-picker-host" data-ptype="electricMiner"></div>
               <div class="place-row">
                 <input type="number" class="place-count" min="1" value="1">
-                <button class="btn-place" data-type="electricMiner" onclick="placeBuilding('electricMiner',this)">Place</button>
+                <button class="btn-place" data-type="electricMiner" onclick="placeBuilding('electricMiner',this,event)">Place</button>
               </div>
             </div>
           </div>
@@ -399,7 +401,7 @@
               <p class="card-cost">Cost: 1 × Pumpjack</p>
               <div class="place-row">
                 <input type="number" class="place-count" min="1" value="1">
-                <button class="btn-place" data-type="pumpjack" onclick="placeBuilding('pumpjack',this)">Place</button>
+                <button class="btn-place" data-type="pumpjack" onclick="placeBuilding('pumpjack',this,event)">Place</button>
               </div>
             </div>
           </div>
@@ -413,7 +415,7 @@
               <div class="recipe-picker-host" data-ptype="oilRefinery"></div>
               <div class="place-row">
                 <input type="number" class="place-count" min="1" value="1">
-                <button class="btn-place" data-type="oilRefinery" onclick="placeBuilding('oilRefinery',this)">Place</button>
+                <button class="btn-place" data-type="oilRefinery" onclick="placeBuilding('oilRefinery',this,event)">Place</button>
               </div>
             </div>
           </div>
@@ -427,7 +429,7 @@
               <div class="recipe-picker-host" data-ptype="chemicalPlant"></div>
               <div class="place-row">
                 <input type="number" class="place-count" min="1" value="1">
-                <button class="btn-place" data-type="chemicalPlant" onclick="placeBuilding('chemicalPlant',this)">Place</button>
+                <button class="btn-place" data-type="chemicalPlant" onclick="placeBuilding('chemicalPlant',this,event)">Place</button>
               </div>
             </div>
           </div>
@@ -441,7 +443,7 @@
               <div class="recipe-picker-host" data-ptype="centrifuge"></div>
               <div class="place-row">
                 <input type="number" class="place-count" min="1" value="1">
-                <button class="btn-place" data-type="centrifuge" onclick="placeBuilding('centrifuge',this)">Place</button>
+                <button class="btn-place" data-type="centrifuge" onclick="placeBuilding('centrifuge',this,event)">Place</button>
               </div>
             </div>
           </div>
@@ -455,7 +457,7 @@
               <div class="recipe-picker-host" data-ptype="rocketSilo"></div>
               <div class="place-row">
                 <input type="number" class="place-count" min="1" value="1">
-                <button class="btn-place" data-type="rocketSilo" onclick="placeBuilding('rocketSilo',this)">Place</button>
+                <button class="btn-place" data-type="rocketSilo" onclick="placeBuilding('rocketSilo',this,event)">Place</button>
               </div>
             </div>
           </div>
@@ -470,7 +472,7 @@
               <p class="card-cost">Cost: 1 × Radar</p>
               <div class="place-row">
                 <input type="number" class="place-count" min="1" value="1">
-                <button class="btn-place" data-type="radar" onclick="placeBuilding('radar',this)">Place</button>
+                <button class="btn-place" data-type="radar" onclick="placeBuilding('radar',this,event)">Place</button>
               </div>
             </div>
           </div>
@@ -485,7 +487,7 @@
               <p class="card-cost">Cost: 1 × Lab</p>
               <div class="place-row">
                 <input type="number" class="place-count" min="1" value="1">
-                <button class="btn-place" data-type="lab" onclick="placeBuilding('lab',this)">Place</button>
+                <button class="btn-place" data-type="lab" onclick="placeBuilding('lab',this,event)">Place</button>
               </div>
             </div>
           </div>

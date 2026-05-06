@@ -405,6 +405,16 @@ button {
   transition: color .15s, border-color .15s;
 }
 .tab-btn:hover { color: var(--text2); }
+.tab-btn.tab-alert { position: relative; }
+.tab-btn.tab-alert::after {
+  content: '';
+  position: absolute;
+  top: 6px; right: 6px;
+  width: 7px; height: 7px;
+  background: var(--green);
+  border-radius: 50%;
+  box-shadow: 0 0 6px var(--green);
+}
 .tab-btn.active {
   color: var(--accent);
   border-bottom-color: var(--accent);

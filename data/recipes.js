@@ -49,7 +49,7 @@ const ITEMS = {
   // Rocket / nuclear
   rocketFuel:           { name: 'Rocket Fuel',              icon: '🚀', img: 'data/icon_imgs/rocket_fuel.png' },
   lowDensityStructure:  { name: 'Low Density Structure',    icon: '🔹', img: 'data/icon_imgs/low_density_structure.png' },
-  rocketControlUnit:    { name: 'Rocket Control Unit',      icon: '🎯', img: 'data/icon_imgs/rocket_control_unit.png' },
+  //rocketControlUnit:    { name: 'Rocket Control Unit',      icon: '🎯', img: 'data/icon_imgs/rocket_control_unit.png' },
   rocketPart:           { name: 'Rocket Part',              icon: '🚀' },
   satellite:            { name: 'Satellite',                icon: '🛰️', img: 'data/icon_imgs/satellite.png' },
   uranium235:           { name: 'Uranium-235',              icon: '🟩', img: 'data/icon_imgs/uranium_235.png' },
@@ -297,7 +297,7 @@ const PLAYER_RECIPES = {
   lowDensityStructure:  { name: 'Low Density Structure',    inputs: { steel: 2, copperPlate: 20, plasticBar: 5 },            outputs: { lowDensityStructure: 1 },  time: 15.0 },
   //rocketControlUnit:    { name: 'Rocket Control Unit',      inputs: { processingUnit: 1, speedModule: 1 },                   outputs: { rocketControlUnit: 1 },    time: 30.0 },
   satellite:            { name: 'Satellite',                inputs: { processingUnit: 100, lowDensityStructure: 100, rocketFuel: 50, solarPanelItem: 100, accumulatorItem: 100, radarItem: 5 }, outputs: { satellite: 1 }, time: 5.0 },
-  rocketPart:           { name: 'Rocket Part',              inputs: { lowDensityStructure: 10, rocketFuel: 10, rocketControlUnit: 10 }, outputs: { rocketPart: 1 }, time: 3.0, machinery: 'rocket_silo' },
+  rocketPart:           { name: 'Rocket Part',              inputs: { lowDensityStructure: 10, rocketFuel: 10 }, outputs: { rocketPart: 1 }, time: 3.0, machinery: 'rocket_silo' },
 
   // ── Modules ───────────────────────────────────────────────────
   speedModule:          { name: 'Speed Module',             inputs: { advancedCircuit: 5, electronicCircuit: 5 },            outputs: { speedModule: 1 },          time: 15.0 },
@@ -354,7 +354,7 @@ const CRAFT_SECTIONS = [
     'ironGear', 'ironStick', 'copperCable', 'pipe',
     'electronicCircuit', 'advancedCircuit', 'processingUnit',
     'transportBelt', 'engineUnit', 'electricEngineUnit', 'flyingRobotFrame', 'constructionRobotItem',
-    'battery', 'explosives', 'solidFuelLight', 'rocketFuel', 'lowDensityStructure', 'rocketControlUnit',
+    'battery', 'explosives', 'solidFuelLight', 'rocketFuel', 'lowDensityStructure',
   ] },
   { label: 'Science', keys: [
     'redScience', 'greenScience', 'blueScience', 'purpleScience', 'yellowScience', 'spaceScience', 'rainbowScience',

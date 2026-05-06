@@ -254,7 +254,7 @@ const TECHNOLOGIES = {
     cost: { redScience: 2000, greenScience: 2000, blueScience: 2000, blackScience: 2000, yellowScience: 2000 }, timePerPack: 30,
     prereqs: ['military4'],// concre radar as well be I want clean tech tree
     description: 'The best in big bata boom hardware',
-    unlockRecipes: ['artilleryShell', 'artilleryTurretItem','artilleryWagon'], unlockBuildings: [],
+    unlockRecipes: ['artilleryShell', 'artilleryTurretItem'], unlockBuildings: [],
   },
   /*
   flammables: {

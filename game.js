@@ -288,6 +288,7 @@ let placeStartMs    = null;
 let placeRafId      = null;
 let selectedDensity = 'medium';
 let mouseHeld       = false;
+let biterWaveWarned = false;
 
 const miningCooldowns = {};
 
@@ -1145,12 +1146,18 @@ function cancelResearch() {
   renderResearch();
 }
 
+function flashResearchTab() {
+  const btn = document.getElementById('tab-btn-research');
+  if (btn && !btn.classList.contains('active')) btn.classList.add('tab-alert');
+}
+
 function completeResearch(key) {
   state.research.done[key] = true;
   state.research.current = null;
   state.research.totalConsumed = 0;
   getGS('lab').packAcc = 0;
   notify(`✅ Researched: ${TECHNOLOGIES[key].name}!`, 'info');
+  flashResearchTab();
   updatePlaceButtonStates();
   renderAllPlacementPickers();
   lastTechHash = '';
@@ -1224,6 +1231,7 @@ function completeRobotResearch(type) {
   state.research[def.stateField] = (state.research[def.stateField] ?? 0) + 1;
   const level = state.research[def.stateField];
   notify(`✅ ${def.displayName} Level ${level}!`, 'info');
+  flashResearchTab();
   // Sync artillery-specific perimeter state
   if (type === 'artillery:range' && state.perimeter) state.perimeter.artilleryRangeLevel = level;
   if (type === 'artillery:damage' && state.perimeter) state.perimeter.artilleryDamageLevel = level;
@@ -2101,9 +2109,14 @@ function tick() {
   // ── Biters ──
   if (state.settings.biters) {
     state.biterTimer += dt;
-    if (state.biterTimer >= biterInterval()) {
+    const interval = biterInterval();
+    if (state.biterTimer >= interval) {
       state.biterTimer = 0;
+      biterWaveWarned = false;
       fightBiterWave();
+    } else if (state.biterTimer > 0 && !biterWaveWarned && interval - state.biterTimer <= 30) {
+      biterWaveWarned = true;
+      notify(`⚠️ Biter wave incoming in ~${Math.ceil(interval - state.biterTimer)}s!`, 'warning');
     }
   }
 
@@ -2133,15 +2146,16 @@ function maxDrillsForResource(resource) {
   return state.patches[resource]?.nodes ?? 0;
 }
 
-function placeBuilding(type, triggerEl) {
+function placeBuilding(type, triggerEl, ev) {
   if (!isUnlocked('building', type)) { notify(`Research required to place this building.`, 'warning'); return; }
 
   const countEl = triggerEl?.closest('.place-row')?.querySelector('.place-count');
   const count = Math.max(1, parseInt(countEl?.value ?? '1') || 1);
+  const frontOfQueue = !!(ev?.altKey);
 
   const pr = state.placementRecipes ?? defaultPlacementRecipes();
   const costs = BUILDING_COSTS[type];
-  let placed = 0;
+  const targets = [];
 
   for (let i = 0; i < count; i++) {
     if (!canAfford(costs)) {
@@ -2179,11 +2193,12 @@ function placeBuilding(type, triggerEl) {
       target = { type };
     }
     target.displayName = BUILDING_DEFS[type]?.name ?? type;
-    placeQueue.push(target);
-    placed++;
+    targets.push(target);
   }
 
-  if (placed > 0) {
+  if (targets.length > 0) {
+    if (frontOfQueue) placeQueue.unshift(...targets);
+    else placeQueue.push(...targets);
     updatePlacementUI();
     if (!placing) processNextPlacement();
     // Visual feedback: briefly flash the place button
@@ -3050,13 +3065,14 @@ function renderBuildings() {
     }
 
     if (type === 'radar') {
-      const progress = Math.min(1, (getGS('radar').radarAcc ?? 0) / RADAR_CHUNK_TIME);
+      const effectiveRadarTime = hasMetaPerk('perk_radar_speed') ? RADAR_CHUNK_TIME / 1.5 : RADAR_CHUNK_TIME;
+      const progress = Math.min(1, (getGS('radar').radarAcc ?? 0) / effectiveRadarTime);
       const chunks   = state.chunksRevealed ?? 0;
       const radarPowerStr = state.powerRatio < 0.99 ? ` ⚡ ${(state.powerRatio * 100).toFixed(0)}%` : '';
       return buildingCard('📡', 'Radar', count, 'discovers ore patches',
         !gs.enabled ? 'Disabled'
           : state.powerRatio < 0.05 ? '⚡ No Power'
-          : `${(count * 60 / RADAR_CHUNK_TIME * state.powerRatio).toFixed(1)} chunks/min · ${chunks} explored${radarPowerStr}`,
+          : `${(count * 60 / effectiveRadarTime * state.powerRatio).toFixed(1)} chunks/min · ${chunks} explored${radarPowerStr}`,
         gs.enabled && state.powerRatio > 0, progress, key);
     }
 
@@ -4973,7 +4989,7 @@ function startNewGame() {
   const biterPointsCap     = parseFloat(document.getElementById('biter-points-cap-input')?.value      ?? String(BITER_POINTS_CAP_LINEAR)) || BITER_POINTS_CAP_LINEAR;
   const metaProgEnabled    = document.getElementById('meta-prog-toggle')?.checked ?? false;
   state = createState({ density: selectedDensity, biters, biterGracePeriod, biterIntervalSecs, biterPointsPreRed, biterPointsPostBlue, biterPointsCap, metaProgEnabled });
-  placeQueue = []; placing = false; currentPlacing = null;
+  placeQueue = []; placing = false; currentPlacing = null; biterWaveWarned = false;
   currentSaveFile = null;
   _pendingScriptRestore = null;
   closeNewGameModal();
@@ -4987,6 +5003,7 @@ function showGame() {
   gameLoopId = setInterval(tick, TICK_MS);
   buildingSearchQuery = '';
   mouseHeld          = false;
+  biterWaveWarned    = false;
   lastTechHash       = '';
   lastInventoryHtml  = '';
   lastStarredBarHtml = '';
@@ -5031,6 +5048,7 @@ function switchTab(tab, el) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-' + tab).classList.remove('hidden');
   el.classList.add('active');
+  if (tab === 'research') document.getElementById('tab-btn-research')?.classList.remove('tab-alert');
   renderUI();
 }
 
@@ -5289,6 +5307,15 @@ function showMetaScreen() {
 function showStartScreen() {
   document.getElementById('meta-screen').classList.add('hidden');
   document.getElementById('start-screen').classList.remove('hidden');
+}
+
+function confirmResetMeta() {
+  if (!confirm('Reset ALL meta progress? This will clear your points, building upgrades, and skill perks. This cannot be undone.')) return;
+  metaState = defaultMetaState();
+  saveMetaState();
+  lastMetaHtml = '';
+  renderMetaProgression('meta-screen-content');
+  notify('Meta progress reset.', 'info');
 }
 
 function setMetaSubTab(tab, containerId = 'meta-screen-content') {
