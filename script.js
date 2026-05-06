@@ -1163,8 +1163,8 @@ function runAutoScript() {
 
 function switchScriptTab(tab) {
   scriptActiveTab = tab;
-  const manual = document.getElementById('script-manual-editor');
-  const auto   = document.getElementById('script-auto-editor');
+  const manual = document.getElementById('script-manual-wrap');
+  const auto   = document.getElementById('script-auto-wrap');
   const mBtn   = document.getElementById('script-tab-manual');
   const aBtn   = document.getElementById('script-tab-auto');
 
@@ -1173,11 +1173,13 @@ function switchScriptTab(tab) {
     auto?.classList.remove('hidden');
     mBtn?.classList.remove('script-tab-active');
     aBtn?.classList.add('script-tab-active');
+    syncScriptHighlight(document.getElementById('script-auto-editor'), document.getElementById('script-auto-hl'));
   } else {
     auto?.classList.add('hidden');
     manual?.classList.remove('hidden');
     aBtn?.classList.remove('script-tab-active');
     mBtn?.classList.add('script-tab-active');
+    syncScriptHighlight(document.getElementById('script-manual-editor'), document.getElementById('script-manual-hl'));
   }
 }
 
@@ -1199,6 +1201,76 @@ function escapeHtml(s) {
     .replace(/"/g, '&quot;');
 }
 
+// ── Syntax highlighting ───────────────────────────────────────
+
+const SH_KEYWORDS = new Set(['if','else','elif','for','in','and','or','not','while','break','continue','pass','return','True','False','None']);
+const SH_BUILTINS = new Set(['place','craft','print','research','limit','fortify','give','devmode','floor','ceil','round','abs','min','max','sqrt','pow','range','len']);
+
+function highlightScript(src) {
+  const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  let out = '', i = 0;
+  while (i < src.length) {
+    const ch = src[i];
+    if (ch === '\n') { out += '\n'; i++; continue; }
+    if (ch === '#') {
+      let j = i;
+      while (j < src.length && src[j] !== '\n') j++;
+      out += `<span class="sh-cmt">${esc(src.slice(i, j))}</span>`;
+      i = j; continue;
+    }
+    if (ch === '"' || ch === "'") {
+      let j = i + 1;
+      while (j < src.length && src[j] !== ch && src[j] !== '\n') {
+        if (src[j] === '\\') j++;
+        j++;
+      }
+      if (j < src.length && src[j] === ch) j++;
+      out += `<span class="sh-str">${esc(src.slice(i, j))}</span>`;
+      i = j; continue;
+    }
+    if (/[0-9]/.test(ch)) {
+      let j = i;
+      while (j < src.length && /[0-9.]/.test(src[j])) j++;
+      out += `<span class="sh-num">${esc(src.slice(i, j))}</span>`;
+      i = j; continue;
+    }
+    if (/[a-zA-Z_]/.test(ch)) {
+      let j = i;
+      while (j < src.length && /[a-zA-Z0-9_]/.test(src[j])) j++;
+      const word = src.slice(i, j);
+      if (SH_KEYWORDS.has(word))       out += `<span class="sh-kw">${esc(word)}</span>`;
+      else if (SH_BUILTINS.has(word))  out += `<span class="sh-fn">${esc(word)}</span>`;
+      else if (/^[A-Z][A-Z0-9_]*$/.test(word)) out += `<span class="sh-var">${esc(word)}</span>`;
+      else                             out += esc(word);
+      i = j; continue;
+    }
+    out += esc(ch); i++;
+  }
+  return out;
+}
+
+function syncScriptHighlight(ta, hl) {
+  if (!ta || !hl) return;
+  hl.innerHTML = highlightScript(ta.value) + '\n';
+  hl.scrollTop  = ta.scrollTop;
+  hl.scrollLeft = ta.scrollLeft;
+}
+
+function initScriptHighlighters() {
+  const pairs = [
+    ['script-manual-editor', 'script-manual-hl'],
+    ['script-auto-editor',   'script-auto-hl'],
+  ];
+  for (const [taId, hlId] of pairs) {
+    const ta = document.getElementById(taId);
+    const hl = document.getElementById(hlId);
+    if (!ta || !hl) continue;
+    syncScriptHighlight(ta, hl);
+    ta.addEventListener('input',  () => syncScriptHighlight(ta, hl));
+    ta.addEventListener('scroll', () => { hl.scrollTop = ta.scrollTop; hl.scrollLeft = ta.scrollLeft; });
+  }
+}
+
 function renderScript() {
   const el = document.getElementById('script-output');
   if (!el) return;
@@ -1216,3 +1288,5 @@ function renderScript() {
   }).join('');
   if (atBottom) el.scrollTop = el.scrollHeight;
 }
+
+document.addEventListener('DOMContentLoaded', initScriptHighlighters);

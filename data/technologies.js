@@ -118,6 +118,13 @@ const TECHNOLOGIES = {
     description: 'Further reduces building placement time by 0.25 seconds (0.5s total with Logistics)',
     unlockRecipes: [], unlockBuildings: [],
   },
+  scriptingTech: {
+    name: 'Scripting', icon: '📜',
+    cost: { redScience: 500, greenScience: 500 }, timePerPack: 30,
+    prereqs: ['logistics2'],
+    description: 'Unlocks the Script editor — automate your factory with Python-like scripts',
+    unlockRecipes: [], unlockBuildings: [],
+  },
   // ── Red + Green (oil era) ─────────────────────────────────────
   /*fluidHandling: {
     name: 'Fluid Handling', icon: '🌊',
@@ -327,6 +334,7 @@ const TECHNOLOGIES = {
     description: 'Unlocks Speed Module 3',
     unlockRecipes: ['speedModule3'], unlockBuildings: [],
   },
+  /*
   beaconTech: {
     name: 'Beacon', icon: '📡',
     cost: { redScience: 75, greenScience: 75, blueScience: 75, purpleScience: 75 }, timePerPack: 30,
@@ -334,6 +342,7 @@ const TECHNOLOGIES = {
     description: 'Unlocks Beacon for signal transmission',
     unlockRecipes: ['beaconItem'], unlockBuildings: [],
   },
+  */
   productionSciencePack: {
     name: 'Production Science Pack', icon: '🟣',
     cost: { redScience: 100, greenScience: 100, blueScience: 100 }, timePerPack: 30,

@@ -2341,12 +2341,39 @@ function setDevTickSpeed(n) {
   renderDevPanel();
 }
 
+function updateTabVisibility() {
+  // Script tab: hidden until scriptingTech is researched
+  const scriptUnlocked = !!state.research.done?.scriptingTech;
+  const scriptBtn   = document.querySelector('[data-tab="script"]');
+  const scriptPanel = document.getElementById('tab-script');
+  if (scriptBtn) scriptBtn.style.display = scriptUnlocked ? '' : 'none';
+  if (scriptPanel && !scriptUnlocked && !scriptPanel.classList.contains('hidden')) {
+    scriptPanel.classList.add('hidden');
+    document.getElementById('tab-buildings')?.classList.remove('hidden');
+    scriptBtn?.classList.remove('active');
+    document.querySelector('.tab-btn[onclick*="buildings"]')?.classList.add('active');
+  }
+
+  // Defense tab: hidden when biters are disabled
+  const bitersOn   = !!state.settings?.biters;
+  const defenseBtn   = document.querySelector('[data-tab="defense"]');
+  const defensePanel = document.getElementById('tab-defense');
+  if (defenseBtn) defenseBtn.style.display = bitersOn ? '' : 'none';
+  if (defensePanel && !bitersOn && !defensePanel.classList.contains('hidden')) {
+    defensePanel.classList.add('hidden');
+    document.getElementById('tab-buildings')?.classList.remove('hidden');
+    defenseBtn?.classList.remove('active');
+    document.querySelector('.tab-btn[onclick*="buildings"]')?.classList.add('active');
+  }
+}
+
 function renderUI() {
   renderPower();
   renderBiterIndicator();
   renderStarredBar();
   renderDevPanel();
   updatePlaceButtonStates();
+  updateTabVisibility();
   const active = document.querySelector('.tab-panel:not(.hidden)');
   if (!active) return;
   if (active.id === 'tab-inventory') renderInventory();
@@ -2959,10 +2986,12 @@ function renderBuildings() {
         if (tech) { totalNeeded = Math.max(...Object.values(tech.cost)); techName = tech.name; }
       }
       const progress = totalNeeded > 0 ? res.totalConsumed / totalNeeded : 0;
+      const powerRatioPct = state.powerRatio < 0.99 ? ` ⚡ ${(state.powerRatio * 100).toFixed(0)}%` : '';
       const statusTxt = !gs2.enabled ? 'Disabled'
                        : !res.current ? 'No research selected'
                        : gs2.starved  ? '🔴 No Science Packs'
-                                      : `Researching: ${techName ?? '?'} (${res.totalConsumed}/${totalNeeded})`;
+                       : state.powerRatio < 0.05 ? '⚡ No Power'
+                                      : `Researching: ${techName ?? '?'} (${res.totalConsumed}/${totalNeeded})${powerRatioPct}`;
       return buildingCard('🔬', 'Lab', count, 'processes science packs',
         statusTxt, gs2.enabled && !!res.current && !gs2.starved, progress, key, '', false, 'lab');
     }
@@ -2997,9 +3026,12 @@ function renderBuildings() {
     if (type === 'radar') {
       const progress = Math.min(1, (getGS('radar').radarAcc ?? 0) / RADAR_CHUNK_TIME);
       const chunks   = state.chunksRevealed ?? 0;
+      const radarPowerStr = state.powerRatio < 0.99 ? ` ⚡ ${(state.powerRatio * 100).toFixed(0)}%` : '';
       return buildingCard('📡', 'Radar', count, 'discovers ore patches',
-        !gs.enabled ? 'Disabled' : `${(count * 60 / RADAR_CHUNK_TIME).toFixed(1)} chunks/min · ${chunks} explored`,
-        gs.enabled, progress, key);
+        !gs.enabled ? 'Disabled'
+          : state.powerRatio < 0.05 ? '⚡ No Power'
+          : `${(count * 60 / RADAR_CHUNK_TIME * state.powerRatio).toFixed(1)} chunks/min · ${chunks} explored${radarPowerStr}`,
+        gs.enabled && state.powerRatio > 0, progress, key);
     }
 
     if (type === 'solarPanel') {
@@ -3387,6 +3419,14 @@ function renderResearchTree() {
       if (!done && !isCurrent && meetsWithQueue) clickData = `data-research="${key}"`;
       else if (isCurrent) clickData = `data-cancel-research="1"`;
 
+      const unlockNames = [
+        ...(tech.unlockBuildings ?? []).map(b => BUILDING_DEFS[b]?.name ?? b),
+        ...(tech.unlockRecipes ?? []).map(r => PLAYER_RECIPES?.[r]?.name ?? FURNACE_RECIPES?.[r]?.name ?? r),
+      ].slice(0, 3);
+      const unlocksHtml = unlockNames.length
+        ? `<div class="tech-node-unlocks">▶ ${unlockNames.join(', ')}</div>` : '';
+      const descHtml = tech.description
+        ? `<div class="tech-node-desc">${tech.description.slice(0, 80)}${tech.description.length > 80 ? '…' : ''}</div>` : '';
       html += `<div class="tech-node ${cls}" data-node-key="${key}" ${clickData} title="${tech.description}">
         <div class="tech-node-head">
           <span class="tech-node-icon">${tech.icon}</span>
@@ -3395,7 +3435,7 @@ function renderResearchTree() {
             <div class="tech-node-cost">${costStr}</div>
           </div>
         </div>
-        ${badge}
+        ${descHtml}${unlocksHtml}${badge}
       </div>`;
     }
     html += '</div>';
@@ -3414,8 +3454,9 @@ function drawTechLines() {
 
   const innerRect = inner.getBoundingClientRect();
 
-  // Collect node positions
+  // Collect node positions and status
   const pos = {};
+  const nodeStatus = {};
   for (const key of Object.keys(TECHNOLOGIES)) {
     const el = inner.querySelector(`[data-node-key="${key}"]`);
     if (!el) continue;
@@ -3427,6 +3468,22 @@ function drawTechLines() {
       bottom: r.bottom - innerRect.top,
       cy:     (r.top + r.bottom) / 2 - innerRect.top,
     };
+    if (el.classList.contains('node-done'))    nodeStatus[key] = 'done';
+    else if (el.classList.contains('node-current')) nodeStatus[key] = 'current';
+    else if (el.classList.contains('node-queued'))  nodeStatus[key] = 'queued';
+    else if (el.classList.contains('node-locked'))  nodeStatus[key] = 'locked';
+    else nodeStatus[key] = 'available';
+  }
+
+  function lineStyle(parentKey, childKey) {
+    const ps = nodeStatus[parentKey] ?? 'available';
+    const cs = nodeStatus[childKey]  ?? 'available';
+    if (ps === 'done' && cs === 'done')      return { stroke: 'rgba(76,175,80,0.35)', width: 1.5 };
+    if (ps === 'done' && cs === 'current')   return { stroke: '#f4a83a',             width: 2   };
+    if (ps === 'done' && cs === 'queued')    return { stroke: '#a07830',             width: 1.5 };
+    if (ps === 'done' && cs === 'available') return { stroke: 'rgba(76,175,80,0.65)', width: 1.5 };
+    if (cs === 'locked')                     return { stroke: '#1e1e26',             width: 1   };
+    return { stroke: '#3a3a4a', width: 1.4 };
   }
 
   // Build incoming/outgoing edge lists, sorted by the other endpoint's vertical position
@@ -3496,7 +3553,8 @@ function drawTechLines() {
             ` L ${cx} ${cy}`;
       }
 
-      paths += `<path d="${d}" fill="none" stroke="#3a3a3a" stroke-width="1.4" opacity="0.85" stroke-linejoin="round"/>`;
+      const ls = lineStyle(parent, child);
+      paths += `<path d="${d}" fill="none" stroke="${ls.stroke}" stroke-width="${ls.width}" opacity="0.9" stroke-linejoin="round"/>`;
     });
   }
 
@@ -4912,6 +4970,10 @@ function showGame() {
     if (manualEl) manualEl.value = _pendingScriptRestore.content ?? '';
     const autoEl = document.getElementById('script-auto-editor');
     if (autoEl) autoEl.value = _pendingScriptRestore.autoContent ?? '';
+    if (typeof syncScriptHighlight === 'function') {
+      syncScriptHighlight(manualEl, document.getElementById('script-manual-hl'));
+      syncScriptHighlight(autoEl,   document.getElementById('script-auto-hl'));
+    }
     scriptAutoRun = _pendingScriptRestore.autoRun;
     _pendingScriptRestore = null;
     // Sync the Auto ON/OFF button visual state to match the restored value

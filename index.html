@@ -129,22 +129,22 @@
   <div id="dev-panel" class="dev-panel hidden"></div>
 
   <nav class="tab-nav">
-    <button class="tab-btn active" onclick="switchTab('mining', this)">⛏ Mining</button>
+    <button class="tab-btn"        onclick="switchTab('mining', this)">⛏ Mining</button>
     <button class="tab-btn"        onclick="switchTab('inventory', this)">🎒 Inventory</button>
     <button class="tab-btn"        onclick="switchTab('crafting', this)">🔧 Crafting</button>
-    <button class="tab-btn"        onclick="switchTab('buildings', this)">🏭 Buildings</button>
+    <button class="tab-btn active" onclick="switchTab('buildings', this)">🏭 Buildings</button>
     <button class="tab-btn"        onclick="switchTab('research', this)">🔬 Research</button>
-    <button class="tab-btn"        onclick="switchTab('defense', this)">🛡️ Defense</button>
+    <button class="tab-btn"        onclick="switchTab('defense', this)" data-tab="defense">🛡️ Defense</button>
     <button class="tab-btn"        onclick="switchTab('recipes', this)">📖 Recipes</button>
     <button class="tab-btn"        onclick="switchTab('graph', this)">📈 Graph</button>
-    <button class="tab-btn"        onclick="switchTab('script', this)">📜 Script</button>
+    <button class="tab-btn"        onclick="switchTab('script', this)"  data-tab="script">📜 Script</button>
     <button class="tab-btn"        onclick="switchTab('settings', this)">⚙ Settings</button>
   </nav>
 
   <main class="tab-content">
 
     <!-- Mining Tab -->
-    <section id="tab-mining" class="tab-panel">
+    <section id="tab-mining" class="tab-panel hidden">
       <h3 class="section-label">Resource Patches</h3>
       <p id="chunk-info"></p>
       <div id="resource-patches" class="patch-grid"></div>
@@ -165,7 +165,7 @@
     </section>
 
     <!-- Buildings Tab -->
-    <section id="tab-buildings" class="tab-panel hidden">
+    <section id="tab-buildings" class="tab-panel">
       <div class="buildings-layout">
 
         <div class="placement-col">
@@ -650,10 +650,16 @@
             <button id="script-tab-manual" class="script-tab-btn script-tab-active" onclick="switchScriptTab('manual')">Manual</button>
             <button id="script-tab-auto" class="script-tab-btn" onclick="switchScriptTab('auto')">Auto (10s)</button>
           </div>
-          <textarea id="script-manual-editor" class="script-textarea" spellcheck="false"
-            placeholder="# Run manually with the ▶ Run button&#10;# Example:&#10;# if IRON_ORE &lt; 500:&#10;#     place(e_drill, iron)"></textarea>
-          <textarea id="script-auto-editor" class="script-textarea hidden" spellcheck="false"
-            placeholder="# Runs automatically every 10 seconds&#10;# Example:&#10;# if IRON_ORE &lt; 1000:&#10;#     place(e_drill, iron)"></textarea>
+          <div class="script-editor-wrap" id="script-manual-wrap">
+            <pre class="script-highlight" id="script-manual-hl" aria-hidden="true"></pre>
+            <textarea id="script-manual-editor" class="script-textarea" spellcheck="false"
+              placeholder="# Run manually with the ▶ Run button&#10;# Example:&#10;# if IRON_ORE &lt; 500:&#10;#     place(e_drill, iron)"></textarea>
+          </div>
+          <div class="script-editor-wrap hidden" id="script-auto-wrap">
+            <pre class="script-highlight" id="script-auto-hl" aria-hidden="true"></pre>
+            <textarea id="script-auto-editor" class="script-textarea" spellcheck="false"
+              placeholder="# Runs automatically every 10 seconds&#10;# Example:&#10;# if IRON_ORE &lt; 1000:&#10;#     place(e_drill, iron)"></textarea>
+          </div>
           <div class="script-output-header">Output</div>
           <div id="script-output" class="script-output">
             <div class="script-empty">Run a script to see output</div>

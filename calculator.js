@@ -434,11 +434,15 @@ function runCalculator() {
 function loadCalcToEditor() {
   const src = document.getElementById('calc-output')?.value ?? '';
   if (!src.trim()) return;
-  // Load into whichever script tab is currently active
   const manualActive = document.getElementById('script-tab-manual')?.classList.contains('script-tab-active');
   const editorId = manualActive ? 'script-manual-editor' : 'script-auto-editor';
+  const hlId     = manualActive ? 'script-manual-hl'     : 'script-auto-hl';
   const ta = document.getElementById(editorId);
-  if (ta) ta.value = src;
+  if (ta) {
+    ta.value = src;
+    if (typeof syncScriptHighlight === 'function')
+      syncScriptHighlight(ta, document.getElementById(hlId));
+  }
 }
 
 // Populate the dropdown once the DOM is ready
