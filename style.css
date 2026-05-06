@@ -1223,6 +1223,9 @@ button {
 }
 .recipe-icon-btn .item-icon { width: 26px; height: 26px; }
 .recipe-ingredient .item-icon { width: 20px; height: 20px; padding: 0; background: none; }
+.craft-icon .item-icon { width: 28px; height: 28px; vertical-align: text-bottom; }
+.tech-node-icon .item-icon, .tech-icon-img { width: 24px; height: 24px; padding: 0; background: none; }
+.research-name .item-icon { width: 20px; height: 20px; vertical-align: middle; padding: 0; background: none; }
 
 /* ── Start screen save list ─────────────────────────────────── */
 .save-panel {

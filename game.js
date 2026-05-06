@@ -322,6 +322,11 @@ function itemIcon(key) {
   return item.icon ?? '❓';
 }
 
+function techIconHtml(tech) {
+  if (tech.iconImg) return `<img class="item-icon tech-icon-img" src="${tech.iconImg}" alt="${tech.name}">`;
+  return `<span>${tech.icon ?? '⚙️'}</span>`;
+}
+
 // ── Robot Tech Data ───────────────────────────────────────────
 
 const ROBOT_CARGO_TECH_DATA = [
@@ -2538,7 +2543,7 @@ function renderCrafting() {
         const canStart = canAfford(recipe.inputs);
         const inputStr = Object.entries(recipe.inputs).map(([k, v]) => `${v}×${ITEMS[k]?.name ?? k}`).join(' + ');
         const outKey   = Object.keys(recipe.outputs)[0];
-        const outIcon  = ITEMS[outKey]?.icon ?? '';
+        const outIcon  = itemIcon(outKey);
         const outStr   = Object.entries(recipe.outputs).map(([k, v]) => `→ ${v}×${ITEMS[k]?.name ?? k}`).join(' ');
 
         const statusLine = isActive
@@ -3429,7 +3434,7 @@ function renderResearchTree() {
         ? `<div class="tech-node-desc">${tech.description.slice(0, 80)}${tech.description.length > 80 ? '…' : ''}</div>` : '';
       html += `<div class="tech-node ${cls}" data-node-key="${key}" ${clickData} title="${tech.description}">
         <div class="tech-node-head">
-          <span class="tech-node-icon">${tech.icon}</span>
+          <span class="tech-node-icon">${techIconHtml(tech)}</span>
           <div>
             <div class="tech-node-name">${tech.name}</div>
             <div class="tech-node-cost">${costStr}</div>
@@ -3603,7 +3608,7 @@ function renderResearchStatus() {
     if (!tech) { el.innerHTML = ''; return; }
     totalNeeded  = Math.max(...Object.values(tech.cost));
     timePerPack  = tech.timePerPack;
-    icon = tech.icon;
+    icon = techIconHtml(tech);
     name = tech.name;
   }
 

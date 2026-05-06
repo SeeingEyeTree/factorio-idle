@@ -5,7 +5,7 @@
 const TECHNOLOGIES = {
   // ── Red science only ──────────────────────────────────────────
   automation: {
-    name: 'Automation', icon: '⚙️',
+    name: 'Automation', icon: '⚙️', iconImg: 'data/icon_imgs/assembler_machine_1.png',
     cost: { redScience: 10 }, timePerPack: 10,
     prereqs: [],
     description: 'Unlocks Assembly Machine Mk1',
@@ -34,14 +34,14 @@ const TECHNOLOGIES = {
     unlockRecipes: ['landfill'], unlockBuildings: [],
   },*/
   radarTech: {
-    name: 'Radar', icon: '📡',
+    name: 'Radar', icon: '📡', iconImg: 'data/icon_imgs/radar.png',
     cost: { redScience: 20 }, timePerPack: 10,
     prereqs: [],
     description: 'Unlocks Radar for map exploration',
     unlockRecipes: ['radarItem'], unlockBuildings: ['radar'],
   },
   electricMiningDrill: {
-    name: 'Electric Mining Drill', icon: '🔌',
+    name: 'Electric Mining Drill', icon: '🔌', iconImg: 'data/icon_imgs/electric_mining_drill.png',
     cost: { redScience: 25 }, timePerPack: 10,
     prereqs: [],
     description: 'Unlocks Electric Mining Drill (0.5/s, 90 kW, no coal)',
@@ -55,7 +55,7 @@ const TECHNOLOGIES = {
     unlockRecipes: ['steel'], unlockBuildings: [],
   },
   logisticSciencePack: {
-    name: 'Logistic Science Pack', icon: '🟢',
+    name: 'Logistic Science Pack', icon: '🟢', iconImg: 'data/icon_imgs/science_pack_2.png',
     cost: { redScience: 75 }, timePerPack: 5,
     prereqs: ['automation', 'logistics'],
     description: 'Unlocks Green Science Pack crafting',
@@ -77,35 +77,35 @@ const TECHNOLOGIES = {
     unlockRecipes: ['grenade', 'piercingRoundsMag'], unlockBuildings: [],
   },
   automation2: {
-    name: 'Automation 2', icon: '🏗️',
+    name: 'Automation 2', icon: '🏗️', iconImg: 'data/icon_imgs/assembler_machine_2.png',
     cost: { redScience: 40, greenScience: 40 }, timePerPack: 15,
     prereqs: ['automation', 'logisticSciencePack', 'steelProcessing'],
     description: 'Unlocks Assembly Machine Mk2 (speed ×0.75, 150 kW)',
     unlockRecipes: ['assemblyMachine2Item'], unlockBuildings: ['assembly2'],
   },
   advancedMaterialProcessing: {
-    name: 'Advanced Material Processing', icon: '🟧',
+    name: 'Advanced Material Processing', icon: '🟧', iconImg: 'data/icon_imgs/steel_furnace.png',
     cost: { redScience: 75, greenScience: 75 }, timePerPack: 30,
     prereqs: ['logisticSciencePack', 'steelProcessing'],
     description: 'Unlocks Steel Furnace (2× faster smelting)',
     unlockRecipes: ['steelFurnaceItem'], unlockBuildings: ['steelFurnace'],
   },
   engineTech: {
-    name: 'Engine', icon: '🛠️',
+    name: 'Engine', icon: '🛠️', iconImg: 'data/icon_imgs/engine_unit.png',
     cost: { redScience: 100, greenScience: 100 }, timePerPack: 15,
     prereqs: ['logisticSciencePack', 'steelProcessing'],
     description: 'Unlocks Engine Unit crafting',
     unlockRecipes: ['engineUnit'], unlockBuildings: [],
   },
   accumulators: {
-    name: 'Electric energy accumulators', icon: '🔋',
+    name: 'Electric energy accumulators', icon: '🔋', iconImg: 'data/icon_imgs/accumulator.png',
     cost: { redScience: 150, greenScience: 150 }, timePerPack: 30,
     prereqs: ['batteryTech'],
     description: 'Unlocks Accumulator (stores 5 MJ of power)',
     unlockRecipes: ['accumulatorItem'], unlockBuildings: ['accumulator'],
   },
   solarEnergy: {
-    name: 'Solar Energy', icon: '☀️',
+    name: 'Solar Energy', icon: '☀️', iconImg: 'data/icon_imgs/solar_panel.png',
     cost: { redScience: 250, greenScience: 250 }, timePerPack: 30,
     prereqs: ['logisticSciencePack', 'steelProcessing'],
     description: 'Unlocks Solar Panel (60 kW, no fuel required)',
@@ -176,7 +176,7 @@ const TECHNOLOGIES = {
     unlockRecipes: ['advancedCircuit'], unlockBuildings: [],
   },
   chemicalSciencePack: {
-    name: 'Chemical Science Pack', icon: '🧪',
+    name: 'Chemical Science Pack', icon: '🧪', iconImg: 'data/icon_imgs/science_pack_3.png',
     cost: { redScience: 75, greenScience: 75 }, timePerPack: 10,
     prereqs: ['advancedCircuit', 'sulfurProcessing'],
     description: 'Unlocks Blue Science Pack crafting',
@@ -200,21 +200,21 @@ const TECHNOLOGIES = {
     unlockRecipes: ['lubricant'], unlockBuildings: [],
   },
   electricEngine: {
-    name: 'Electric Engine', icon: '🌀',
+    name: 'Electric Engine', icon: '🌀', iconImg: 'data/icon_imgs/electric_engine_unit.png',
     cost: { redScience: 50, greenScience: 50, blueScience: 50 }, timePerPack: 30,
     prereqs: ['lubricantTech'],
     description: 'Unlocks Electric Engine Unit crafting',
     unlockRecipes: ['electricEngineUnit'], unlockBuildings: [],
   },
   robotics: {
-    name: 'Robotics', icon: '🦾',
+    name: 'Robotics', icon: '🦾', iconImg: 'data/icon_imgs/flying_robot_frame.png',
     cost: { redScience: 75, greenScience: 75, blueScience: 75 }, timePerPack: 30,
     prereqs: ['electricEngine', 'batteryTech'],
     description: 'Foundation for drone automation technologies',
     unlockRecipes: ['flyingRobotFrame'], unlockBuildings: [],
   },
   constructionRobotics: {
-    name: 'Construction Robotics', icon: '🤖',
+    name: 'Construction Robotics', icon: '🤖', iconImg: 'data/icon_imgs/construction_robot.png',
     cost: { redScience: 100, greenScience: 100, blueScience: 100 }, timePerPack: 30,
     prereqs: ['robotics'],
     description: 'Unlocks Construction Robots (active deployment coming soon)',
@@ -229,7 +229,7 @@ const TECHNOLOGIES = {
     unlockRecipes: ['rail','ironStick','locomotive'], unlockBuildings: [],
   },
   spidertron: {
-    name: 'Spider Tron', icon: '�️',
+    name: 'Spider Tron', icon: '🕷️', iconImg: 'data/icon_imgs/spidertron.png',
     cost: { redScience: 2500, greenScience: 2500, blueScience: 2500, yellowScience: 2500,purpleScience: 2500, blackScience: 2500 }, timePerPack: 30,
     prereqs: ['speedModuleTech3', 'nuclearPowerTech', 'military4'],
     description: 'Its a spider. It has guns. It can climb walls. It is the ultimate combat machine.',
@@ -265,14 +265,14 @@ const TECHNOLOGIES = {
     unlockRecipes: [], unlockBuildings: [],
   },*/
   electricFurnaceTech: {
-    name: 'Electric Furnace', icon: '⚡',
+    name: 'Electric Furnace', icon: '⚡', iconImg: 'data/icon_imgs/electric_furnace.png',
     cost: { redScience: 250, greenScience: 250, blueScience: 250 }, timePerPack: 30,
     prereqs: ['advancedMaterialProcessing', 'chemicalSciencePack'],
     description: 'Unlocks Electric Furnace (2× speed, 180 kW, no coal)',
     unlockRecipes: ['electricFurnaceItem'], unlockBuildings: ['electricFurnace'],
   },
   militarySciencePack: {
-    name: 'Military Science Pack', icon: '⬛',
+    name: 'Military Science Pack', icon: '⬛', iconImg: 'data/icon_imgs/military_science_pack.png',
     cost: { redScience: 30, greenScience: 30 }, timePerPack: 15,
     prereqs: ['military2', 'stoneWallTech'],
     description: 'Unlocks Military Science Pack crafting and military items',
@@ -344,7 +344,7 @@ const TECHNOLOGIES = {
   },
   */
   productionSciencePack: {
-    name: 'Production Science Pack', icon: '🟣',
+    name: 'Production Science Pack', icon: '🟣', iconImg: 'data/icon_imgs/production_science_pack.png',
     cost: { redScience: 100, greenScience: 100, blueScience: 100 }, timePerPack: 30,
     prereqs: ['electricFurnaceTech', 'railTech', 'productionModuleTech1'],
     description: 'Unlocks Production Science Pack and productivity modules',
@@ -458,7 +458,7 @@ const TECHNOLOGIES = {
     unlockRecipes: ['rainbowScience'], unlockBuildings: [],
   },
   utilitySciencePack: {
-    name: 'Utility Science Pack', icon: '🟡',
+    name: 'Utility Science Pack', icon: '🟡', iconImg: 'data/icon_imgs/utility_science_pack.png',
     cost: { redScience: 100, greenScience: 100, blueScience: 100 }, timePerPack: 30,
     prereqs: ['robotics', 'processingUnitTech', 'lowDensityStructureTech'],
     description: 'Unlocks Utility Science Pack and late-game items',
