@@ -525,6 +525,7 @@
         <button class="graph-tab graph-tab-active" data-gmode="production" onclick="setGraphMode('production')">Production</button>
         <button class="graph-tab"                   data-gmode="consumption" onclick="setGraphMode('consumption')">Consumption</button>
         <button class="graph-tab"                   data-gmode="net" onclick="setGraphMode('net')">Net</button>
+        <button class="graph-tab"                   data-gmode="alltime" onclick="setGraphMode('alltime')">All Time</button>
       </div>
       <div class="graph-layout">
         <div class="graph-container">
@@ -620,6 +621,16 @@
               <option value="furnace">Stone Furnace</option>
               <option value="steelFurnace">Steel Furnace</option>
               <option value="electricFurnace">Electric Furnace</option>
+            </select>
+            <select id="calc-module" title="Module (fills all slots)">
+              <option value="">No Modules</option>
+              <option value="speedModule">Speed 1</option>
+              <option value="speedModule2">Speed 2</option>
+              <option value="speedModule3">Speed 3</option>
+              <option value="productivityModule">Prod 1</option>
+              <option value="productivityModule2">Prod 2</option>
+              <option value="productivityModule3">Prod 3</option>
+              <option value="gamerModule">Gamer Module</option>
             </select>
             <button class="btn-primary script-btn" onclick="runCalculator()">Generate</button>
           </div>

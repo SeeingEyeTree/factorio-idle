@@ -570,7 +570,7 @@ function createState(settings) {
     craftActive: null,
     scriptMemory: {},
     starredItems: [],
-    productionHistory: { samples: [], prodSamples: [], consSamples: [] },
+    productionHistory: { samples: [], prodSamples: [], consSamples: [], allTimeSamples: [], allTimeInterval: 0 },
     seen: {},
     allPaused: false,
     devMode: false,
@@ -971,6 +971,23 @@ function howManyCanAfford(inputs, maxCycles) {
     n = Math.min(n, Math.floor((state.inventory[item] ?? 0) / amt));
   }
   return Math.max(0, n);
+}
+
+function clampByU235Reserve(recipe, n) {
+  const netIn = (recipe.inputs.uranium235 ?? 0) - (recipe.outputs?.uranium235 ?? 0);
+  if (netIn <= 0) return n;
+  const canUse = Math.max(0, (state.inventory.uranium235 ?? 0) - 50);
+  return Math.min(n, Math.floor(canUse / netIn));
+}
+
+function effectiveSteamMax() {
+  const boilers = state.buildings.filter(b => b.type === 'boiler').length;
+  return STEAM_MAX + boilers * 200;
+}
+
+function effectiveWaterMax() {
+  const engines = state.buildings.filter(b => b.type === 'steamEngine').length;
+  return WATER_MAX + engines * 200;
 }
 
 function metaEnergyMult(type) {
@@ -1417,7 +1434,7 @@ function tick() {
         else {
           const outAmt = recipe.outputs[outputKey];
           const byLimit = gs.limit === Infinity ? cycles : Math.max(0, Math.floor((gs.limit - inv) / outAmt));
-          const actual = Math.min(afford, byLimit, cycles);
+          const actual = clampByU235Reserve(recipe, Math.min(afford, byLimit, cycles));
           if (actual > 0) {
             for (const [k, v] of Object.entries(recipe.inputs)) recordConsumed(k, v * actual);
             for (const [k, v] of Object.entries(recipe.outputs)) {
@@ -1455,7 +1472,7 @@ function tick() {
         else {
           const outAmt = recipe.outputs[outputKey];
           const byLimit = gs.limit === Infinity ? cycles : Math.max(0, Math.floor((gs.limit - inv) / outAmt));
-          const actual = Math.min(afford, byLimit, cycles);
+          const actual = clampByU235Reserve(recipe, Math.min(afford, byLimit, cycles));
           if (actual > 0) {
             for (const [k, v] of Object.entries(recipe.inputs)) recordConsumed(k, v * actual);
             for (const [k, v] of Object.entries(recipe.outputs)) {
@@ -1494,7 +1511,7 @@ function tick() {
         else {
           const outAmt = recipe.outputs[outputKey];
           const byLimit = gs.limit === Infinity ? cycles : Math.max(0, Math.floor((gs.limit - inv) / outAmt));
-          const actual = Math.min(afford, byLimit, cycles);
+          const actual = clampByU235Reserve(recipe, Math.min(afford, byLimit, cycles));
           if (actual > 0) {
             for (const [k, v] of Object.entries(recipe.inputs)) recordConsumed(k, v * actual);
             for (const [k, v] of Object.entries(recipe.outputs)) {
@@ -1533,7 +1550,7 @@ function tick() {
         else {
           const outAmt = recipe.outputs[outputKey];
           const byLimit = gs.limit === Infinity ? cycles : Math.max(0, Math.floor((gs.limit - inv) / outAmt));
-          const actual = Math.min(afford, byLimit, cycles);
+          const actual = clampByU235Reserve(recipe, Math.min(afford, byLimit, cycles));
           if (actual > 0) {
             for (const [k, v] of Object.entries(recipe.inputs)) recordConsumed(k, v * actual);
             for (const [k, v] of Object.entries(recipe.outputs)) {
@@ -1572,7 +1589,7 @@ function tick() {
         else {
           const outAmt = recipe.outputs[outputKey];
           const byLimit = gs.limit === Infinity ? cycles : Math.max(0, Math.floor((gs.limit - inv) / outAmt));
-          const actual = Math.min(afford, byLimit, cycles);
+          const actual = clampByU235Reserve(recipe, Math.min(afford, byLimit, cycles));
           if (actual > 0) {
             for (const [k, v] of Object.entries(recipe.inputs)) recordConsumed(k, v * actual);
             for (const [k, v] of Object.entries(recipe.outputs)) {
@@ -1611,7 +1628,7 @@ function tick() {
         else {
           const outAmt = recipe.outputs[outputKey];
           const byLimit = gs.limit === Infinity ? cycles : Math.max(0, Math.floor((gs.limit - inv) / outAmt));
-          const actual = Math.min(afford, byLimit, cycles);
+          const actual = clampByU235Reserve(recipe, Math.min(afford, byLimit, cycles));
           if (actual > 0) {
             for (const [k, v] of Object.entries(recipe.inputs)) recordConsumed(k, v * actual);
             for (const [k, v] of Object.entries(recipe.outputs)) {
@@ -1636,7 +1653,7 @@ function tick() {
     const patch = state.patches[b.resource];
     if (!patch || patch.remaining <= 0) { gs.starved = true; continue; }
     gs.starved = false;
-    const extracted = Math.min(PUMPJACK_SPEED * dt * powerRatio, patch.remaining);
+    const extracted = Math.min(PUMPJACK_SPEED * miningProdMult() * dt * powerRatio, patch.remaining);
     patch.remaining -= extracted;
     recordProduced(b.resource, extracted);
   }
@@ -1664,7 +1681,7 @@ function tick() {
         else {
           const outAmt = recipe.outputs[outputKey];
           const byLimit = gs.limit === Infinity ? cycles : Math.max(0, Math.floor((gs.limit - inv) / outAmt));
-          const actual = Math.min(afford, byLimit, cycles);
+          const actual = clampByU235Reserve(recipe, Math.min(afford, byLimit, cycles));
           if (actual > 0) {
             for (const [k, v] of Object.entries(recipe.inputs)) recordConsumed(k, v * actual);
             for (const [k, v] of Object.entries(recipe.outputs)) {
@@ -1703,7 +1720,7 @@ function tick() {
         else {
           const outAmt = recipe.outputs[outputKey];
           const byLimit = gs.limit === Infinity ? cycles : Math.max(0, Math.floor((gs.limit - inv) / outAmt));
-          const actual = Math.min(afford, byLimit, cycles);
+          const actual = clampByU235Reserve(recipe, Math.min(afford, byLimit, cycles));
           if (actual > 0) {
             for (const [k, v] of Object.entries(recipe.inputs)) recordConsumed(k, v * actual);
             for (const [k, v] of Object.entries(recipe.outputs)) {
@@ -1742,7 +1759,7 @@ function tick() {
         else {
           const outAmt = recipe.outputs[outputKey];
           const byLimit = gs.limit === Infinity ? cycles : Math.max(0, Math.floor((gs.limit - inv) / outAmt));
-          const actual = Math.min(afford, byLimit, cycles);
+          const actual = clampByU235Reserve(recipe, Math.min(afford, byLimit, cycles));
           if (actual > 0) {
             for (const [k, v] of Object.entries(recipe.inputs)) recordConsumed(k, v * actual);
             if (group.recipe === 'uraniumProcessing') {
@@ -1789,7 +1806,7 @@ function tick() {
         else {
           const outAmt = recipe.outputs[outputKey];
           const byLimit = gs.limit === Infinity ? cycles : Math.max(0, Math.floor((gs.limit - inv) / outAmt));
-          const actual = Math.min(afford, byLimit, cycles);
+          const actual = clampByU235Reserve(recipe, Math.min(afford, byLimit, cycles));
           if (actual > 0) {
             for (const [k, v] of Object.entries(recipe.inputs)) recordConsumed(k, v * actual);
             for (const [k, v] of Object.entries(recipe.outputs)) {
@@ -1809,7 +1826,7 @@ function tick() {
   const pumpGroup = groups['offshoreP'];
   if (pumpGroup) {
     const gs = getGS('offshoreP');
-    if (gs.enabled) { state.water = Math.min(WATER_MAX, state.water + pumpGroup.buildings.length * OFFSHORE_PUMP_WATER_PER_SEC * dt); gs.starved = false; }
+    if (gs.enabled) { state.water = Math.min(effectiveWaterMax(), state.water + pumpGroup.buildings.length * OFFSHORE_PUMP_WATER_PER_SEC * dt); gs.starved = false; }
     else gs.starved = true;
   }
 
@@ -1830,7 +1847,7 @@ function tick() {
       const waterOk = state.water >= waterNeeded;
       if (coalOk && waterOk) {
         state.water -= waterNeeded;
-        state.steam = Math.min(STEAM_MAX, state.steam + count * BOILER_STEAM_PER_SEC * dt);
+        state.steam = Math.min(effectiveSteamMax(), state.steam + count * BOILER_STEAM_PER_SEC * dt);
         gs.starved = false; gs.noWater = false;
       } else { gs.starved = true; gs.noWater = !waterOk; }
     } else { gs.starved = true; }
@@ -1863,6 +1880,8 @@ function tick() {
           gs.fuelAcc = 0;
           fuelOk = false;
         }
+      } else if ((state.inventory.uraniumFuelCell ?? 0) === 0) {
+        fuelOk = false;
       }
       if (fuelOk) { state.powerKw += count * NUCLEAR_REACTOR_KW; gs.starved = false; }
       else { gs.starved = true; }
@@ -1928,7 +1947,7 @@ function tick() {
   if (radarGroup) {
     const gs = getGS('radar');
     if (gs.enabled) {
-      gs.radarAcc = (gs.radarAcc ?? 0) + radarGroup.buildings.length * dt;
+      gs.radarAcc = (gs.radarAcc ?? 0) + radarGroup.buildings.length * powerRatio * dt;
       while (gs.radarAcc >= RADAR_CHUNK_TIME) { gs.radarAcc -= RADAR_CHUNK_TIME; revealChunk(); }
     }
   }
@@ -1945,7 +1964,7 @@ function tick() {
     })();
     if (gs.enabled && techData) {
       const { speedMult: labSpeedMult } = calcGroupModifiers('lab', count, gs.modules);
-      gs.packAcc = (gs.packAcc ?? 0) + count * labSpeedMult * dt / techData.timePerPack;
+      gs.packAcc = (gs.packAcc ?? 0) + count * labSpeedMult * powerRatio * dt / techData.timePerPack;
       while (gs.packAcc >= 1) {
         const free = state.devFreeResearch && state.devMode;
         const hasAllPacks = free || Object.keys(techData.cost).every(pk => (state.inventory[pk] ?? 0) >= 1);
@@ -2024,9 +2043,10 @@ function tick() {
     };
 
     // Populate productionHistory samples for graph using new rates
-    if (!state.productionHistory) state.productionHistory = { samples: [], prodSamples: [], consSamples: [] };
+    if (!state.productionHistory) state.productionHistory = { samples: [], prodSamples: [], consSamples: [], allTimeSamples: [], allTimeInterval: 0 };
     if (!state.productionHistory.prodSamples) state.productionHistory.prodSamples = [];
     if (!state.productionHistory.consSamples) state.productionHistory.consSamples = [];
+    if (!state.productionHistory.allTimeSamples) state.productionHistory.allTimeSamples = [];
 
     state.productionHistory.samples.push({ ...state.inventoryDelta });
     state.productionHistory.prodSamples.push({ ...state.productionRates });
@@ -2034,6 +2054,14 @@ function tick() {
     if (state.productionHistory.samples.length     > 120) state.productionHistory.samples.shift();
     if (state.productionHistory.prodSamples.length > 120) state.productionHistory.prodSamples.shift();
     if (state.productionHistory.consSamples.length > 120) state.productionHistory.consSamples.shift();
+
+    // All-time snapshot every 60 seconds
+    state.productionHistory.allTimeInterval = (state.productionHistory.allTimeInterval ?? 0) + RATE_WINDOW_SECS;
+    if (state.productionHistory.allTimeInterval >= 60) {
+      state.productionHistory.allTimeInterval = 0;
+      state.productionHistory.allTimeSamples.push({ t: Date.now(), produced: { ...state.itemsProduced } });
+      if (state.productionHistory.allTimeSamples.length > 1440) state.productionHistory.allTimeSamples.shift();
+    }
   }
 
   // ── Auto-run script ──
@@ -2164,7 +2192,12 @@ function tickPlacement() {
   if (pct >= 1) {
     const toPlace = Math.min(placeBatch, placeQueue.length);
     for (let i = 0; i < toPlace; i++) {
-      state.buildings.push({ ...placeQueue[0], id: state.nextId++ });
+      const placed = { ...placeQueue[0], id: state.nextId++ };
+      state.buildings.push(placed);
+      if (placed.initModuleType) {
+        const k = groupKey(placed);
+        fillGroupModules(k, placed.initModuleType);
+      }
       placeQueue.shift();
     }
     processNextPlacement();
@@ -2355,8 +2388,8 @@ function renderInventory() {
 }
 
 function renderPower() {
-  const waterPct = (state.water / WATER_MAX * 100).toFixed(1);
-  const steamPct = (state.steam / STEAM_MAX * 100).toFixed(1);
+  const waterPct = (state.water / effectiveWaterMax() * 100).toFixed(1);
+  const steamPct = (state.steam / effectiveSteamMax() * 100).toFixed(1);
   const pw      = Math.floor(state.powerKw);
   const demand  = Math.floor(state.powerDemandKw ?? 0);
   const cap     = Math.floor(state.powerCapacityKw ?? pw);
@@ -2382,13 +2415,13 @@ function renderPower() {
     <div class="fluid-cell">
       <span class="fluid-icon">💧</span>
       <div class="fluid-track"><div class="fluid-fill water-fill" style="width:${waterPct}%"></div></div>
-      <span class="fluid-val">${Math.floor(state.water).toLocaleString()} / 25k</span>
+      <span class="fluid-val">${Math.floor(state.water).toLocaleString()} / ${(effectiveWaterMax() / 1000).toFixed(0)}k</span>
     </div>
     <div class="fluid-sep">·</div>
     <div class="fluid-cell">
       <span class="fluid-icon">♨️</span>
       <div class="fluid-track"><div class="fluid-fill steam-fill" style="width:${steamPct}%"></div></div>
-      <span class="fluid-val">${Math.floor(state.steam).toLocaleString()} / 25k</span>
+      <span class="fluid-val">${Math.floor(state.steam).toLocaleString()} / ${(effectiveSteamMax() / 1000).toFixed(0)}k</span>
     </div>
     <div class="fluid-sep">·</div>
     <div class="fluid-cell power-cell">
@@ -2660,14 +2693,14 @@ function renderAllPlacementPickers() {
 
 // ── Building Copy ─────────────────────────────────────────────
 
-function addBuildingFromGroup(key, count) {
+function addBuildingFromGroup(key, count, frontOfQueue = false) {
   const groups = buildGroupMap();
   const group = groups[key];
   if (!group) return;
   const type = group.type;
   if (!isUnlocked('building', type)) { notify(`Research required.`, 'warning'); return; }
   const costs = BUILDING_COSTS[type] ?? {};
-  let placed = 0;
+  const targets = [];
   for (let i = 0; i < count; i++) {
     if (!canAfford(costs)) {
       if (i === 0) notify(`Need ${COST_LABEL[type] ?? type} — craft it first`, 'warning');
@@ -2693,10 +2726,14 @@ function addBuildingFromGroup(key, count) {
       target = { type };
     }
     target.displayName = proto.displayName ?? type;
-    placeQueue.push(target);
-    placed++;
+    targets.push(target);
   }
-  if (placed > 0) { updatePlacementUI(); if (!placing) processNextPlacement(); }
+  if (targets.length > 0) {
+    if (frontOfQueue) placeQueue.unshift(...targets);
+    else placeQueue.push(...targets);
+    updatePlacementUI();
+    if (!placing) processNextPlacement();
+  }
 }
 
 // ── Settings ──────────────────────────────────────────────────
@@ -2933,7 +2970,7 @@ function renderBuildings() {
     if (type === 'offshoreP') {
       return buildingCard('💧', 'Offshore Pump', count, 'no fuel cost',
         gs.enabled ? `${(count * OFFSHORE_PUMP_WATER_PER_SEC).toLocaleString()} water/sec` : 'Disabled',
-        gs.enabled, state.water / WATER_MAX, key);
+        gs.enabled, state.water / effectiveWaterMax(), key);
     }
 
     if (type === 'boiler') {
@@ -2943,7 +2980,7 @@ function renderBuildings() {
                                      : `${count * BOILER_STEAM_PER_SEC} steam/sec`;
       return buildingCard('♨️', 'Boiler', count,
         `coal: ${(count * BOILER_COAL_PER_SEC).toFixed(3)}/sec · water: ${count * BOILER_WATER_PER_SEC}/sec`,
-        statusTxt, gs.enabled && !gs.starved, state.steam / STEAM_MAX, key);
+        statusTxt, gs.enabled && !gs.starved, state.steam / effectiveSteamMax(), key);
     }
 
     if (type === 'steamEngine') {
@@ -2954,7 +2991,7 @@ function renderBuildings() {
                                       : `${pw} kW`;
       return buildingCard('⚡', 'Steam Engine', count,
         `${count * STEAM_ENGINE_STEAM_PER_SEC} steam/sec → ${count * STEAM_ENGINE_KW} kW max`,
-        steamStatus, gs.enabled && !gs.standby && state.steam > 0, state.steam / STEAM_MAX, key);
+        steamStatus, gs.enabled && !gs.standby && state.steam > 0, state.steam / effectiveSteamMax(), key);
     }
 
     if (type === 'radar') {
@@ -3251,7 +3288,7 @@ function buildingCard(icon, name, count, meta, statusTxt, isActive, barFill, key
       <div class="building-status ${stClass}">${statusTxt}</div>
       <div class="mini-bar"><div class="mini-fill ${isActive ? 'fill-active' : ''}" style="width:${fillPct}%"></div></div>
       <div class="building-add-row">
-        <button class="btn-add-building" data-add="${key}">+ Add</button>
+        <button class="btn-add-building" data-add="${key}" title="Alt+click to place at front of queue">+ Add</button>
         <input type="number" class="add-count-input" data-add-count="${key}" min="1" value="${buildingAddCounts[key] ?? 1}" onchange="setBuildingAddCount('${key}', this.value)">
       </div>
     </div>
@@ -4033,7 +4070,7 @@ function expandPerimeter() {
     notify(`Need ${Math.max(0, Math.pow(newSideLength, 2) - chunks)} more explored chunks`, 'warning');
     return;
   }
-  const concreteCost = state.perimeter.sideLength * 10;
+  const concreteCost = (2 * state.perimeter.sideLength + 1) * 10;
   if ((state.inventory.concrete ?? 0) < concreteCost) {
     notify(`Expanding requires ${concreteCost} Concrete (you have ${Math.floor(state.inventory.concrete ?? 0)})`, 'warning');
     return;
@@ -4160,7 +4197,7 @@ function renderPerimeter() {
     ? Math.round(p.laserTurrets * LASER_KW_PER_TURRET * previewKillTimeSec)
     : null;
 
-  const concreteCost = p.sideLength * 10;
+  const concreteCost = (2 * p.sideLength + 1) * 10;
   const newSL   = p.sideLength + 1;
   const chunks  = state.chunksRevealed ?? 0;
   const canExpand = Math.sqrt(chunks) > newSL && (state.inventory.concrete ?? 0) >= concreteCost;
@@ -4530,15 +4567,35 @@ function renderGraphLegend() {
   const starred = state.starredItems ?? [];
   if (starred.length === 0) { host.innerHTML = ''; return; }
 
-  // Compute "current value" for each starred item from latest sample of selected mode.
   const ph = state.productionHistory ?? {};
+  const COLORS = ['#f4a83a','#4caf50','#3a8fd6','#e04040','#9c27b0','#00bcd4','#ff7043','#8bc34a','#cddc39','#ff5252','#7e57c2','#26a69a'];
+
+  if (graphMode === 'alltime') {
+    const atSamples = ph.allTimeSamples ?? [];
+    const last = atSamples[atSamples.length - 1];
+    const rows = starred.map((k, ci) => {
+      const color = COLORS[ci % COLORS.length];
+      const name  = ITEMS[k]?.name ?? k;
+      const total = last?.produced[k] ?? state.itemsProduced?.[k] ?? 0;
+      const fmt = total >= 1e6 ? (total/1e6).toFixed(2)+'M' : total >= 1000 ? (total/1000).toFixed(1)+'k' : total.toFixed(0);
+      return `<div class="graph-legend-row" title="${name}">
+        <span class="graph-legend-swatch" style="background:${color}"></span>
+        <span class="graph-legend-icon">${itemIcon(k)}</span>
+        <span class="graph-legend-name">${name}</span>
+        <span class="graph-legend-rate">${fmt} total</span>
+      </div>`;
+    }).join('');
+    host.innerHTML = rows;
+    return;
+  }
+
+  // Compute "current value" for each starred item from latest sample of selected mode.
   const samples =
       graphMode === 'production'  ? (ph.prodSamples ?? [])
     : graphMode === 'consumption' ? (ph.consSamples ?? [])
     :                                (ph.samples     ?? []);
   const last = samples[samples.length - 1] ?? {};
 
-  const COLORS = ['#f4a83a','#4caf50','#3a8fd6','#e04040','#9c27b0','#00bcd4','#ff7043','#8bc34a','#cddc39','#ff5252','#7e57c2','#26a69a'];
   const rows = starred.map((k, ci) => {
     const color = COLORS[ci % COLORS.length];
     const name  = ITEMS[k]?.name ?? k;
@@ -4554,16 +4611,91 @@ function renderGraphLegend() {
   host.innerHTML = rows;
 }
 
+function fmtCount(v) {
+  if (v >= 1e9) return (v/1e9).toFixed(2)+'B';
+  if (v >= 1e6) return (v/1e6).toFixed(2)+'M';
+  if (v >= 1000) return (v/1000).toFixed(1)+'k';
+  return v.toFixed(0);
+}
+
+function renderGraphAllTime(canvas, ctx, ph, starred) {
+  const W = canvas.width  = canvas.offsetWidth  || 800;
+  const H = canvas.height = canvas.offsetHeight || 300;
+  ctx.clearRect(0, 0, W, H);
+
+  if (starred.length === 0) {
+    ctx.fillStyle = '#6b7587'; ctx.font = '14px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('Star items in the Inventory tab to chart their totals here', W/2, H/2);
+    return;
+  }
+  const samples = ph.allTimeSamples ?? [];
+  if (samples.length < 2) {
+    ctx.fillStyle = '#6b7587'; ctx.font = '14px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('Collecting all-time data… (first sample in ~60s)', W/2, H/2);
+    return;
+  }
+
+  const COLORS = ['#f4a83a','#4caf50','#3a8fd6','#e04040','#9c27b0','#00bcd4','#ff7043','#8bc34a','#cddc39','#ff5252','#7e57c2','#26a69a'];
+  const pad = { top: 14, bottom: 22, left: 60, right: 10 };
+  const plotW = W - pad.left - pad.right;
+  const plotH = H - pad.top - pad.bottom;
+
+  const t0 = samples[0].t;
+  const t1 = samples[samples.length - 1].t;
+  const tSpan = t1 - t0 || 1;
+
+  let maxVal = 0;
+  for (const s of samples)
+    for (const k of starred) { const v = s.produced[k] ?? 0; if (v > maxVal) maxVal = v; }
+  if (maxVal === 0) maxVal = 1;
+
+  const scaleY = v => pad.top + plotH - (v / maxVal) * plotH;
+  const scaleX = s => pad.left + ((s.t - t0) / tSpan) * plotW;
+
+  ctx.strokeStyle = '#2e3847'; ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.top + (i / 4) * plotH;
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(W - pad.right, y); ctx.stroke();
+    const v = maxVal * (1 - i / 4);
+    ctx.fillStyle = '#6b7587'; ctx.font = '10px monospace'; ctx.textAlign = 'right';
+    ctx.fillText(fmtCount(v), pad.left - 4, y + 3);
+  }
+
+  starred.forEach((k, ci) => {
+    ctx.strokeStyle = COLORS[ci % COLORS.length]; ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let i = 0; i < samples.length; i++) {
+      const x = scaleX(samples[i]);
+      const y = scaleY(samples[i].produced[k] ?? 0);
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  });
+
+  // X-axis time labels
+  const elapsedMin = Math.round(tSpan / 60000);
+  ctx.fillStyle = '#6b7587'; ctx.font = '10px monospace'; ctx.textAlign = 'center';
+  ctx.fillText('0', pad.left, H - 4);
+  ctx.fillText(elapsedMin + 'm ago', W - pad.right, H - 4);
+  ctx.fillText(Math.round(elapsedMin/2) + 'm ago', W/2, H - 4);
+}
+
 function renderGraph() {
   const canvas = document.getElementById('graph-canvas');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
   const ph = state.productionHistory ?? {};
+  const starred = state.starredItems ?? [];
+
+  if (graphMode === 'alltime') {
+    renderGraphAllTime(canvas, ctx, ph, starred);
+    return;
+  }
+
   const samples =
       graphMode === 'production'  ? (ph.prodSamples ?? [])
     : graphMode === 'consumption' ? (ph.consSamples ?? [])
     :                                (ph.samples     ?? []);
-  const starred = state.starredItems ?? [];
 
   const W = canvas.width  = canvas.offsetWidth  || 800;
   const H = canvas.height = canvas.offsetHeight || 300;
@@ -4854,7 +4986,7 @@ function setupEventDelegation() {
     if (add) {
       const countEl = add.closest('.building-add-row')?.querySelector('[data-add-count]');
       const count = Math.max(1, parseInt(countEl?.value ?? String(buildingAddCounts[add.dataset.add] ?? 1)) || 1);
-      addBuildingFromGroup(add.dataset.add, count);
+      addBuildingFromGroup(add.dataset.add, count, e.altKey);
       return;
     }
     const recipeBtn = e.target.closest('[data-group-recipe]');

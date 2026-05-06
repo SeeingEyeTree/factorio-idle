@@ -452,7 +452,7 @@ class ScriptEvaluator {
         if (this.truthy(this.evalExpr(stmt.test)))
           return this.execBlock(stmt.body);
         if (stmt.orelse?.length) {
-          if (stmt.orelse[0]?.type === 'if') return this.execStmt(stmt.orelse[0]);
+          if (stmt.orelse.length === 1 && stmt.orelse[0]?.type === 'if') return this.execStmt(stmt.orelse[0]);
           return this.execBlock(stmt.orelse);
         }
         return null;
@@ -640,6 +640,15 @@ function buildScriptContext() {
   ctx.GUN_TURRET_ITEM   = Math.floor(inv.gunTurretItem        ?? 0);
   ctx.LASER_TURRET_ITEM = Math.floor(inv.laserTurretItem      ?? 0);
 
+  // ── Modules (in inventory, not installed)
+  ctx.SPEED_MODULE   = Math.floor(inv.speedModule            ?? 0);
+  ctx.SPEED_MODULE_2 = Math.floor(inv.speedModule2           ?? 0);
+  ctx.SPEED_MODULE_3 = Math.floor(inv.speedModule3           ?? 0);
+  ctx.PROD_MODULE    = Math.floor(inv.productivityModule      ?? 0);
+  ctx.PROD_MODULE_2  = Math.floor(inv.productivityModule2    ?? 0);
+  ctx.PROD_MODULE_3  = Math.floor(inv.productivityModule3    ?? 0);
+  ctx.GAMER_MODULE   = Math.floor(inv.gamerModule            ?? 0);
+
   // ── Power
   ctx.POWER_GEN       = state.powerKw         ?? 0;
   ctx.POWER_DEMAND    = state.powerDemandKw   ?? 0;
@@ -794,9 +803,9 @@ function buildScriptContext() {
     scriptOutput.push({ type: 'info', text: `Gave ${count.toLocaleString()}× ${key}` });
   };
 
-  // ── place(type, arg, n=1)
-  ctx.place = function(type, arg, n) {
-    scriptPlaceBuilding(String(type ?? ''), arg != null ? String(arg) : null, n);
+  // ── place(type, arg, n=1, module=null)
+  ctx.place = function(type, arg, n, mod) {
+    scriptPlaceBuilding(String(type ?? ''), arg != null ? String(arg) : null, n, mod != null ? String(mod) : null);
   };
 
   // ── research(name)
@@ -883,7 +892,22 @@ function buildScriptContext() {
 
 // ── scriptPlaceBuilding ───────────────────────────────────────
 
-function scriptPlaceBuilding(type, arg, n) {
+function scriptPlaceBuilding(type, arg, n, moduleType) {
+  const MODULE_ALIAS = {
+    speed_module: 'speedModule',   speed1: 'speedModule',   speed_1: 'speedModule',
+    speed_module_2: 'speedModule2', speed2: 'speedModule2',  speed_2: 'speedModule2',
+    speed_module_3: 'speedModule3', speed3: 'speedModule3',  speed_3: 'speedModule3',
+    productivity_module: 'productivityModule',   prod1: 'productivityModule',  prod_1: 'productivityModule',
+    productivity_module_2: 'productivityModule2', prod2: 'productivityModule2', prod_2: 'productivityModule2',
+    productivity_module_3: 'productivityModule3', prod3: 'productivityModule3', prod_3: 'productivityModule3',
+  };
+  if (moduleType) {
+    moduleType = MODULE_ALIAS[moduleType] ?? moduleType;
+    if (!MODULE_DATA[moduleType]) {
+      scriptOutput.push({ type: 'warn', text: `place: unknown module "${moduleType}"` });
+      moduleType = null;
+    }
+  }
   // Extended alias map: covers multi-word and legacy aliases beyond the single SCRIPT_TYPE_ALIASES entry per type
   const TYPE_MAP = {
     ...SCRIPT_TYPE_ALIASES,
@@ -963,6 +987,10 @@ function scriptPlaceBuilding(type, arg, n) {
       target = { type: realType, resource: 'crudeOil', acc: 0 };
     } else if (BUILDING_DEFS[realType]?.hasRecipe) {
       const recipe = (arg ? (RECIPE_MAP[arg] ?? arg) : null) ?? pr[realType] ?? '';
+      if (recipe && !isUnlocked('recipe', recipe)) {
+        if (i === 0) scriptOutput.push({ type: 'warn', text: `place: recipe "${recipe}" is locked` });
+        break;
+      }
       spend(costs);
       target = { type: realType, recipe, active: false, progress: 0 };
     } else {
@@ -970,6 +998,7 @@ function scriptPlaceBuilding(type, arg, n) {
       target = { type: realType };
     }
     target.displayName = _displayName;
+    if (moduleType) target.initModuleType = moduleType;
     placeQueue.push(target);
     placed++;
   }
@@ -1067,6 +1096,10 @@ function scriptDoCraft(item, n) {
   const key = ALIAS[item] ?? item;
   if (!PLAYER_RECIPES?.[key]) {
     scriptOutput.push({ type: 'warn', text: `craft: unknown recipe "${item}"` });
+    return;
+  }
+  if (!isUnlocked('recipe', key)) {
+    scriptOutput.push({ type: 'warn', text: `craft: recipe "${key}" is locked` });
     return;
   }
 
@@ -1169,6 +1202,7 @@ function escapeHtml(s) {
 function renderScript() {
   const el = document.getElementById('script-output');
   if (!el) return;
+  const atBottom = el.scrollTop >= el.scrollHeight - el.clientHeight - 5;
   if (!scriptOutput.length) {
     el.innerHTML = '<div class="script-empty">Run a script to see output</div>';
     return;
@@ -1180,5 +1214,5 @@ function renderScript() {
               : 'script-line-info';
     return `<div class="script-line ${cls}">${escapeHtml(line.text)}</div>`;
   }).join('');
-  el.scrollTop = el.scrollHeight;
+  if (atBottom) el.scrollTop = el.scrollHeight;
 }

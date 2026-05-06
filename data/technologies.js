@@ -226,7 +226,7 @@ const TECHNOLOGIES = {
     cost: { redScience: 2500, greenScience: 2500, blueScience: 2500, yellowScience: 2500,purpleScience: 2500, blackScience: 2500 }, timePerPack: 30,
     prereqs: ['speedModuleTech3', 'nuclearPowerTech', 'military4'],
     description: 'Its a spider. It has guns. It can climb walls. It is the ultimate combat machine.',
-    unlockRecipes: ['spidertronItem'], unlockBuildings: [],
+    unlockRecipes: ['spidertron', 'spidertronItem'], unlockBuildings: [],
   },
   military3: {
     name: 'Military 3', icon: '⚙️',
@@ -403,7 +403,7 @@ const TECHNOLOGIES = {
     cost: { redScience: 800, greenScience: 800, blueScience: 800}, timePerPack: 60,
     prereqs: ['uraniumProcessing'],
     description: 'Enables construction of nuclear reactor power plants (488.88 MW per complex)',
-    unlockRecipes: ['nuclearReactorItem', 'heatPipeItem', 'heatExchangerItem', 'steamTurbineItem'], unlockBuildings: ['nuclearReactor'],
+    unlockRecipes: ['nuclearReactorItem', 'heatPipeItem', 'heatExchangerItem', 'steamTurbineItem', 'uraniumFuelCell'], unlockBuildings: ['nuclearReactor'],
   },
   oilProcessingTech: {
     name: 'Oil Processing', icon: '⚗️',

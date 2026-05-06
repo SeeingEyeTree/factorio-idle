@@ -164,6 +164,7 @@
     <a href="#place-types">place() types</a>
     <a href="#place-resources">place() resources</a>
     <a href="#place-recipes">place() recipes</a>
+    <a href="#place-modules">place() modules</a>
     <a href="#craft-items">craft() items</a>
     <a href="#fortify">fortify()</a>
     <a href="#research">research()</a>
@@ -171,6 +172,7 @@
     <a href="#delta">Delta vars</a>
     <a href="#buildings">Building counts</a>
     <a href="#inv-buildings">Inventory buildings</a>
+    <a href="#inv-modules">Module inventory</a>
     <a href="#power">Power vars</a>
     <a href="#perimeter">Perimeter vars</a>
     <a href="#queue">Queue vars</a>
@@ -207,8 +209,8 @@
     <table>
       <tr><th>Command</th><th>Description</th></tr>
       <tr>
-        <td><code>place(type, arg, n=1)</code></td>
-        <td>Queue <code>n</code> buildings of <code>type</code>. <code>arg</code> is the resource (miners) or recipe (assembly/furnace). Costs are deducted from inventory immediately.</td>
+        <td><code>place(type, arg, n=1, module=null)</code></td>
+        <td>Queue <code>n</code> buildings of <code>type</code>. <code>arg</code> is the resource (miners) or recipe (assembly/furnace). Costs are deducted from inventory immediately. Optional 4th argument fills all module slots with the given module type (e.g. <code>speed_module_3</code>); modules are consumed from inventory.</td>
       </tr>
       <tr>
         <td><code>craft(item, n=1)</code></td>
@@ -290,6 +292,28 @@
     </p>
     <div id="docs-place-recipes">
       <p style="color:var(--dim)">Loading from PLAYER_RECIPES…</p>
+    </div>
+  </div>
+
+  <!-- ── place() modules ──────────────────────────────────── -->
+  <div class="section" id="place-modules">
+    <div class="section-title">place() — Modules (4th argument) <span class="tag tag-new">NEW</span></div>
+    <p style="color:var(--text2);margin-bottom:.8rem">
+      The optional 4th argument fills <strong>all module slots</strong> of each placed building with the specified module.
+      Modules are consumed from inventory at placement time. Buildings with no module slots (AM1, stone/steel furnace) ignore this argument.
+    </p>
+    <table>
+      <tr><th>Alias(es)</th><th>Module</th></tr>
+      <tr><td><code>speed_module</code> · <code>speed1</code> · <code>speed_1</code></td><td>Speed Module</td></tr>
+      <tr><td><code>speed_module_2</code> · <code>speed2</code> · <code>speed_2</code></td><td>Speed Module 2</td></tr>
+      <tr><td><code>speed_module_3</code> · <code>speed3</code> · <code>speed_3</code></td><td>Speed Module 3</td></tr>
+      <tr><td><code>productivity_module</code> · <code>prod1</code> · <code>prod_1</code></td><td>Productivity Module</td></tr>
+      <tr><td><code>productivity_module_2</code> · <code>prod2</code> · <code>prod_2</code></td><td>Productivity Module 2</td></tr>
+      <tr><td><code>productivity_module_3</code> · <code>prod3</code> · <code>prod_3</code></td><td>Productivity Module 3</td></tr>
+      <tr><td><code>gamer_module</code></td><td>Gamer Module</td></tr>
+    </table>
+    <div class="note" style="margin-top:.8rem">
+      <strong>Example:</strong> <code>place(am3, iron_gear, 5, speed_module_3)</code> — places 5 AM3s (4 slots each) and consumes 20 Speed Module 3 from inventory.
     </div>
   </div>
 
@@ -504,6 +528,29 @@
       <code>RADAR_ITEM</code>, <code>PUMPJACK_ITEM</code>, <code>OIL_REFINERY_ITEM</code>,
       <code>CHEM_PLANT_ITEM</code>, <code>CENTRIFUGE_ITEM</code>, <code>ROCKET_SILO_ITEM</code>,
       <code>GUN_TURRET_ITEM</code>, <code>LASER_TURRET_ITEM</code>.
+    </div>
+  </div>
+
+  <!-- ── Module inventory ──────────────────────────────────── -->
+  <div class="section" id="inv-modules">
+    <div class="section-title">Module Inventory Variables <span class="tag tag-new">NEW</span></div>
+    <p style="color:var(--text2);margin-bottom:.8rem">
+      Count of each module type currently in your inventory (not installed in buildings).
+      Use these to gate <code>place()</code> calls that require modules.
+      The calculator's generated scripts use these automatically when a module type is selected.
+    </p>
+    <table>
+      <tr><th>Variable</th><th>Module</th></tr>
+      <tr><td><code>SPEED_MODULE</code></td><td>Speed Module (tier 1)</td></tr>
+      <tr><td><code>SPEED_MODULE_2</code></td><td>Speed Module 2</td></tr>
+      <tr><td><code>SPEED_MODULE_3</code></td><td>Speed Module 3</td></tr>
+      <tr><td><code>PROD_MODULE</code></td><td>Productivity Module (tier 1)</td></tr>
+      <tr><td><code>PROD_MODULE_2</code></td><td>Productivity Module 2</td></tr>
+      <tr><td><code>PROD_MODULE_3</code></td><td>Productivity Module 3</td></tr>
+      <tr><td><code>GAMER_MODULE</code></td><td>Gamer Module</td></tr>
+    </table>
+    <div class="note" style="margin-top:.8rem">
+      <strong>Example:</strong> <code>place(am3, iron_gear, 5, speed_module_3)</code> — places 5 AM3s and fills each of their 4 module slots with Speed Module 3 (consuming 20 modules from inventory).
     </div>
   </div>
 
