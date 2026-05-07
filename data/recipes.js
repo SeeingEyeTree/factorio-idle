@@ -230,7 +230,7 @@ const PLAYER_RECIPES = {
   oilRefineryItem:      { name: 'Oil Refinery',             inputs: { steel: 15, ironGear: 10, electronicCircuit: 10, pipe: 10, stoneBrick: 10 }, outputs: { oilRefineryItem: 1 }, time: 8.0 },
   chemicalPlantItem:    { name: 'Chemical Plant',           inputs: { steel: 5, ironGear: 5, electronicCircuit: 5, pipe: 5 }, outputs: { chemicalPlantItem: 1 }, time: 5.0  },
   centrifugeItem:       { name: 'Centrifuge',               inputs: { steel: 50, ironGear: 100, advancedCircuit: 100, concrete: 50 }, outputs: { centrifugeItem: 1 }, time: 8.0 },
-  beaconItem:           { name: 'Beacon',                   inputs: { steel: 10, copperCable: 10, electronicCircuit: 20, advancedCircuit: 20 }, outputs: { beaconItem: 1 }, time: 15.0 },
+  //beaconItem:           { name: 'Beacon',                   inputs: { steel: 10, copperCable: 10, electronicCircuit: 20, advancedCircuit: 20 }, outputs: { beaconItem: 1 }, time: 15.0 },
   rocketSiloItem:       { name: 'Rocket Silo',              inputs: { steel: 1000, concrete: 1000, pipe: 100, processingUnit: 200, electricEngineUnit: 200 }, outputs: { rocketSiloItem: 1 }, time: 30.0 },
 
   // ── Transport / Logistics ─────────────────────────────────────
@@ -326,7 +326,7 @@ const PLAYER_RECIPES = {
   //explosiveRocket:      { name: 'Explosive Rocket',         inputs: { rocket: 1, explosives: 2 },                            outputs: { explosiveRocket: 1 },      time: 8.0  },
   atomicBomb:           { name: 'Atomic Bomb',              inputs: { explosives: 10, processingUnit: 10, uranium235: 30 }, outputs: { atomicBomb: 1 },          time: 50.0 },
   //flamethrowerAmmo:     { name: 'Flamethrower Ammo',        inputs: { steel: 5, lightOil: 100 },                             outputs: { flamethrowerAmmo: 1 },     time: 6.0,  machinery: 'chemical' },
-  //grenade:              { name: 'Grenade',                  inputs: { ironPlate: 5, coal: 10 },                              outputs: { grenade: 1 },              time: 8.0  },
+  grenade:              { name: 'Grenade',                  inputs: { ironPlate: 5, coal: 10 },                              outputs: { grenade: 1 },              time: 8.0  },
   //clusterGrenade:       { name: 'Cluster Grenade',          inputs: { steel: 5, explosives: 5, grenade: 7 },                 outputs: { clusterGrenade: 1 },       time: 8.0  },
   //slowdownCapsule:      { name: 'Slowdown Capsule',         inputs: { coal: 5, electronicCircuit: 2, steel: 2 },             outputs: { slowdownCapsule: 1 },      time: 8.0  },
   //poisonCapsule:        { name: 'Poison Capsule',           inputs: { coal: 10, electronicCircuit: 3, steel: 3 },            outputs: { poisonCapsule: 1 },        time: 8.0  },
