@@ -2,7 +2,7 @@
 
 // ── Constants ────────────────────────────────────────────────
 
-const TICK_MS              = 100;
+const TICK_MS              = 200;  // simulation rate; display runs at 10fps via separate render loop
 const MINE_SPEED           = 0.25;   // ore/sec per burner miner
 const ELECTRIC_MINER_SPEED = 0.5;   // ore/sec per electric miner
 const ELECTRIC_MINER_KW    = 90;    // kW each
@@ -329,6 +329,11 @@ let lastWavePreviewHash = '';
 let lastWavePreviewHtml = '';
 const starredMaxCh = {}; // { 'ironOre_count': 6, 'ironOre_rate': 7, ... }
 let lastInventoryHtml  = '';
+let _groupsCache  = null;
+let _groupsDirty  = true;
+const _cardCache  = {}; // key → { hash, html }
+let _lastTickTime  = Date.now();
+let _renderLoopId  = null;
 let lastStarredBarHtml = '';
 let lastMetaHtml = '';
 let metaSubTab = 'buildings';
@@ -658,6 +663,8 @@ function applyStateFromEnvelope(envelope) {
   const isEnvelope = envelope?.version != null;
   const raw = isEnvelope ? envelope.state : envelope;
   state = raw;
+  _groupsDirty = true; _groupsCache = null;
+  for (const k in _cardCache) delete _cardCache[k];
 
   // Backwards-compat field initialization
   if (!state.groupSettings)            state.groupSettings    = {};
@@ -936,6 +943,12 @@ function updateSaveFilenameDisplay() {
   if (el) el.textContent = currentSaveFile ? currentSaveFile.replace(/\.json$/, '') : '';
 }
 
+function fmtNum(n) {
+  const v = Math.floor(n);
+  if (v >= 1_000_000) return v.toExponential(2);
+  return v.toLocaleString();
+}
+
 // ── Group Helpers ─────────────────────────────────────────────
 
 function groupKey(b) {
@@ -961,27 +974,33 @@ function getGS(key) {
     const defLimit = isBuilding
       ? (state.settings?.defaultLimitBuilding ?? 10)
       : (state.settings?.defaultLimitOther    ?? Infinity);
-    state.groupSettings[key] = { enabled: true, coalAcc: 0, starved: false, limit: defLimit, radarAcc: 0, packAcc: 0 };
+    state.groupSettings[key] = {
+      enabled: true, coalAcc: 0, starved: false, limit: defLimit,
+      radarAcc: 0, packAcc: 0, modules: {}, progress: 0,
+      prodFrac: {}, active: false, selectedModuleType: 'speedMk1'
+    };
+    return state.groupSettings[key];
   }
   const gs = state.groupSettings[key];
+  // Backward-compat for fields added after initial release (old saves may lack them)
   if (gs.limit    == null) gs.limit    = Infinity;
-  if (gs.radarAcc == null) gs.radarAcc = 0;
-  if (gs.packAcc  == null) gs.packAcc  = 0;
   if (gs.modules  == null) gs.modules  = {};
   if (gs.progress == null) gs.progress = 0;
   if (gs.prodFrac == null) gs.prodFrac = {};
-  if (gs.active   == null) gs.active   = false;
   if (!gs.selectedModuleType) gs.selectedModuleType = 'speedMk1';
   return gs;
 }
 
 function buildGroupMap() {
+  if (!_groupsDirty && _groupsCache) return _groupsCache;
   const groups = {};
   for (const b of state.buildings) {
     const k = groupKey(b);
     if (!groups[k]) groups[k] = { key: k, type: b.type, resource: b.resource, recipe: b.recipe, buildings: [] };
     groups[k].buildings.push(b);
   }
+  _groupsCache = groups;
+  _groupsDirty = false;
   return groups;
 }
 
@@ -1387,11 +1406,12 @@ function tick() {
   // ── Compute total power demand (uses last tick's powerKw) ──
   const _tPD = _p0();
   let totalDemand = 0;
-  for (const b of state.buildings) {
-    const gs = getGS(groupKey(b));
+  for (const [key, group] of Object.entries(groups)) {
+    const baseKw = BUILDING_KW_TABLE[group.type];
+    if (!baseKw) continue;
+    const gs = getGS(key);
     if (!gs.enabled) continue;
-    const baseKw = BUILDING_KW_TABLE[b.type];
-    if (baseKw) totalDemand += baseKw * metaEnergyMult(b.type);
+    totalDemand += baseKw * metaEnergyMult(group.type) * group.buildings.length;
   }
   // Laser turrets only fire during biter waves — energy is drawn at wave resolution, not continuously
   if (state.allPaused) totalDemand = 0;
@@ -1721,19 +1741,20 @@ function tick() {
   }
   _p1('electricFurnaces', _tEF);
 
-  // ── Pumpjacks ──
+  // ── Pumpjacks — aggregated per resource group ──
   const _tPJ = _p0();
-  for (const b of state.buildings) {
-    if (b.type !== 'pumpjack') continue;
-    const gs = getGS(groupKey(b));
+  for (const [key, group] of Object.entries(groups)) {
+    if (group.type !== 'pumpjack') continue;
+    const gs = getGS(key);
     if (!gs.enabled) continue;
     gs.noPower = powerRatio < 1;
-    const patch = state.patches[b.resource];
+    const patch = state.patches[group.resource];
     if (!patch || patch.remaining <= 0) { gs.starved = true; continue; }
     gs.starved = false;
-    const extracted = Math.min(PUMPJACK_SPEED * miningProdMult() * dt * powerRatio, patch.remaining);
+    const count = group.buildings.length;
+    const extracted = Math.min(PUMPJACK_SPEED * miningProdMult() * count * dt * powerRatio, patch.remaining);
     patch.remaining -= extracted;
-    recordProduced(b.resource, extracted);
+    recordProduced(group.resource, extracted);
   }
   _p1('pumpjacks', _tPJ);
 
@@ -2200,8 +2221,30 @@ function tick() {
     return; // stop further processing this tick
   }
 
-  const _tUI = _p0(); renderUI(); _p1('renderUI', _tUI);
+  _lastTickTime = Date.now();
   _p1('tick_total', _tTick);
+}
+
+// ── Render Loop (decoupled from simulation tick) ──────────────
+function startRenderLoop() {
+  if (_renderLoopId) clearInterval(_renderLoopId);
+  _renderLoopId = setInterval(() => {
+    if (!state) return;
+    const _tUI = _p0(); renderUI(); _p1('renderUI', _tUI);
+  }, 33); // ~30fps display
+}
+
+function stopRenderLoop() {
+  if (_renderLoopId) { clearInterval(_renderLoopId); _renderLoopId = null; }
+}
+
+// Extrapolates a displayed inventory amount using the known delta rate.
+// Gives smooth-feeling number changes between simulation ticks.
+function displayAmt(key) {
+  const base = state.inventory[key] ?? 0;
+  const rate = state.inventoryDelta?.[key] ?? 0;
+  const elapsed = Math.min((Date.now() - _lastTickTime) / 1000, (TICK_MS / 1000) * 2);
+  return Math.max(0, Math.floor(base + rate * elapsed));
 }
 
 // ── Placement Queue ───────────────────────────────────────────
@@ -2316,6 +2359,7 @@ function tickPlacement() {
         state.buildings.push(placed);
         if (placed.initModuleType) fillGroupModules(groupKey(placed), placed.initModuleType);
       }
+      _groupsDirty = true;
     } else {
       // Normal: use robot-speed batching across consecutive queue items
       const toPlace = Math.min(placeBatch, placeQueue.length);
@@ -2328,6 +2372,7 @@ function tickPlacement() {
         }
         placeQueue.shift();
       }
+      _groupsDirty = true;
     }
     processNextPlacement();
   } else {
@@ -2409,6 +2454,7 @@ function removeOneFromGroup(key) {
   const group  = groups[key];
   if (!group || group.buildings.length === 0) return;
   state.buildings = state.buildings.filter(b => b.id !== group.buildings[group.buildings.length - 1].id);
+  _groupsDirty = true;
   if (!state.buildings.some(b => groupKey(b) === key)) delete state.groupSettings[key];
   renderBuildings();
 }
@@ -2418,6 +2464,7 @@ function changeGroupRecipe(oldKey, recipe, type) {
   for (const b of state.buildings) {
     if (groupKey(b) === oldKey) { b.recipe = recipe; b.active = false; b.progress = 0; }
   }
+  _groupsDirty = true;
   if (oldKey !== newKey) {
     state.groupSettings[newKey] = state.groupSettings[oldKey]
       ?? { enabled: true, coalAcc: 0, starved: false, limit: 50, radarAcc: 0, packAcc: 0 };
@@ -2584,11 +2631,12 @@ function renderInventory() {
   const html = entries.map(([k, amt]) => {
     const item = ITEMS[k];
     const isStarred = starred.includes(k);
+    const disp = displayAmt(k);
     return `<div class="inv-item ${amt > 0 ? 'has-items' : ''}">
       <button class="star-btn ${isStarred ? 'starred' : ''}" data-star="${k}">★</button>
       <span class="inv-icon">${itemIcon(k)}</span>
       <span class="inv-name">${item.name}</span>
-      <span class="inv-count">${Math.floor(amt)}</span>
+      <span class="inv-count">${fmtNum(disp)}</span>
     </div>`;
   }).join('') || '<p class="empty-msg">No items match your search.</p>';
   if (html === lastInventoryHtml) return;
@@ -2603,10 +2651,10 @@ function renderPower() {
   const demand  = Math.floor(state.powerDemandKw ?? 0);
   const cap     = Math.floor(state.powerCapacityKw ?? pw);
   const pClass  = pw >= demand && pw > 0 ? 'power-on' : demand > 0 && pw < demand ? 'power-warn' : '';
-  const capStr  = cap > pw ? ` / ${cap.toLocaleString()} kW cap` : '';
+  const capStr  = cap > pw ? ` / ${fmtNum(cap)} kW cap` : '';
   const pwText  = demand > 0
-    ? `${pw.toLocaleString()} kW gen${capStr} · ${demand.toLocaleString()} kW use`
-    : `${pw.toLocaleString()} kW${capStr}`;
+    ? `${fmtNum(pw)} kW gen${capStr} · ${fmtNum(demand)} kW use`
+    : `${fmtNum(pw)} kW${capStr}`;
 
   const accCount  = state.buildings.filter(b => b.type === 'accumulator').length;
   const accMax    = accCount * ACCUMULATOR_CAPACITY;
@@ -2617,7 +2665,7 @@ function renderPower() {
     <div class="fluid-cell">
       <span class="fluid-icon">🔋</span>
       <div class="fluid-track"><div class="fluid-fill acc-fill" style="width:${accPct}%"></div></div>
-      <span class="fluid-val">${Math.floor(accCharge / 1000).toLocaleString()} / ${(accMax / 1000).toLocaleString()} MJ</span>
+      <span class="fluid-val">${fmtNum(Math.floor(accCharge / 1000))} / ${fmtNum(Math.floor(accMax / 1000))} MJ</span>
     </div>` : '';
 
   document.getElementById('power-bar').innerHTML = `
@@ -2688,8 +2736,8 @@ function renderMining() {
     const drills    = drillCountForResource(key);
     const maxDrills = patch.nodes;
     const remText   = locked
-      ? `Outside perimeter (${(patch.pendingFinds ?? []).reduce((s, f) => s + f.remaining, 0).toLocaleString()} known)`
-      : `${Math.floor(patch.remaining).toLocaleString()} remaining`;
+      ? `Outside perimeter (${fmtNum((patch.pendingFinds ?? []).reduce((s, f) => s + f.remaining, 0))} known)`
+      : `${fmtNum(Math.floor(patch.remaining))} remaining`;
     card.querySelector('.patch-remaining').textContent = remText;
     const nodesEl = card.querySelector('.patch-nodes');
     if (nodesEl) {
@@ -3036,6 +3084,13 @@ function renderBuildings() {
     const gs    = getGS(key);
     const count = group.buildings.length;
     const type  = group.type;
+    // Cache key: hash relevant state; progress quantized to 5% so active groups don't thrash
+    const _ch = `${count}|${gs.enabled}|${gs.starved}|${gs.active}|${gs.noPower}|${gs.limit}|` +
+      `${gs.selectedModuleType}|${JSON.stringify(gs.modules ?? {})}|${gs.outsidePerimeter ?? 0}|` +
+      `${gs.acidStarved ?? 0}|${gs.standby ?? 0}|${Math.round((gs.progress ?? 0) * 20)}|` +
+      `${(type === 'miner' || type === 'electricMiner') ? placeQueue.length : 0}`;
+    if (_cardCache[key]?.hash === _ch) return _cardCache[key].html;
+    const _cardHtml = (() => {
 
     if (type === 'miner' || type === 'electricMiner') {
       const speed   = type === 'miner' ? MINE_SPEED : ELECTRIC_MINER_SPEED;
@@ -3286,7 +3341,7 @@ function renderBuildings() {
                         : !hasPatch  ? 'Oil field depleted'
                                      : `${(count * PUMPJACK_SPEED * pRatio).toFixed(1)}/sec${brownStr}`;
       return buildingCard('🛢️', 'Pumpjack', count,
-        `${PUMPJACK_KW * count} kW · ${remaining.toLocaleString()} remaining`,
+        `${PUMPJACK_KW * count} kW · ${fmtNum(remaining)} remaining`,
         statusTxt2, isActive2, hasPatch ? 1 : 0, key, '', false, 'pumpjack');
     }
 
@@ -3384,7 +3439,10 @@ function renderBuildings() {
     }
 
     return '';
-  }).join('');
+  })();
+  _cardCache[key] = { hash: _ch, html: _cardHtml };
+  return _cardHtml;
+}).join('');
 }
 
 function buildModSummary(mods) {
@@ -4796,9 +4854,9 @@ function renderStarredBar() {
     }
   }
   const html = starred.map(k => {
-    const amt     = Math.floor(state.inventory[k] ?? 0);
+    const amt     = displayAmt(k);
     const rate    = SMOOTH > 0 ? (smoothedDelta[k] ?? 0) : (state.inventoryDelta[k] ?? 0);
-    const cntStr  = amt.toLocaleString();
+    const cntStr  = fmtNum(amt);
     const rateStr = (rate >= 0 ? '+' : '') + rate.toFixed(1) + '/s';
     const ck = k + '_c', rk = k + '_r';
     starredMaxCh[ck] = Math.max(starredMaxCh[ck] ?? 0, cntStr.length);
@@ -5061,8 +5119,9 @@ function handleRunEnd(reason) {
 
   saveMetaState();
 
-  // 3. Stop the game loop
+  // 3. Stop the game loop and render loop
   if (gameLoopId) { clearInterval(gameLoopId); gameLoopId = null; }
+  stopRenderLoop();
 
   // 4. Show result modal
   const msg = reason === 'death'
@@ -5083,6 +5142,7 @@ function closeRunEndModal() {
 }
 
 function returnToStartScreen() {
+  stopRenderLoop();
   state = null;
   document.getElementById('game-screen').classList.add('hidden');
   document.getElementById('start-screen').classList.remove('hidden');
@@ -5157,6 +5217,8 @@ function showGame() {
   document.getElementById('game-screen').classList.remove('hidden');
   if (gameLoopId) clearInterval(gameLoopId);
   gameLoopId = setInterval(tick, TICK_MS);
+  startRenderLoop();
+  _lastTickTime = Date.now();
   buildingSearchQuery = '';
   mouseHeld          = false;
   biterWaveWarned    = false;
@@ -5167,6 +5229,8 @@ function showGame() {
   lastPerimeterHtml  = '';
   lastWavePreviewHash = '';
   lastMetaHtml       = '';
+  _groupsDirty = true; _groupsCache = null;
+  for (const k in _cardCache) delete _cardCache[k];
   const searchEl = document.getElementById('buildings-search');
   if (searchEl) searchEl.value = '';
   setupEventDelegation();
