@@ -57,6 +57,18 @@ const BOILER_COAL_PER_SEC        = 0.45;   // coal consumed per second per boile
 const BOILER_WATER_PER_SEC       = 6;      // water consumed per second per boiler
 const BOILER_STEAM_PER_SEC       = 60;     // steam produced per second per boiler
 
+// ── Performance Profiler ─────────────────────────────────────
+const _prof = { enabled: false, samples: {}, WINDOW: 300 };
+let _profFilename = '';
+let _devPanelKey  = '';
+function _p0() { return _prof.enabled ? performance.now() : 0; }
+function _p1(s, t) {
+  if (!_prof.enabled || !t) return;
+  const arr = _prof.samples[s] ?? (_prof.samples[s] = []);
+  arr.push(performance.now() - t);
+  if (arr.length > _prof.WINDOW) arr.shift();
+}
+
 // ── Module System ─────────────────────────────────────────────
 const MODULE_SLOTS = {
   electricMiner: 3,
@@ -352,7 +364,7 @@ function getRobotSpeedTechData(level) {
   else if (level === 3) { totalNeeded = 150;                             packs = ['redScience','greenScience','blueScience','yellowScience'];                               timePerPack = 60; }
   else if (level === 4) { totalNeeded = 250;                             packs = ['redScience','greenScience','blueScience','yellowScience'];                               timePerPack = 60; }
   else if (level === 5) { totalNeeded = 500;                             packs = ['redScience','greenScience','blueScience','purpleScience','yellowScience'];               timePerPack = 60; }
-  else                  { totalNeeded = Math.pow(2, level - 6) * 1000;  packs = ['redScience','greenScience','blueScience','purpleScience','yellowScience','spaceScience','rainbowScience']; timePerPack = 60; }
+  else                  { totalNeeded = Math.pow(2, level - 6) * 1000;  packs = ['rainbowScience']; timePerPack = 60; }
   return { cost: Object.fromEntries(packs.map(p => [p, 1])), timePerPack, totalNeeded };
 }
 
@@ -361,7 +373,7 @@ function getMiningProdData(level) {
   if (level <= 1)      packs = ['redScience','greenScience'];
   else if (level <= 2) packs = ['redScience','greenScience','blueScience'];
   else if (level <= 3) packs = ['redScience','greenScience','blueScience','purpleScience','yellowScience'];
-  else                 packs = ['redScience','greenScience','blueScience','purpleScience','yellowScience','spaceScience','rainbowScience'];
+  else                 packs = ['rainbowScience'];
   const totalNeeded = level <= 3 ? level * 250 : 2500 * (level - 3);
   return { cost: Object.fromEntries(packs.map(p => [p, 1])), timePerPack: 60, totalNeeded };
 }
@@ -372,7 +384,7 @@ function getGunDamageData(level) {
   else if (level <= 4) { packs = ['redScience','greenScience','blackScience']; totalNeeded = level * 100; }
   else if (level <= 5) { packs = ['redScience','greenScience','blackScience','blueScience']; totalNeeded = 500; }
   else if (level <= 6) { packs = ['redScience','greenScience','blackScience','blueScience','yellowScience']; totalNeeded = 600; }
-  else                 { packs = ['redScience','greenScience','blackScience','blueScience','yellowScience','spaceScience','rainbowScience']; totalNeeded = Math.pow(2, level - 7) * 1000; }
+  else                 { packs = ['rainbowScience']; totalNeeded = Math.pow(2, level - 7) * 1000; }
   return { cost: Object.fromEntries(packs.map(p => [p, 1])), timePerPack: t, totalNeeded };
 }
 
@@ -381,7 +393,7 @@ function getLaserDamageData(level) {
   if (level <= 2)      { packs = ['redScience','greenScience','blueScience','blackScience']; t = 30; totalNeeded = level * 100; }
   else if (level <= 4) { packs = ['redScience','greenScience','blueScience','blackScience']; totalNeeded = level * 100; }
   else if (level <= 6) { packs = ['redScience','greenScience','blueScience','blackScience','yellowScience']; totalNeeded = level * 100; }
-  else                 { packs = ['redScience','greenScience','blueScience','blackScience','yellowScience','spaceScience','rainbowScience']; totalNeeded = Math.pow(2, level - 7) * 1000; }
+  else                 { packs = ['rainbowScience']; totalNeeded = Math.pow(2, level - 7) * 1000; }
   return { cost: Object.fromEntries(packs.map(p => [p, 1])), timePerPack: t, totalNeeded };
 }
 
@@ -1089,6 +1101,19 @@ function canResearchTech(key, includeQueue = false) {
   );
 }
 
+function pruneResearchQueue() {
+  let changed = true;
+  while (changed) {
+    changed = false;
+    state.research.queue = (state.research.queue ?? []).filter(k => {
+      if (canResearchTech(k, true)) return true;
+      changed = true;
+      notify(`Removed from queue (missing prereq): ${TECHNOLOGIES[k]?.name ?? k}`, 'warning');
+      return false;
+    });
+  }
+}
+
 function startResearch(key) {
   if (state.research.done[key]) return;
   const queue = state.research.queue ?? (state.research.queue = []);
@@ -1100,6 +1125,7 @@ function startResearch(key) {
   }
   if (queue.includes(key)) {
     state.research.queue = queue.filter(k => k !== key);
+    pruneResearchQueue();
     renderResearch();
     return;
   }
@@ -1354,10 +1380,12 @@ const RATE_WINDOW_SECS = 5;
 // ── Game Loop ─────────────────────────────────────────────────
 
 function tick() {
+  const _tTick = _p0();
   const dt     = TICK_MS / 1000 * (state?.devTickSpeed ?? 1);
-  const groups = buildGroupMap();
+  const _tGrp = _p0(); const groups = buildGroupMap(); _p1('buildGroupMap', _tGrp);
 
   // ── Compute total power demand (uses last tick's powerKw) ──
+  const _tPD = _p0();
   let totalDemand = 0;
   for (const b of state.buildings) {
     const gs = getGS(groupKey(b));
@@ -1370,10 +1398,12 @@ function tick() {
   state.powerDemandKw = totalDemand;
   const powerRatio = totalDemand > 0 ? Math.min(1, state.powerKw / totalDemand) : 1;
   state.powerRatio = powerRatio;
+  _p1('powerDemand', _tPD);
 
   if (!state.allPaused) { // ── Production ──
 
   // ── Coal for miners, furnaces & steel furnaces ──
+  const _tCoal = _p0();
   for (const [key, group] of Object.entries(groups)) {
     if (group.type !== 'miner' && group.type !== 'furnace' && group.type !== 'steelFurnace') continue;
     const gs = getGS(key);
@@ -1394,8 +1424,10 @@ function tick() {
       }
     } else { gs.starved = (state.inventory.coal <= 0); }
   }
+  _p1('coal', _tCoal);
 
   // ── Burner Miners ──
+  const _tBM = _p0();
   for (const b of state.buildings) {
     if (b.type !== 'miner') continue;
     const gs = getGS(groupKey(b));
@@ -1413,8 +1445,10 @@ function tick() {
       patch.remaining -= n; b.acc -= n;
     }
   }
+  _p1('burnerMiners', _tBM);
 
   // ── Electric Miners ── (aggregated per resource group)
+  const _tEM = _p0();
   for (const [key, group] of Object.entries(groups)) {
     if (group.type !== 'electricMiner') continue;
     const gs = getGS(key);
@@ -1441,8 +1475,10 @@ function tick() {
       patch.remaining -= n; gs.acc -= n;
     }
   }
+  _p1('electricMiners', _tEM);
 
   // ── Furnaces (stone) — aggregated ──
+  const _tSF = _p0();
   for (const [key, group] of Object.entries(groups)) {
     if (group.type !== 'furnace') continue;
     const gs = getGS(key);
@@ -1479,8 +1515,10 @@ function tick() {
       }
     }
   }
+  _p1('stoneFurnaces', _tSF);
 
   // ── Steel Furnaces — aggregated ──
+  const _tStF = _p0();
   for (const [key, group] of Object.entries(groups)) {
     if (group.type !== 'steelFurnace') continue;
     const gs = getGS(key);
@@ -1517,8 +1555,10 @@ function tick() {
       }
     }
   }
+  _p1('steelFurnaces', _tStF);
 
   // ── Assembly Machines Mk1 — aggregated ──
+  const _tA1 = _p0();
   for (const [key, group] of Object.entries(groups)) {
     if (group.type !== 'assembly') continue;
     const gs = getGS(key);
@@ -1556,8 +1596,10 @@ function tick() {
       }
     }
   }
+  _p1('assembly1', _tA1);
 
   // ── Assembly Machines Mk2 — aggregated ──
+  const _tA2 = _p0();
   for (const [key, group] of Object.entries(groups)) {
     if (group.type !== 'assembly2') continue;
     const gs = getGS(key);
@@ -1595,8 +1637,10 @@ function tick() {
       }
     }
   }
+  _p1('assembly2', _tA2);
 
   // ── Assembly Machines Mk3 — aggregated ──
+  const _tA3 = _p0();
   for (const [key, group] of Object.entries(groups)) {
     if (group.type !== 'assembly3') continue;
     const gs = getGS(key);
@@ -1634,8 +1678,10 @@ function tick() {
       }
     }
   }
+  _p1('assembly3', _tA3);
 
   // ── Electric Furnaces — aggregated ──
+  const _tEF = _p0();
   for (const [key, group] of Object.entries(groups)) {
     if (group.type !== 'electricFurnace') continue;
     const gs = getGS(key);
@@ -1673,8 +1719,10 @@ function tick() {
       }
     }
   }
+  _p1('electricFurnaces', _tEF);
 
   // ── Pumpjacks ──
+  const _tPJ = _p0();
   for (const b of state.buildings) {
     if (b.type !== 'pumpjack') continue;
     const gs = getGS(groupKey(b));
@@ -1687,8 +1735,10 @@ function tick() {
     patch.remaining -= extracted;
     recordProduced(b.resource, extracted);
   }
+  _p1('pumpjacks', _tPJ);
 
   // ── Oil Refineries — aggregated ──
+  const _tOR = _p0();
   for (const [key, group] of Object.entries(groups)) {
     if (group.type !== 'oilRefinery') continue;
     const gs = getGS(key);
@@ -1726,8 +1776,10 @@ function tick() {
       }
     }
   }
+  _p1('oilRefineries', _tOR);
 
   // ── Chemical Plants — aggregated ──
+  const _tCP = _p0();
   for (const [key, group] of Object.entries(groups)) {
     if (group.type !== 'chemicalPlant') continue;
     const gs = getGS(key);
@@ -1765,8 +1817,10 @@ function tick() {
       }
     }
   }
+  _p1('chemPlants', _tCP);
 
   // ── Centrifuges — aggregated ──
+  const _tCen = _p0();
   for (const [key, group] of Object.entries(groups)) {
     if (group.type !== 'centrifuge') continue;
     const gs = getGS(key);
@@ -1812,8 +1866,10 @@ function tick() {
       }
     }
   }
+  _p1('centrifuges', _tCen);
 
   // ── Rocket Silos — aggregated ──
+  const _tRS = _p0();
   for (const [key, group] of Object.entries(groups)) {
     if (group.type !== 'rocketSilo') continue;
     const gs = getGS(key);
@@ -1851,16 +1907,20 @@ function tick() {
       }
     }
   }
+  _p1('rocketSilos', _tRS);
 
   // ── Offshore Pumps ──
+  const _tOSP = _p0();
   const pumpGroup = groups['offshoreP'];
   if (pumpGroup) {
     const gs = getGS('offshoreP');
     if (gs.enabled) { state.water = Math.min(effectiveWaterMax(), state.water + pumpGroup.buildings.length * OFFSHORE_PUMP_WATER_PER_SEC * dt); gs.starved = false; }
     else gs.starved = true;
   }
+  _p1('offshorePumps', _tOSP);
 
   // ── Boilers ──
+  const _tBoil = _p0();
   const boilerGroup = groups['boiler'];
   if (boilerGroup) {
     const gs = getGS('boiler');
@@ -1882,8 +1942,10 @@ function tick() {
       } else { gs.starved = true; gs.noWater = !waterOk; }
     } else { gs.starved = true; }
   }
+  _p1('boilers', _tBoil);
 
   // ── Power generation: Solar → Nuclear → Steam (fills gap) → Accumulators ──
+  const _tPGen = _p0();
   state.powerKw = 0;
 
   // Solar (unconditional, no fuel cost)
@@ -1972,8 +2034,10 @@ function tick() {
       }
     }
   }
+  _p1('powerGen', _tPGen);
 
   // ── Radar ──
+  const _tRdr = _p0();
   const radarGroup = groups['radar'];
   if (radarGroup) {
     const gs = getGS('radar');
@@ -1983,8 +2047,10 @@ function tick() {
       while (gs.radarAcc >= effectiveRadarTime) { gs.radarAcc -= effectiveRadarTime; revealChunk(); }
     }
   }
+  _p1('radar', _tRdr);
 
   // ── Labs ──
+  const _tLab = _p0();
   const labGroup = groups['lab'];
   if (labGroup && state.research.current) {
     const gs    = getGS('lab');
@@ -2015,6 +2081,7 @@ function tick() {
       }
     }
   }
+  _p1('labs', _tLab);
 
   // ── Hand Crafting (unified queue) ──
   if (!state.craftActive && state.craftQueue.length > 0) {
@@ -2048,6 +2115,7 @@ function tick() {
   }
 
   // ── Rate snapshot: derive inventoryDelta from explicit produced/consumed counters ──
+  const _tRate = _p0();
   rateTickCount++;
   if (rateTickCount >= RATE_WINDOW_SECS * 10) { // 10 ticks/sec
     rateTickCount = 0;
@@ -2096,8 +2164,10 @@ function tick() {
       if (state.productionHistory.allTimeSamples.length > 1440) state.productionHistory.allTimeSamples.shift();
     }
   }
+  _p1('rates', _tRate);
 
   // ── Auto-run script ──
+  const _tScr = _p0();
   if (scriptAutoRun) {
     scriptAutoTimer += dt;
     if (scriptAutoTimer >= SCRIPT_AUTO_INTERVAL) {
@@ -2105,8 +2175,10 @@ function tick() {
       runAutoScript();
     }
   }
+  _p1('autoScript', _tScr);
 
   // ── Biters ──
+  const _tBit = _p0();
   if (state.settings.biters) {
     state.biterTimer += dt;
     const interval = biterInterval();
@@ -2119,6 +2191,7 @@ function tick() {
       notify(`⚠️ Biter wave incoming in ~${Math.ceil(interval - state.biterTimer)}s!`, 'warning');
     }
   }
+  _p1('biters', _tBit);
 
   // ── Death check: if biters are enabled and all buildings are gone ──
   if (state.settings?.biters && state.buildings.length === 0 && !state._deathHandled) {
@@ -2127,7 +2200,8 @@ function tick() {
     return; // stop further processing this tick
   }
 
-  renderUI();
+  const _tUI = _p0(); renderUI(); _p1('renderUI', _tUI);
+  _p1('tick_total', _tTick);
 }
 
 // ── Placement Queue ───────────────────────────────────────────
@@ -2230,15 +2304,30 @@ function tickPlacement() {
   document.getElementById('place-progress').style.width = (pct * 100) + '%';
   updatePlacementUI(placeBatch);
   if (pct >= 1) {
-    const toPlace = Math.min(placeBatch, placeQueue.length);
-    for (let i = 0; i < toPlace; i++) {
-      const placed = { ...placeQueue[0], id: state.nextId++ };
-      state.buildings.push(placed);
-      if (placed.initModuleType) {
-        const k = groupKey(placed);
-        fillGroupModules(k, placed.initModuleType);
-      }
+    const entry      = placeQueue[0];
+    const batchCount = entry._batchCount;
+    if (batchCount != null) {
+      // Script batch entry: place all N buildings in one shot
       placeQueue.shift();
+      const template = { ...entry };
+      delete template._batchCount;
+      for (let i = 0; i < batchCount; i++) {
+        const placed = { ...template, id: state.nextId++ };
+        state.buildings.push(placed);
+        if (placed.initModuleType) fillGroupModules(groupKey(placed), placed.initModuleType);
+      }
+    } else {
+      // Normal: use robot-speed batching across consecutive queue items
+      const toPlace = Math.min(placeBatch, placeQueue.length);
+      for (let i = 0; i < toPlace; i++) {
+        const placed = { ...placeQueue[0], id: state.nextId++ };
+        state.buildings.push(placed);
+        if (placed.initModuleType) {
+          const k = groupKey(placed);
+          fillGroupModules(k, placed.initModuleType);
+        }
+        placeQueue.shift();
+      }
     }
     processNextPlacement();
   } else {
@@ -2250,8 +2339,10 @@ function updatePlacementUI(placeBatch) {
   const label = document.getElementById('placement-label');
   const queueInfo = document.getElementById('place-queue-info');
   if (placing && currentPlacing) {
-    const batch = placeBatch ?? computePlaceTimeSec().batch;
-    const batchStr = batch > 1 ? ` ×${batch}` : '';
+    const scriptBatch = currentPlacing._batchCount;
+    const robotBatch  = placeBatch ?? computePlaceTimeSec().batch;
+    const displayN    = scriptBatch ?? (robotBatch > 1 ? robotBatch : null);
+    const batchStr    = displayN != null ? ` ×${displayN.toLocaleString()}` : '';
     label.textContent = `Placing ${currentPlacing.displayName}${batchStr}…`;
     if (queueInfo) queueInfo.textContent = placeQueue.length > 1 ? `+${placeQueue.length - 1} queued` : '';
   } else {
@@ -2353,15 +2444,64 @@ function setGroupLimit(key, rawValue) {
 
 // ── Rendering ─────────────────────────────────────────────────
 
+function generatePerfReport() {
+  const rows = Object.entries(_prof.samples).map(([name, samples]) => {
+    if (!samples.length) return null;
+    const sorted = [...samples].sort((a, b) => a - b);
+    const mean = samples.reduce((a, b) => a + b, 0) / samples.length;
+    const p95  = sorted[Math.floor(sorted.length * 0.95)] ?? sorted[sorted.length - 1];
+    const max  = sorted[sorted.length - 1];
+    return { name, n: samples.length, mean, p95, max };
+  }).filter(Boolean).sort((a, b) => b.mean - a.mean);
+
+  const pad = (s, w) => String(s).padStart(w);
+  const header = `${'Section'.padEnd(22)} |    N  |  Mean ms |  P95 ms  |  Max ms\n` +
+                 `${''.padEnd(22, '-')} | ----- | -------- | -------- | --------\n`;
+  const fmtRow = r =>
+    `${r.name.padEnd(22)} | ${pad(r.n, 5)} | ${pad(r.mean.toFixed(3), 8)} | ${pad(r.p95.toFixed(3), 8)} | ${pad(r.max.toFixed(3), 8)}\n`;
+
+  return `=== Factorio Idle Performance Report ===\nGenerated: ${new Date().toISOString()}\nWindow: ${_prof.WINDOW} samples per section\n\n` + header + rows.map(fmtRow).join('');
+}
+
+async function savePerfReport() {
+  const report = generatePerfReport();
+  if (window.fileAPI?.savePerf) {
+    const result = await window.fileAPI.savePerf(report, _profFilename);
+    notify(`Perf report saved: ${result.filename}`, 'info');
+  } else {
+    console.log(report);
+    notify('Perf report logged to console (no fileAPI)', 'info');
+  }
+}
+
+function toggleProfiling(on) {
+  _prof.enabled = !!on;
+  if (!on) _prof.samples = {};
+  renderDevPanel();
+}
+
 function renderDevPanel() {
   const el = document.getElementById('dev-panel');
   if (!el) return;
   if (!state.devMode) { el.classList.add('hidden'); return; }
   el.classList.remove('hidden');
+
+  // Read filename input before any potential re-render so typed text isn't lost
+  const existingInput = el.querySelector('.dev-perf-input');
+  if (existingInput) _profFilename = existingInput.value;
+
   const speed = state.devTickSpeed ?? 1;
+  const hasData = Object.values(_prof.samples).some(a => a.length > 0);
+  const key = `${_prof.enabled}|${hasData}|${speed}|${!!state.devFreeResearch}`;
+  if (key === _devPanelKey) return; // nothing structural changed — preserve input focus
+  _devPanelKey = key;
+
   const speeds = [1, 2, 5, 10, 25];
   el.innerHTML = `<span class="dev-label">DEV MODE</span>` +
     `<label class="dev-toggle-label"><input type="checkbox" onchange="toggleDevFreeResearch(this.checked)" ${state.devFreeResearch ? 'checked' : ''}> Free Research</label>` +
+    `<label class="dev-toggle-label"><input type="checkbox" onchange="toggleProfiling(this.checked)" ${_prof.enabled ? 'checked' : ''}> Profile</label>` +
+    (_prof.enabled ? `<input type="text" class="dev-perf-input" placeholder="report name (optional)" value="${_profFilename.replace(/"/g, '&quot;')}">` : '') +
+    (_prof.enabled && hasData ? `<button class="dev-perf-btn" onclick="savePerfReport()">Save Report</button>` : '') +
     `<span class="dev-speed-label">Speed:</span>` +
     speeds.map(s => `<button class="dev-speed-btn${speed === s ? ' active' : ''}" onclick="setDevTickSpeed(${s})">${s}x</button>`).join('') +
     `<button class="dev-close-btn" onclick="toggleDevMode(false)">✕</button>`;
@@ -2369,6 +2509,7 @@ function renderDevPanel() {
 
 function toggleDevMode(on) {
   state.devMode = on != null ? !!on : !state.devMode;
+  _devPanelKey = '';
   renderDevPanel();
 }
 
@@ -2417,16 +2558,16 @@ function renderUI() {
   updateTabVisibility();
   const active = document.querySelector('.tab-panel:not(.hidden)');
   if (!active) return;
-  if (active.id === 'tab-inventory') renderInventory();
-  if (active.id === 'tab-mining')    renderMining();
-  if (active.id === 'tab-crafting')  renderCrafting();
-  if (active.id === 'tab-buildings') renderBuildings();
-  if (active.id === 'tab-research')  renderResearch();
-  if (active.id === 'tab-recipes')   renderRecipes();
-  if (active.id === 'tab-script')    renderScript();
-  if (active.id === 'tab-settings')  renderSettings();
-  if (active.id === 'tab-defense')   renderPerimeter();
-  if (active.id === 'tab-graph')     { renderGraph(); renderGraphLegend(); }
+  if (active.id === 'tab-inventory') { const _t = _p0(); renderInventory(); _p1('render_inventory', _t); }
+  if (active.id === 'tab-mining')    { const _t = _p0(); renderMining();    _p1('render_mining',    _t); }
+  if (active.id === 'tab-crafting')  { const _t = _p0(); renderCrafting();  _p1('render_crafting',  _t); }
+  if (active.id === 'tab-buildings') { const _t = _p0(); renderBuildings(); _p1('render_buildings',  _t); }
+  if (active.id === 'tab-research')  { const _t = _p0(); renderResearch();  _p1('render_research',   _t); }
+  if (active.id === 'tab-recipes')   { const _t = _p0(); renderRecipes();   _p1('render_recipes',    _t); }
+  if (active.id === 'tab-script')    { const _t = _p0(); renderScript();    _p1('render_script',     _t); }
+  if (active.id === 'tab-settings')  { const _t = _p0(); renderSettings();  _p1('render_settings',   _t); }
+  if (active.id === 'tab-defense')   { const _t = _p0(); renderPerimeter(); _p1('render_defense',    _t); }
+  if (active.id === 'tab-graph')     { const _t = _p0(); renderGraph(); renderGraphLegend(); _p1('render_graph', _t); }
 }
 
 function renderInventory() {
@@ -3773,10 +3914,15 @@ function renderRobotTechs() {
     const data    = getDataFn(nextLvl);
     const isCur   = cur === techType;
     const isQueued = (state.research.queue ?? []).includes(techType);
+    const isRainbow = data.cost['rainbowScience'] != null && Object.keys(data.cost).length === 1;
+    const autoQueueBtn = isRainbow && !isCur && !isQueued && labCount
+      ? `<button class="btn-secondary rcard-btn" style="margin-left:auto;font-size:.7rem;padding:.15rem .5rem" onclick="startInfiniteTech('${techType}')">+ Queue Next</button>`
+      : '';
     let out = `<div class="robot-tech-group">
       <div class="robot-tech-header">
         <span>${label}</span>
         <span class="robot-tech-badge">Level ${level}${level > 0 ? ' · ' + bonusLabel(level) : ''}</span>
+        ${autoQueueBtn}
       </div>
       <div class="robot-tech-card ${isCur ? 'rcard-current' : isQueued ? 'rcard-queued' : ''}">
         <div class="rcard-name">Level ${nextLvl}</div>
@@ -4207,6 +4353,7 @@ function setPerimeterAmmo(ammoType) {
 }
 
 function renderPerimeter() {
+  if (mouseHeld) return;
   const el = document.getElementById('perimeter-content');
   if (!el) return;
   // Don't re-render while user is interacting with the ammo dropdown
@@ -4300,8 +4447,12 @@ function renderPerimeter() {
   // Ammo/power estimates for wave prediction
   const previewKillTimeSec = previewSectionDefDPS > 0 ? previewSectionBiterHP / previewSectionDefDPS : null;
   const previewAmmoEst     = previewKillTimeSec != null ? Math.ceil(p.gunTurrets * (gunStats?.ammoCostPerSec ?? 0.25) * previewKillTimeSec) : null;
-  const laserEnergyPerWave = p.laserTurrets > 0 && previewKillTimeSec != null
-    ? Math.round(p.laserTurrets * LASER_KW_PER_TURRET * previewKillTimeSec)
+  const laserTotalKj       = p.laserTurrets > 0 && previewKillTimeSec != null
+    ? p.laserTurrets * LASER_KW_PER_TURRET * previewKillTimeSec
+    : null;
+  const previewGridSurplus = Math.max(0, (state.powerKw ?? 0) - (state.powerDemandKw ?? 0));
+  const laserEnergyPerWave = laserTotalKj != null
+    ? Math.max(0, Math.round(laserTotalKj - previewGridSurplus * previewKillTimeSec))
     : null;
 
   const concreteCost = (2 * p.sideLength + 1) * 10;
@@ -4530,7 +4681,7 @@ function renderPerimeter() {
       <span>Est. total biter damage</span><strong>~${parseFloat(previewDamage).toLocaleString()} · Wall HP: ${totalWallHP.toLocaleString()}</strong>
     </div>
     ${previewAmmoEst != null ? `<div class="perimeter-stat-row"><span>Est. ammo used</span><strong>${previewAmmoEst.toLocaleString()} × ${ITEMS[ammoType]?.name ?? ammoType} (${Math.floor(state.inventory[ammoType] ?? 0).toLocaleString()} in inv)</strong></div>` : ''}
-    ${laserEnergyPerWave != null ? `<div class="perimeter-stat-row"><span>Est. laser energy/wave</span><strong>${laserEnergyPerWave.toLocaleString()} kJ (from accumulators)</strong></div>` : ''}
+    ${laserEnergyPerWave != null ? `<div class="perimeter-stat-row"><span>Est. laser energy/wave</span><strong>${(laserEnergyPerWave / 1000).toFixed(1)} MJ from accumulators</strong></div>` : ''}
     ${artPreviewDmg > 0 ? `<div class="perimeter-stat-row"><span>Artillery pre-damage</span><strong>~${artPreviewDmg.toLocaleString()} (${artShellsPerWave} shells) · ${artPreviewDmg >= nextBiterHP ? '✅ kills wave' : Math.round(artPreviewDmg / nextBiterHP * 100) + '% of wave HP'}</strong></div>` : ''}
     <div class="perimeter-outcome ${previewOverflow > 0 && totalDPS <= 0 ? 'perimeter-outcome-danger' : previewOverflow > 0 ? 'perimeter-outcome-warn' : 'perimeter-outcome-ok'}">${previewSurvive}</div>
   </div>`;
@@ -4596,6 +4747,11 @@ function renderBiterIndicator() {
     el.textContent = `⚠ Biters: ${secs}s`;
     el.classList.toggle('biter-warning', secs <= 30);
   }
+}
+
+function clearAllLimits() {
+  for (const gs of Object.values(state.groupSettings ?? {})) gs.limit = Infinity;
+  renderBuildings();
 }
 
 function toggleAllPaused() {

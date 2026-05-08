@@ -499,6 +499,7 @@
           <div class="active-col-header">
             <h3 class="section-label" style="margin:0">Active Buildings</h3>
             <button id="pause-all-btn" class="btn-sm" onclick="toggleAllPaused()">⏸ Pause All</button>
+            <button class="btn-sm" onclick="clearAllLimits()">∞ Clear Limits</button>
           </div>
           <div class="buildings-search-row">
             <input type="text" id="buildings-search" class="buildings-search" placeholder="Search buildings...">
@@ -649,8 +650,9 @@
             <button class="btn-primary script-btn" onclick="runCalculator()">Generate</button>
           </div>
           <textarea id="calc-output" class="script-textarea" readonly spellcheck="false" style="height:160px;font-size:.8rem;margin-bottom:.5rem" placeholder="# Select an item and click Generate"></textarea>
-          <div style="display:flex;justify-content:flex-end;margin-bottom:.75rem">
-            <button class="script-file-btn" onclick="loadCalcToEditor()">Load into Editor</button>
+          <div style="display:flex;justify-content:flex-end;gap:.5rem;margin-bottom:.75rem">
+            <button class="script-file-btn" onclick="loadCalcToEditor('manual')">Load into Manual</button>
+            <button class="script-file-btn" onclick="loadCalcToEditor('auto')">Load into Auto</button>
           </div>
 
           <div class="script-toolbar">

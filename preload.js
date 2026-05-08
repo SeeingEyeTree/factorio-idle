@@ -12,4 +12,5 @@ contextBridge.exposeInMainWorld('fileAPI', {
   importScript:   ()               => ipcRenderer.invoke('import-script'),
   saveMeta:       (json)           => ipcRenderer.invoke('save-meta', json),
   loadMeta:       ()               => ipcRenderer.invoke('load-meta'),
+  savePerf:       (text, filename) => ipcRenderer.invoke('save-perf', text, filename),
 });

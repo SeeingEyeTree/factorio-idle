@@ -120,6 +120,22 @@ function registerIpcHandlers() {
     if (!fs.existsSync(p)) return null;
     return fs.readFileSync(p, 'utf8');
   });
+
+  ipcMain.handle('save-perf', (_, text, filename) => {
+    const userData = app.getPath('userData');
+    let fname;
+    if (filename && filename.trim()) {
+      fname = path.basename(filename.trim());
+      if (!fname.endsWith('.txt')) fname += '.txt';
+    } else {
+      let n = 1;
+      while (fs.existsSync(path.join(userData, `perf_report_${n}.txt`))) n++;
+      fname = `perf_report_${n}.txt`;
+    }
+    const p = path.join(userData, fname);
+    fs.writeFileSync(p, text, 'utf8');
+    return { ok: true, path: p, filename: fname };
+  });
 }
 
 // ── App Lifecycle ─────────────────────────────────────────────

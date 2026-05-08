@@ -78,6 +78,7 @@ function tokenize(src) {
     in:'IN', and:'AND', or:'OR', not:'NOT',
     pass:'PASS', break:'BREAK', continue:'CONTINUE',
     True:'TRUE', False:'FALSE', None:'NONE',
+    def:'DEF', return:'RETURN',
   };
   const tokens = [];
   const lines = src.replace(/\t/g, '    ').split('\n');
@@ -186,6 +187,8 @@ class ScriptParser {
     if (t.type === 'BREAK')    { this.advance(); this.eat('NEWLINE'); return { type: 'break' }; }
     if (t.type === 'CONTINUE') { this.advance(); this.eat('NEWLINE'); return { type: 'continue' }; }
 
+    if (t.type === 'DEF')    return this.parseFuncDef();
+    if (t.type === 'RETURN') return this.parseReturn();
     if (t.type === 'IF')    return this.parseIf();
     if (t.type === 'WHILE') return this.parseWhile();
     if (t.type === 'FOR')   return this.parseFor();
@@ -264,6 +267,31 @@ class ScriptParser {
     this.eat('OP', ':');
     const body = this.parseBlock();
     return { type: 'for', target, iter, body };
+  }
+
+  parseFuncDef() {
+    this.eat('DEF');
+    const name = this.eat('NAME').value;
+    this.eat('OP', '(');
+    const params = [];
+    while (!(this.peek().type === 'OP' && this.peek().value === ')')) {
+      params.push(this.eat('NAME').value);
+      if (this.peek().type === 'OP' && this.peek().value === ',') this.advance();
+    }
+    this.eat('OP', ')');
+    this.eat('OP', ':');
+    const body = this.parseBlock();
+    return { type: 'funcdef', name, params, body };
+  }
+
+  parseReturn() {
+    this.eat('RETURN');
+    let value = null;
+    if (this.peek().type !== 'NEWLINE' && this.peek().type !== 'EOF') {
+      value = this.parseExpr();
+    }
+    this.eat('NEWLINE');
+    return { type: 'return', value };
   }
 
   parseExpr()    { return this.parseOr(); }
@@ -381,11 +409,13 @@ class ScriptParser {
 
 const _BREAK    = Symbol('break');
 const _CONTINUE = Symbol('continue');
+const _RETURN   = Symbol('return');
 
 class ScriptEvaluator {
-  constructor(context) {
+  constructor(context, funcs) {
     this.ctx   = context;
     this.vars  = {};
+    this.funcs = funcs ?? {};
     this.steps = 0;
   }
 
@@ -394,8 +424,9 @@ class ScriptEvaluator {
   }
 
   lookup(name) {
-    if (name in this.vars) return this.vars[name];
-    if (name in this.ctx)  return this.ctx[name];
+    if (name in this.vars)  return this.vars[name];
+    if (name in this.funcs) return this.funcs[name];
+    if (name in this.ctx)   return this.ctx[name];
     return 0;
   }
 
@@ -410,7 +441,7 @@ class ScriptEvaluator {
   execBlock(stmts) {
     for (const stmt of stmts) {
       const r = this.execStmt(stmt);
-      if (r === _BREAK || r === _CONTINUE) return r;
+      if (r === _BREAK || r === _CONTINUE || r === _RETURN) return r;
     }
     return null;
   }
@@ -426,6 +457,26 @@ class ScriptEvaluator {
       case 'assign': {
         this.assign(stmt.name, this.evalExpr(stmt.value));
         return null;
+      }
+
+      case 'funcdef': {
+        const ev = this;
+        this.funcs[stmt.name] = function(...args) {
+          const child = new ScriptEvaluator(ev.ctx, ev.funcs);
+          child.steps = ev.steps;
+          for (let i = 0; i < stmt.params.length; i++) {
+            child.vars[stmt.params[i]] = args[i] ?? null;
+          }
+          child.execBlock(stmt.body);
+          ev.steps = child.steps;
+          return child._returnValue ?? null;
+        };
+        return null;
+      }
+
+      case 'return': {
+        this._returnValue = stmt.value ? this.evalExpr(stmt.value) : null;
+        return _RETURN;
       }
 
       case 'augassign': {
@@ -465,6 +516,7 @@ class ScriptEvaluator {
           if (++iters > 10000) throw new Error('while loop exceeded 10 000 iterations');
           const r = this.execBlock(stmt.body);
           if (r === _BREAK) break;
+          if (r === _RETURN) return _RETURN;
           // _CONTINUE just falls through to next iteration
         }
         return null;
@@ -478,6 +530,7 @@ class ScriptEvaluator {
           this.assign(stmt.target, item);
           const r = this.execBlock(stmt.body);
           if (r === _BREAK) break;
+          if (r === _RETURN) return _RETURN;
         }
         return null;
       }
@@ -663,6 +716,7 @@ function buildScriptContext() {
   ctx.BITER_TIMER = state.biterTimer      ?? 0;
   const pSide = p.sideLength ?? 10;
   ctx.PERIMETER_SIDE          = pSide;
+  ctx.PERIMETER_CONCRETE_COST = (2 * pSide + 1) * 10;  // concrete needed for next expansion
   ctx.PERIMETER_WALLS         = p.walls          ?? 0;
   ctx.PERIMETER_GUN_TURRETS   = p.gunTurrets      ?? 0;
   ctx.PERIMETER_LASER_TURRETS = p.laserTurrets    ?? 0;
@@ -677,11 +731,11 @@ function buildScriptContext() {
   ctx.GUN_DAMAGE_LEVEL   = research.gunDamageLevel   ?? 0;
   ctx.LASER_DAMAGE_LEVEL = research.laserDamageLevel ?? 0;
 
-  // ── Queue variables
-  const cq = state.craftQueue ?? [];
-  const ca = state.craftActive;
-  ctx.Q_len    = pq.length;
+  // ── Build queue variables
+  ctx.Q_len    = pq.reduce((s, b) => s + (b._batchCount ?? 1), 0);  // total buildings pending placement
   ctx.Q_miners = pq.filter(b => b.type === 'miner' || b.type === 'electricMiner').length;
+  const { batch: placeBatchSize } = computePlaceTimeSec();
+  ctx.PLACE_BATCH = placeBatchSize;  // buildings placed per placement interval
 
   // ── Persistent script memory (MEM_*)
   for (const [k, v] of Object.entries(state.scriptMemory ?? {})) {
@@ -712,7 +766,8 @@ function buildScriptContext() {
 
   // ── print
   ctx.print = function(...args) {
-    const text = args.map(a => a === null || a === undefined ? 'None' : String(a)).join(' ');
+    const fmt  = a => a === null || a === undefined ? 'None' : a === true ? 'True' : a === false ? 'False' : String(a);
+    const text = args.map(fmt).join(' ');
     scriptOutput.push({ type: 'info', text });
   };
 
@@ -747,6 +802,31 @@ function buildScriptContext() {
   for (const aliasKey of Object.keys(SCRIPT_RECIPE_EXTRA_ALIASES)) {
     ctx[aliasKey] = aliasKey;
   }
+
+  // ── expand(n=1) — expand perimeter n times using concrete
+  ctx.expand = function(n) {
+    const times = typeof n === 'number' ? Math.max(1, Math.floor(n)) : 1;
+    let expanded = 0;
+    for (let i = 0; i < times; i++) {
+      const sl      = state.perimeter?.sideLength ?? 10;
+      const newSL   = sl + 1;
+      const needed  = newSL * newSL;
+      const chunks  = state.chunksRevealed ?? 0;
+      if (chunks < needed) {
+        if (expanded === 0) scriptOutput.push({ type: 'warn', text: `expand: need ${needed - chunks} more explored chunks (for side ${newSL})` });
+        break;
+      }
+      const concreteCost = (2 * sl + 1) * 10;
+      if ((state.inventory.concrete ?? 0) < concreteCost) {
+        if (expanded === 0) scriptOutput.push({ type: 'warn', text: `expand: need ${concreteCost} concrete (have ${Math.floor(state.inventory.concrete ?? 0)})` });
+        break;
+      }
+      expandPerimeter();
+      expanded++;
+    }
+    if (expanded > 0)
+      scriptOutput.push({ type: 'info', text: `Expanded ×${expanded} → side ${state.perimeter.sideLength}` });
+  };
 
   // ── devmode() — toggle dev mode
   ctx.devmode = function() {
@@ -965,48 +1045,68 @@ function scriptPlaceBuilding(type, arg, n, moduleType) {
 
   const count = typeof n === 'number' ? Math.max(1, Math.floor(n)) : 1;
   const pr    = state.placementRecipes ?? defaultPlacementRecipes();
-  let placed = 0;
 
-  for (let i = 0; i < count; i++) {
-    if (!canAfford(costs)) {
-      if (i === 0) scriptOutput.push({ type: 'warn', text: `place: can't afford ${_displayName}` });
-      break;
-    }
-    let target;
-    if (realType === 'miner' || realType === 'electricMiner') {
-      const resource = (arg ? (RESOURCE_MAP[arg] ?? arg) : null) ?? pr[realType] ?? 'ironOre';
-      const maxNodes = maxDrillsForResource(resource);
-      if (drillCountForResource(resource) >= maxNodes) {
+  // Miners: per-item loop required (limited by available ore nodes)
+  if (realType === 'miner' || realType === 'electricMiner') {
+    const resource = (arg ? (RESOURCE_MAP[arg] ?? arg) : null) ?? pr[realType] ?? 'ironOre';
+    let placed = 0;
+    for (let i = 0; i < count; i++) {
+      if (!canAfford(costs)) { if (i === 0) scriptOutput.push({ type: 'warn', text: `place: can't afford ${_displayName}` }); break; }
+      if (drillCountForResource(resource) >= maxDrillsForResource(resource)) {
         if (i === 0) scriptOutput.push({ type: 'warn', text: `place: max drills reached for ${resource}` });
         break;
       }
       spend(costs);
-      target = { type: realType, resource, acc: 0 };
-    } else if (realType === 'pumpjack') {
-      spend(costs);
-      target = { type: realType, resource: 'crudeOil', acc: 0 };
-    } else if (BUILDING_DEFS[realType]?.hasRecipe) {
-      const recipe = (arg ? (RECIPE_MAP[arg] ?? arg) : null) ?? pr[realType] ?? '';
-      if (recipe && !isUnlocked('recipe', recipe)) {
-        if (i === 0) scriptOutput.push({ type: 'warn', text: `place: recipe "${recipe}" is locked` });
-        break;
-      }
-      spend(costs);
-      target = { type: realType, recipe, active: false, progress: 0 };
-    } else {
-      spend(costs);
-      target = { type: realType };
+      const t = { type: realType, resource, acc: 0, displayName: _displayName };
+      if (moduleType) t.initModuleType = moduleType;
+      placeQueue.push(t);
+      placed++;
     }
-    target.displayName = _displayName;
-    if (moduleType) target.initModuleType = moduleType;
-    placeQueue.push(target);
-    placed++;
+    if (placed > 0) { scriptOutput.push({ type: 'info', text: `Queued ${placed}× ${_displayName}` }); if (!placing) processNextPlacement(); }
+    return;
   }
 
-  if (placed > 0) {
-    scriptOutput.push({ type: 'info', text: `Queued ${placed}× ${_displayName}` });
-    if (!placing) processNextPlacement();
+  // All other types: batch — one queue entry for all N, spend all at once
+  const actualCount = howManyCanAfford(costs, count);
+  if (actualCount === 0) {
+    scriptOutput.push({ type: 'warn', text: `place: can't afford ${_displayName}` });
+    return;
   }
+  if (actualCount < count) {
+    scriptOutput.push({ type: 'warn', text: `place: can only afford ${actualCount}/${count} ${_displayName}` });
+  }
+
+  // Validate recipe before spending
+  let recipe = null;
+  if (BUILDING_DEFS[realType]?.hasRecipe) {
+    recipe = (arg ? (RECIPE_MAP[arg] ?? arg) : null) ?? pr[realType] ?? '';
+    if (recipe && !isUnlocked('recipe', recipe)) {
+      scriptOutput.push({ type: 'warn', text: `place: recipe "${recipe}" is locked` });
+      return;
+    }
+  }
+
+  // Batch spend (equivalent to calling spend(costs) actualCount times)
+  for (const [k, qty] of Object.entries(costs)) {
+    state.inventory[k] = (state.inventory[k] ?? 0) - qty * actualCount;
+  }
+
+  // Build template and push ONE queue entry with _batchCount
+  let target;
+  if (realType === 'pumpjack') {
+    target = { type: realType, resource: 'crudeOil', acc: 0 };
+  } else if (recipe !== null) {
+    target = { type: realType, recipe, active: false, progress: 0 };
+  } else {
+    target = { type: realType };
+  }
+  target.displayName  = _displayName;
+  target._batchCount  = actualCount;
+  if (moduleType) target.initModuleType = moduleType;
+
+  placeQueue.push(target);
+  scriptOutput.push({ type: 'info', text: `Queued ${actualCount}× ${_displayName}` });
+  if (!placing) processNextPlacement();
 }
 
 // ── scriptDoResearch ──────────────────────────────────────────
@@ -1203,8 +1303,8 @@ function escapeHtml(s) {
 
 // ── Syntax highlighting ───────────────────────────────────────
 
-const SH_KEYWORDS = new Set(['if','else','elif','for','in','and','or','not','while','break','continue','pass','return','True','False','None']);
-const SH_BUILTINS = new Set(['place','craft','print','research','limit','fortify','give','devmode','floor','ceil','round','abs','min','max','sqrt','pow','range','len']);
+const SH_KEYWORDS = new Set(['if','else','elif','for','in','and','or','not','while','break','continue','pass','return','True','False','None','def']);
+const SH_BUILTINS = new Set(['place','craft','print','research','limit','fortify','give','devmode','expand','floor','ceil','round','abs','min','max','sqrt','pow','range','len']);
 
 function highlightScript(src) {
   const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');

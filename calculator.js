@@ -90,6 +90,7 @@ function calcModMults(slots, moduleType) {
 // ── Recipe lookup ─────────────────────────────────────────────
 
 function calcFindRecipe(itemKey) {
+  if (itemKey === 'solidFuel') return { recipe: PLAYER_RECIPES['solidFuelLight'], isFurnace: false };
   if (PLAYER_RECIPES[itemKey]) return { recipe: PLAYER_RECIPES[itemKey], isFurnace: false };
   if (FURNACE_RECIPES[itemKey]) return { recipe: FURNACE_RECIPES[itemKey], isFurnace: true };
   return null;
@@ -356,11 +357,13 @@ function calcGenerateScript(targetItem, targetRatePerMin, assemblyTier = 'assemb
   const enoughVars = [];
   for (const machKey of CALC_BUILDING_ORDER) {
     if (!byMachinery[machKey]) continue;
-    const info     = CALC_MACHINERY_INFO[machKey];
-    const counts   = byMachinery[machKey];
-    const countExpr = counts.length === 1 ? `${counts[0]}` : `(${counts.join(' + ')})`;
-    lines.push(`${info.enoughVar} = ${info.invConst} >= ${countExpr} * scale`);
-    enoughVars.push({ enoughVar: info.enoughVar, invConst: info.invConst, countExpr });
+    const info    = CALC_MACHINERY_INFO[machKey];
+    const counts  = byMachinery[machKey];
+    const total   = counts.reduce((a, b) => a + b, 0);
+    const needVar = info.enoughVar.replace('enough_', '') + '_need';
+    lines.push(`${needVar} = ${total} * scale`);
+    lines.push(`${info.enoughVar} = ${info.invConst} >= ${needVar}`);
+    enoughVars.push({ enoughVar: info.enoughVar, invConst: info.invConst, needVar });
   }
 
   // Module enough check: total modules needed = sum(count × slots) across all placements
@@ -372,10 +375,13 @@ function calcGenerateScript(targetItem, targetRatePerMin, assemblyTier = 'assemb
       if (slots > 0) totalMods += p.count * slots;
     }
     if (totalMods > 0) {
-      const invConst  = CALC_MODULE_INV_CONST[moduleType];
+      const invConst   = CALC_MODULE_INV_CONST[moduleType];
       const scriptName = CALC_MODULE_SCRIPT_NAME[moduleType] ?? moduleType;
-      modEnoughVar = { enoughVar: `enough_${scriptName}`, invConst, countExpr: `${totalMods}`, label: scriptName };
-      lines.push(`${modEnoughVar.enoughVar} = ${invConst} >= ${totalMods} * scale`);
+      const enoughVar  = `enough_${scriptName}`;
+      const needVar    = `${scriptName}_need`;
+      modEnoughVar = { enoughVar, invConst, needVar, label: scriptName };
+      lines.push(`${needVar} = ${totalMods} * scale`);
+      lines.push(`${enoughVar} = ${invConst} >= ${needVar}`);
       enoughVars.push(modEnoughVar);
     }
   }
@@ -388,18 +394,18 @@ function calcGenerateScript(targetItem, targetRatePerMin, assemblyTier = 'assemb
     ? `, ${CALC_MODULE_SCRIPT_NAME[moduleType]}` : '';
 
   for (const p of placements) {
-    const info   = CALC_MACHINERY_INFO[p.machineryKey];
-    const slots  = CALC_MODULE_SLOTS[p.machineryKey] ?? 0;
+    const info    = CALC_MACHINERY_INFO[p.machineryKey];
+    const slots   = CALC_MODULE_SLOTS[p.machineryKey] ?? 0;
     const usesMod = moduleType && slots > 0;
-    const mod    = usesMod ? modScriptArg : '';
+    const mod     = usesMod ? modScriptArg : '';
     lines.push(`        place(${info.placeArg}, ${p.recipeScriptName}, ${p.count}${mod})`);
   }
 
   lines.push('else:');
-  for (const { enoughVar, invConst, countExpr, label } of enoughVars) {
+  for (const { enoughVar, invConst, needVar, label } of enoughVars) {
     lines.push(`    if not ${enoughVar}:`);
     const displayLabel = label ?? enoughVar.replace('enough_', '');
-    lines.push(`        print("Need " + (${countExpr} * scale - ${invConst}) + " ${displayLabel}")`);
+    lines.push(`        print("Need " + (${needVar} - ${invConst}) + " ${displayLabel}")`);
   }
 
   return lines.join('\n');
@@ -447,12 +453,11 @@ function runCalculator() {
   if (out) out.value = script;
 }
 
-function loadCalcToEditor() {
+function loadCalcToEditor(target) {
   const src = document.getElementById('calc-output')?.value ?? '';
   if (!src.trim()) return;
-  const manualActive = document.getElementById('script-tab-manual')?.classList.contains('script-tab-active');
-  const editorId = manualActive ? 'script-manual-editor' : 'script-auto-editor';
-  const hlId     = manualActive ? 'script-manual-hl'     : 'script-auto-hl';
+  const editorId = target === 'auto' ? 'script-auto-editor' : 'script-manual-editor';
+  const hlId     = target === 'auto' ? 'script-auto-hl'     : 'script-manual-hl';
   const ta = document.getElementById(editorId);
   if (ta) {
     ta.value = src;
