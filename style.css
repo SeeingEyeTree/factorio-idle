@@ -692,6 +692,22 @@ button {
 .btn-toggle.tog-off { background: var(--surf3); color: var(--dim); }
 .btn-toggle:hover   { opacity: .8; }
 
+.btn-priority {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  font-size: .85rem;
+  border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  background: var(--surf3); color: var(--dim);
+}
+.btn-priority.priority-on {
+  background: rgba(255,193,7,.15);
+  border-color: #ffc107;
+  color: #ffc107;
+  box-shadow: 0 0 6px rgba(255,193,7,.3);
+}
+.btn-priority:hover { opacity: .8; }
+
 .btn-removesmall {
   background: transparent;
   color: var(--dim);
