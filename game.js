@@ -294,6 +294,7 @@ function saveMetaState() {
 let state           = null;
 let gameLoopId      = null;
 let placeQueue      = [];    // pending placements
+let _placeHead      = 0;     // index of first live item; O(1) dequeue via head advance
 let placing         = false;
 let currentPlacing  = null;
 let placeStartMs    = null;
@@ -652,7 +653,7 @@ function buildSaveEnvelope() {
     savedAt: new Date().toISOString(),
     state,
     meta: metaState,
-    placeQueue: [...placeQueue],
+    placeQueue: placeQueue.slice(_placeHead),
     scriptContent:     document.getElementById('script-manual-editor')?.value ?? '',
     scriptAutoContent: document.getElementById('script-auto-editor')?.value ?? '',
     scriptAutoRun,
@@ -768,7 +769,7 @@ function applyStateFromEnvelope(envelope) {
   // Restore transient placement state
   if (placeRafId) cancelAnimationFrame(placeRafId);
   placeRafId = null; placing = false; currentPlacing = null;
-  placeQueue = isEnvelope && Array.isArray(envelope.placeQueue) ? [...envelope.placeQueue] : [];
+  placeQueue = isEnvelope && Array.isArray(envelope.placeQueue) ? [...envelope.placeQueue] : []; _placeHead = 0;
 
   // Script content is restored in showGame() once the DOM is ready
   _pendingScriptRestore = isEnvelope
@@ -2143,13 +2144,9 @@ function tick() {
 
   // ── Hand Crafting (unified queue) ──
   if (!state.craftActive && state.craftQueue.length > 0) {
-    const { key } = state.craftQueue[0];
+    const { key } = state.craftQueue.shift();
     const recipe = PLAYER_RECIPES[key];
-    if (recipe && canAfford(recipe.inputs)) {
-      for (const [k, v] of Object.entries(recipe.inputs)) recordConsumed(k, v);
-      state.craftActive = { key, progress: 0 };
-      state.craftQueue.shift();
-    }
+    if (recipe) state.craftActive = { key, progress: 0 };
   }
   if (state.craftActive) {
     const recipe = PLAYER_RECIPES[state.craftActive.key];
@@ -2290,7 +2287,7 @@ function drillCountForResource(resource) {
   const placed = state.buildings.filter(b =>
     (b.type === 'miner' || b.type === 'electricMiner') && b.resource === resource
   ).length;
-  const queued = placeQueue.filter(b =>
+  const queued = placeQueue.slice(_placeHead).filter(b =>
     (b.type === 'miner' || b.type === 'electricMiner') && b.resource === resource
   ).length;
   return placed + queued;
@@ -2351,7 +2348,7 @@ function placeBuilding(type, triggerEl, ev) {
   }
 
   if (targets.length > 0) {
-    if (frontOfQueue) placeQueue.unshift(...targets);
+    if (frontOfQueue) _placeEnqueueFront(targets);
     else placeQueue.push(...targets);
     updatePlacementUI();
     if (!placing) processNextPlacement();
@@ -2364,14 +2361,34 @@ function placeBuilding(type, triggerEl, ev) {
   }
 }
 
+function _placeDequeue() {
+  if (_placeHead >= placeQueue.length) return undefined;
+  const v = placeQueue[_placeHead];
+  placeQueue[_placeHead++] = null;
+  if (_placeHead >= 256 && _placeHead * 2 >= placeQueue.length) {
+    placeQueue = placeQueue.slice(_placeHead);
+    _placeHead = 0;
+  }
+  return v;
+}
+
+function _placeEnqueueFront(targets) {
+  if (_placeHead >= targets.length) {
+    for (let i = targets.length - 1; i >= 0; i--) placeQueue[--_placeHead] = targets[i];
+  } else {
+    placeQueue = [...targets, ...placeQueue.slice(_placeHead)];
+    _placeHead = 0;
+  }
+}
+
 function processNextPlacement() {
-  if (placeQueue.length === 0) {
+  if (_placeHead >= placeQueue.length) {
     placing = false;
     currentPlacing = null;
     updatePlacementUI();
     return;
   }
-  currentPlacing = placeQueue[0];
+  currentPlacing = placeQueue[_placeHead];
   placing = true;
   placeStartMs = performance.now();
   if (placeRafId) cancelAnimationFrame(placeRafId);
@@ -2384,11 +2401,11 @@ function tickPlacement() {
   document.getElementById('place-progress').style.width = (pct * 100) + '%';
   updatePlacementUI(placeBatch);
   if (pct >= 1) {
-    const entry      = placeQueue[0];
+    const entry      = placeQueue[_placeHead];
     const batchCount = entry._batchCount;
     if (batchCount != null) {
       // Script batch entry: place all N buildings in one shot
-      placeQueue.shift();
+      _placeDequeue();
       const template = { ...entry };
       delete template._batchCount;
       for (let i = 0; i < batchCount; i++) {
@@ -2399,15 +2416,15 @@ function tickPlacement() {
       _groupsDirty = true;
     } else {
       // Normal: use robot-speed batching across consecutive queue items
-      const toPlace = Math.min(placeBatch, placeQueue.length);
+      const toPlace = Math.min(placeBatch, placeQueue.length - _placeHead);
       for (let i = 0; i < toPlace; i++) {
-        const placed = { ...placeQueue[0], id: state.nextId++ };
+        const placed = { ...placeQueue[_placeHead], id: state.nextId++ };
         state.buildings.push(placed);
         if (placed.initModuleType) {
           const k = groupKey(placed);
           fillGroupModules(k, placed.initModuleType);
         }
-        placeQueue.shift();
+        _placeDequeue();
       }
       _groupsDirty = true;
     }
@@ -2426,7 +2443,8 @@ function updatePlacementUI(placeBatch) {
     const displayN    = scriptBatch ?? (robotBatch > 1 ? robotBatch : null);
     const batchStr    = displayN != null ? ` ×${displayN.toLocaleString()}` : '';
     label.textContent = `Placing ${currentPlacing.displayName}${batchStr}…`;
-    if (queueInfo) queueInfo.textContent = placeQueue.length > 1 ? `+${placeQueue.length - 1} queued` : '';
+    const liveLen = placeQueue.length - _placeHead;
+    if (queueInfo) queueInfo.textContent = liveLen > 1 ? `+${liveLen - 1} queued` : '';
   } else {
     label.textContent = 'Build Queue';
     document.getElementById('place-progress').style.width = '0%';
@@ -2452,18 +2470,30 @@ function manualMine(resource) {
 
 function queueCraft(key, shiftHeld) {
   const n = shiftHeld ? 5 : 1;
-  for (let i = 0; i < n; i++) state.craftQueue.push({ key });
-  renderCrafting();
+  const recipe = PLAYER_RECIPES[key];
+  if (!recipe) return;
+  let queued = 0;
+  for (let i = 0; i < n; i++) {
+    if (!canAfford(recipe.inputs)) break;
+    for (const [k, v] of Object.entries(recipe.inputs)) recordConsumed(k, v);
+    state.craftQueue.push({ key });
+    queued++;
+  }
+  if (queued > 0) renderCrafting();
 }
 
 function cancelCraftQueue(key) {
-  if (state.craftActive?.key === key) {
-    const recipe = PLAYER_RECIPES[key];
-    if (recipe) {
-      for (const [item, amt] of Object.entries(recipe.inputs))
-        recordProduced(item, amt);
+  const recipe = PLAYER_RECIPES[key];
+  if (recipe) {
+    if (state.craftActive?.key === key) {
+      for (const [item, amt] of Object.entries(recipe.inputs)) recordProduced(item, amt);
+      state.craftActive = null;
     }
-    state.craftActive = null;
+    const queued = state.craftQueue.filter(e => e.key === key).length;
+    for (let i = 0; i < queued; i++)
+      for (const [item, amt] of Object.entries(recipe.inputs)) recordProduced(item, amt);
+  } else {
+    if (state.craftActive?.key === key) state.craftActive = null;
   }
   state.craftQueue = state.craftQueue.filter(e => e.key !== key);
   renderCrafting();
@@ -2496,8 +2526,11 @@ function removeOneFromGroup(key) {
   const groups = buildGroupMap();
   const group  = groups[key];
   if (!group || group.buildings.length === 0) return;
-  state.buildings = state.buildings.filter(b => b.id !== group.buildings[group.buildings.length - 1].id);
+  const removed = group.buildings[group.buildings.length - 1];
+  state.buildings = state.buildings.filter(b => b.id !== removed.id);
   _groupsDirty = true;
+  const costs = BUILDING_COSTS[removed.type];
+  if (costs) for (const [item, amt] of Object.entries(costs)) recordProduced(item, amt);
   if (!state.buildings.some(b => groupKey(b) === key)) delete state.groupSettings[key];
   renderBuildings();
 }
@@ -3029,7 +3062,7 @@ function addBuildingFromGroup(key, count, frontOfQueue = false) {
     targets.push(target);
   }
   if (targets.length > 0) {
-    if (frontOfQueue) placeQueue.unshift(...targets);
+    if (frontOfQueue) _placeEnqueueFront(targets);
     else placeQueue.push(...targets);
     updatePlacementUI();
     if (!placing) processNextPlacement();
@@ -3141,7 +3174,7 @@ function renderBuildings() {
     const _ch = `${count}|${gs.enabled}|${gs.starved}|${gs.active}|${gs.activeCount ?? 0}|${gs.noPower}|${gs.priority}|${gs.limit}|` +
       `${gs.selectedModuleType}|${JSON.stringify(gs.modules ?? {})}|${gs.outsidePerimeter ?? 0}|` +
       `${gs.acidStarved ?? 0}|${gs.standby ?? 0}|${Math.round((gs.progress ?? 0) * 20)}|` +
-      `${(type === 'miner' || type === 'electricMiner') ? placeQueue.length : 0}`;
+      `${(type === 'miner' || type === 'electricMiner') ? placeQueue.length - _placeHead : 0}`;
     if (_cardCache[key]?.hash === _ch) return _cardCache[key].html;
     const _cardHtml = (() => {
 
@@ -5274,7 +5307,7 @@ function startNewGame() {
   const biterPointsCap     = parseFloat(document.getElementById('biter-points-cap-input')?.value      ?? String(BITER_POINTS_CAP_LINEAR)) || BITER_POINTS_CAP_LINEAR;
   const metaProgEnabled    = document.getElementById('meta-prog-toggle')?.checked ?? false;
   state = createState({ density: selectedDensity, biters, biterGracePeriod, biterIntervalSecs, biterPointsPreRed, biterPointsPostBlue, biterPointsCap, metaProgEnabled });
-  placeQueue = []; placing = false; currentPlacing = null; biterWaveWarned = false;
+  placeQueue = []; _placeHead = 0; placing = false; currentPlacing = null; biterWaveWarned = false;
   currentSaveFile = null;
   _pendingScriptRestore = null;
   closeNewGameModal();
@@ -5327,7 +5360,7 @@ function showGame() {
   renderAllPlacementPickers();
   updatePlacementUI();
   // Resume placement queue if loaded with pending buildings
-  if (placeQueue.length > 0 && !placing) processNextPlacement();
+  if (_placeHead < placeQueue.length && !placing) processNextPlacement();
   updateSaveFilenameDisplay();
   renderUI();
 }
