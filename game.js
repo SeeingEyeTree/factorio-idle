@@ -12,8 +12,8 @@ const PLACE_TIME           = 2; // seconds to place one building (base)
 const ROBOT_BONUS_PER_UNIT   = 0.008;  // placement speed contribution per robot×effectiveness
 const WORKER_SPEED_PER_LEVEL = 0.25;   // robot effectiveness gain per speed research level
 const WORKER_CARGO_PER_LEVEL = 0.25;   // robot effectiveness gain per cargo size level
-const PLACE_TIME_MIN         = 0.01;   // minimum raw time before batch mode kicks in
-const PLACE_TIME_LOOP        = 0.02;   // effective time used in batch mode
+const PLACE_TIME_MIN         = 0.1;    // minimum raw time before batch mode kicks in
+const PLACE_TIME_LOOP        = 0.1;    // effective time used in batch mode
 const BITER_INTERVAL       = 120;
 const BITER_RAMP           = 1.0;    // multiplier on wave number for scaling
 const BITER_HP_CAP         = 3000;   // max hp per biter
@@ -352,8 +352,8 @@ const TUTORIAL_GOALS = [
   {
     text: 'Place 10 burner miners on iron ore and 8 stone furnaces smelting iron. Don\'t forget coal and stone',
     check: s => {
-      const ironMiners   = s.buildings.filter(b => (b.type==='miner'||b.type==='electricMiner') && b.resource==='ironOre').length;
-      const ironFurnaces = s.buildings.filter(b => (b.type==='furnace'||b.type==='steelFurnace'||b.type==='electricFurnace') && b.recipe==='ironPlate').length;
+      const ironMiners   = Object.values(s.buildings).filter(g => (g.type==='miner'||g.type==='electricMiner') && g.resource==='ironOre').reduce((n,g)=>n+g.count,0);
+      const ironFurnaces = Object.values(s.buildings).filter(g => (g.type==='furnace'||g.type==='steelFurnace'||g.type==='electricFurnace') && g.recipe==='ironPlate').reduce((n,g)=>n+g.count,0);
       return ironMiners >= 10 && ironFurnaces >= 8;
     },
     glowCraft: ['burnerMinerItem','stoneFurnaceItem'],
@@ -361,8 +361,8 @@ const TUTORIAL_GOALS = [
   {
     text: 'Place 5 miners on copper ore and 4 furnaces smelting copper',
     check: s => {
-      const copperMiners   = s.buildings.filter(b => (b.type==='miner'||b.type==='electricMiner') && b.resource==='copperOre').length;
-      const copperFurnaces = s.buildings.filter(b => (b.type==='furnace'||b.type==='steelFurnace'||b.type==='electricFurnace') && b.recipe==='copperPlate').length;
+      const copperMiners   = Object.values(s.buildings).filter(g => (g.type==='miner'||g.type==='electricMiner') && g.resource==='copperOre').reduce((n,g)=>n+g.count,0);
+      const copperFurnaces = Object.values(s.buildings).filter(g => (g.type==='furnace'||g.type==='steelFurnace'||g.type==='electricFurnace') && g.recipe==='copperPlate').reduce((n,g)=>n+g.count,0);
       return copperMiners >= 5 && copperFurnaces >= 4;
     },
     glowCraft: ['burnerMinerItem','stoneFurnaceItem'],
@@ -370,9 +370,9 @@ const TUTORIAL_GOALS = [
   {
     text: 'Build 1 offshore pump, 1 boiler and 2 steam engines for power',
     check: s => {
-      const pumps   = s.buildings.filter(b => b.type==='offshoreP').length;
-      const boilers = s.buildings.filter(b => b.type==='boiler').length;
-      const engines = s.buildings.filter(b => b.type==='steamEngine').length;
+      const pumps   = s.buildings['offshoreP']?.count ?? 0;
+      const boilers = s.buildings['boiler']?.count ?? 0;
+      const engines = s.buildings['steamEngine']?.count ?? 0;
       return pumps >= 1 && boilers >= 1 && engines >= 2;
     },
     glowCraft: ['offshorePumpItem','boilerItem','steamEngineItem'],
@@ -380,7 +380,7 @@ const TUTORIAL_GOALS = [
   {
     text: 'Build a unpaid intern and craft a total of 10 red monster',
     check: s => {
-      const hasLab = s.buildings.some(b => b.type==='lab');
+      const hasLab = (s.buildings['lab']?.count ?? 0) > 0;
       const packs  = s.itemsProduced?.['redScience'] ?? 0;
       return hasLab && packs >= 10;
     },
@@ -433,10 +433,6 @@ function itemIcon(key) {
   return item.icon ?? '❓';
 }
 
-function techIconHtml(tech) {
-  if (tech.iconImg) return `<img class="item-icon tech-icon-img" src="${tech.iconImg}" alt="${tech.name}">`;
-  return `<span>${tech.icon ?? '⚙️'}</span>`;
-}
 
 // ── Robot Tech Data ───────────────────────────────────────────
 
@@ -506,7 +502,7 @@ function getArtilleryRangeTechData(level) {
   const totalNeeded = Math.round(Math.pow(2, level - 1) * 200);
   const packs = level <= 3
     ? ['redScience','greenScience','blueScience','yellowScience']
-    : ['redScience','greenScience','blueScience','yellowScience','spaceScience','rainbowScience'];
+    : ['rainbowScience'];
   return { cost: Object.fromEntries(packs.map(p => [p, 1])), timePerPack: 60, totalNeeded };
 }
 
@@ -514,7 +510,7 @@ function getArtilleryDamageTechData(level) {
   const totalNeeded = Math.round(Math.pow(2, level - 1) * 300);
   const packs = level <= 3
     ? ['redScience','greenScience','blueScience','yellowScience']
-    : ['redScience','greenScience','blueScience','yellowScience','spaceScience','rainbowScience'];
+    : ['rainbowScience'];
   return { cost: Object.fromEntries(packs.map(p => [p, 1])), timePerPack: 60, totalNeeded };
 }
 
@@ -526,48 +522,48 @@ function miningProdMult() {
 // ── Infinite Tech Registry ────────────────────────────────────
 // getData references function-declared helpers — safe because function declarations are hoisted.
 const INFINITE_TECHS = {
-  'robot:speed': {
+  'robot:speed': new InfiniteTech({
     displayName: 'Robot Speed',
-    stateField: 'robotSpeedLevel',
-    prereq: 'robotics',
-    getData: (level) => getRobotSpeedTechData(level),
-  },
-  'robot:cargo': {
+    stateField:  'robotSpeedLevel',
+    prereq:      'robotics',
+    getData:     (level) => getRobotSpeedTechData(level),
+  }),
+  'robot:cargo': new InfiniteTech({
     displayName: 'Robot Cargo Capacity',
-    stateField: 'robotCargoLevel',
-    prereq: 'robotics',
-    getData: (level) => ROBOT_CARGO_TECH_DATA[level] ?? null,
-  },
-  'mining:productivity': {
+    stateField:  'robotCargoLevel',
+    prereq:      'robotics',
+    getData:     (level) => ROBOT_CARGO_TECH_DATA[level] ?? null,
+  }),
+  'mining:productivity': new InfiniteTech({
     displayName: 'Mining Productivity',
-    stateField: 'miningProdLevel',
-    prereq: 'electricMiningDrill',
-    getData: (level) => getMiningProdData(level),
-  },
-  'gun:damage': {
+    stateField:  'miningProdLevel',
+    prereq:      'electricMiningDrill',
+    getData:     (level) => getMiningProdData(level),
+  }),
+  'gun:damage': new InfiniteTech({
     displayName: 'Physical Projectile Damage',
-    stateField: 'gunDamageLevel',
-    prereq: 'gunTurret',
-    getData: (level) => getGunDamageData(level),
-  },
-  'laser:damage': {
+    stateField:  'gunDamageLevel',
+    prereq:      'gunTurret',
+    getData:     (level) => getGunDamageData(level),
+  }),
+  'laser:damage': new InfiniteTech({
     displayName: 'Laser Shooting Speed',
-    stateField: 'laserDamageLevel',
-    prereq: 'laserTurretTech',
-    getData: (level) => getLaserDamageData(level),
-  },
-  'artillery:range': {
+    stateField:  'laserDamageLevel',
+    prereq:      'laserTurretTech',
+    getData:     (level) => getLaserDamageData(level),
+  }),
+  'artillery:range': new InfiniteTech({
     displayName: 'Artillery Range',
-    stateField: 'artilleryRangeLevel',
-    prereq: null,
-    getData: (level) => getArtilleryRangeTechData(level),
-  },
-  'artillery:damage': {
+    stateField:  'artilleryRangeLevel',
+    prereq:      null,
+    getData:     (level) => getArtilleryRangeTechData(level),
+  }),
+  'artillery:damage': new InfiniteTech({
     displayName: 'Artillery Damage',
-    stateField: 'artilleryDamageLevel',
-    prereq: null,
-    getData: (level) => getArtilleryDamageTechData(level),
-  },
+    stateField:  'artilleryDamageLevel',
+    prereq:      null,
+    getData:     (level) => getArtilleryDamageTechData(level),
+  }),
 };
 
 function currentRobotTechData() {
@@ -637,13 +633,12 @@ function createState(settings) {
         }];
       })
     ),
-    buildings: [
-      { id: 1, type: 'miner',   resource: 'ironOre',  acc: 0 },
-      { id: 2, type: 'furnace', recipe:   'ironPlate', active: false, progress: 0 },
-      { id: 3, type: 'miner',   resource: 'stone',    acc: 0 },
-      { id: 4, type: 'miner',   resource: 'coal',     acc: 0 },
-    ],
-    nextId:         5,
+    buildings: {
+      'miner:ironOre':     { type: 'miner',   resource: 'ironOre',  count: 1 },
+      'furnace:ironPlate': { type: 'furnace', recipe:   'ironPlate', count: 1 },
+      'miner:stone':       { type: 'miner',   resource: 'stone',    count: 1 },
+      'miner:coal':        { type: 'miner',   resource: 'coal',     count: 1 },
+    },
     biterTimer:     settings.biters ? -gracePeriod : 0,
     biterWaveNumber: 0,
     lastBiterWave:  null,
@@ -709,24 +704,18 @@ function createState(settings) {
 
   // Apply Quick Start perk if purchased and meta prog is enabled
   if (metaState?.perks?.quickStart && st.settings.metaProgEnabled) {
-    let nid = st.nextId;
-    // 1 extra lab
-    st.buildings.push({ id: nid++, type: 'lab', acc: 0, active: false, progress: 0 });
-    // 1 boiler
-    st.buildings.push({ id: nid++, type: 'boiler', acc: 0, active: false, progress: 0 });
-    // 1 steam engine
-    st.buildings.push({ id: nid++, type: 'steamEngine', acc: 0, active: false, progress: 0 });
-    // 5 coal miners
-    for (let i = 0; i < 5; i++) st.buildings.push({ id: nid++, type: 'miner', resource: 'coal', acc: 0 });
-    // 5 iron miners
-    for (let i = 0; i < 5; i++) st.buildings.push({ id: nid++, type: 'miner', resource: 'ironOre', acc: 0 });
-    // 5 iron furnaces
-    for (let i = 0; i < 5; i++) st.buildings.push({ id: nid++, type: 'furnace', recipe: 'ironPlate', active: false, progress: 0 });
-    // 5 copper miners
-    for (let i = 0; i < 5; i++) st.buildings.push({ id: nid++, type: 'miner', resource: 'copperOre', acc: 0 });
-    // 5 copper furnaces
-    for (let i = 0; i < 5; i++) st.buildings.push({ id: nid++, type: 'furnace', recipe: 'copperPlate', active: false, progress: 0 });
-    st.nextId = nid;
+    const b = st.buildings;
+    const add = (key, entry, n = 1) => {
+      if (b[key]) b[key].count += n; else b[key] = { ...entry, count: n };
+    };
+    add('lab',             { type: 'lab' });
+    add('boiler',          { type: 'boiler' });
+    add('steamEngine',     { type: 'steamEngine' });
+    add('miner:coal',      { type: 'miner', resource: 'coal' },      5);
+    add('miner:ironOre',   { type: 'miner', resource: 'ironOre' },   5);
+    add('furnace:ironPlate',  { type: 'furnace', recipe: 'ironPlate' },  5);
+    add('miner:copperOre', { type: 'miner', resource: 'copperOre' }, 5);
+    add('furnace:copperPlate', { type: 'furnace', recipe: 'copperPlate' }, 5);
   }
 
   return st;
@@ -755,6 +744,20 @@ function applyStateFromEnvelope(envelope) {
   for (const k in _cardCache) delete _cardCache[k];
 
   // Backwards-compat field initialization
+  // Migrate old array-of-instances format to count map
+  if (Array.isArray(state.buildings)) {
+    const map = {};
+    for (const b of state.buildings) {
+      const k = groupKey(b);
+      if (!map[k]) map[k] = { type: b.type, count: 0 };
+      if (b.resource != null) map[k].resource = b.resource;
+      if (b.recipe   != null) map[k].recipe   = b.recipe;
+      map[k].count++;
+    }
+    state.buildings = map;
+  }
+  if (!state.buildings) state.buildings = {};
+
   if (!state.groupSettings)            state.groupSettings    = {};
   if (state.water    == null)          state.water            = 0;
   if (state.steam    == null)          state.steam            = 0;
@@ -1088,16 +1091,19 @@ function buildGroupMap() {
   if (!_groupsDirty && _groupsCache) return _groupsCache;
   const groups = {};
   const typeCounts = {};
-  for (const b of state.buildings) {
-    const k = groupKey(b);
-    if (!groups[k]) groups[k] = { key: k, type: b.type, resource: b.resource, recipe: b.recipe, buildings: [] };
-    groups[k].buildings.push(b);
-    typeCounts[b.type] = (typeCounts[b.type] ?? 0) + 1;
+  for (const [k, entry] of Object.entries(state.buildings)) {
+    if (entry.count <= 0) continue;
+    groups[k] = { key: k, type: entry.type, resource: entry.resource, recipe: entry.recipe, count: entry.count };
+    typeCounts[entry.type] = (typeCounts[entry.type] ?? 0) + entry.count;
   }
   _groupsCache = groups;
   _typeCountsCache = typeCounts;
   _groupsDirty = false;
   return groups;
+}
+
+function totalBuildingCount() {
+  return Object.values(state.buildings).reduce((s, e) => s + e.count, 0);
 }
 
 // ── Inventory Helpers ─────────────────────────────────────────
@@ -1208,11 +1214,12 @@ function isUnlocked(type, key) {
 
 function canResearchTech(key, includeQueue = false) {
   const tech = TECHNOLOGIES[key];
-  if (!tech || !tech.prereqs || tech.prereqs.length === 0) return true;
+  if (!tech || tech.prereqs.length === 0) return true;
+  const done = state.research.done;
+  if (!includeQueue) return tech.canResearch(done);
   const queue = state.research.queue ?? [];
   return tech.prereqs.every(p =>
-    state.research.done[p] ||
-    (includeQueue && (state.research.current === p || queue.includes(p)))
+    done[p] || state.research.current === p || queue.includes(p)
   );
 }
 
@@ -1320,6 +1327,14 @@ function completeResearch(key) {
     }
   }
   state.research.queue = queue;
+
+  // If queue is now empty and auto-start is configured, start that infinite tech
+  if (!state.research.current && state.research.infiniteAutoStart) {
+    state.research.current = state.research.infiniteAutoStart;
+    state.research.totalConsumed = 0;
+    getGS('lab').starved = false;
+  }
+
   renderUI();
 }
 
@@ -1390,15 +1405,6 @@ function completeRobotResearch(type) {
   lastTechHash = '';
   lastRobotTechHtml = '';
 
-  // If auto-start is on for this tech, immediately restart the next level
-  if (state.research.infiniteAutoStart === type) {
-    state.research.current = type;
-    state.research.totalConsumed = 0;
-    getGS('lab').starved = false;
-    renderUI();
-    return;
-  }
-
   // Auto-start next queued item (regular or infinite tech)
   const queue = state.research.queue ?? [];
   while (queue.length > 0) {
@@ -1422,6 +1428,14 @@ function completeRobotResearch(type) {
     }
   }
   state.research.queue = queue;
+
+  // If queue is now empty and auto-start is configured, start that infinite tech
+  if (!state.research.current && state.research.infiniteAutoStart) {
+    state.research.current = state.research.infiniteAutoStart;
+    state.research.totalConsumed = 0;
+    getGS('lab').starved = false;
+  }
+
   renderUI();
 }
 
@@ -1523,7 +1537,7 @@ function tick() {
     if (!baseKw) continue;
     const gs = getGS(key);
     if (!gs.enabled) continue;
-    totalDemand += baseKw * metaEnergyMult(group.type) * group.buildings.length;
+    totalDemand += baseKw * metaEnergyMult(group.type) * group.count;
   }
   // Laser turrets only fire during biter waves — energy is drawn at wave resolution, not continuously
   if (state.allPaused) totalDemand = 0;
@@ -1543,7 +1557,7 @@ function tick() {
     const rate = group.type === 'miner' ? COAL_PER_MINER
                : group.type === 'steelFurnace' ? COAL_PER_STEEL_FURNACE
                : COAL_PER_FURNACE;
-    gs.coalAcc = (gs.coalAcc ?? 0) + group.buildings.length * rate * dt;
+    gs.coalAcc = (gs.coalAcc ?? 0) + group.count * rate * dt;
     if (gs.coalAcc >= 1) {
       const needed = Math.floor(gs.coalAcc);
       if (state.inventory.coal >= needed) {
@@ -1569,7 +1583,7 @@ function tick() {
     if ((state.inventory[group.resource] ?? 0) >= gs.limit) continue;
     const patch = state.patches[group.resource];
     if (!patch || patch.remaining <= 0) continue;
-    const count = group.buildings.length;
+    const count = group.count;
     gs.acc = (gs.acc ?? 0) + count * MINE_SPEED * dt;
     if (gs.acc >= 1) {
       const n = Math.min(Math.floor(gs.acc), patch.remaining);
@@ -1592,7 +1606,7 @@ function tick() {
     if ((state.inventory[group.resource] ?? 0) >= gs.limit) continue;
     const patch = state.patches[group.resource];
     if (!patch || patch.remaining <= 0) continue;
-    const count = group.buildings.length;
+    const count = group.count;
     const { speedMult } = calcGroupModifiers('electricMiner', count, gs.modules);
     gs.acc = (gs.acc ?? 0) + count * ELECTRIC_MINER_SPEED * speedMult * dt * powerRatio;
     if (gs.acc >= 1) {
@@ -1623,7 +1637,7 @@ function tick() {
     if (gs.starved) { gs.active = false; gs.progress = 0; gs.activeCount = 0; continue; }
     const recipe = FURNACE_RECIPES[group.recipe];
     if (!recipe) { gs.active = false; gs.activeCount = 0; continue; }
-    const count = group.buildings.length;
+    const count = group.count;
     const outputKey = Object.keys(recipe.outputs)[0];
     const { speedMult, prodBonus } = calcGroupModifiers('furnace', count, gs.modules);
     const inv = Math.floor(state.inventory[outputKey] ?? 0);
@@ -1666,7 +1680,7 @@ function tick() {
     if (gs.starved) { gs.active = false; gs.progress = 0; gs.activeCount = 0; continue; }
     const recipe = FURNACE_RECIPES[group.recipe];
     if (!recipe) { gs.active = false; gs.activeCount = 0; continue; }
-    const count = group.buildings.length;
+    const count = group.count;
     const outputKey = Object.keys(recipe.outputs)[0];
     const { speedMult, prodBonus } = calcGroupModifiers('steelFurnace', count, gs.modules);
     const inv = Math.floor(state.inventory[outputKey] ?? 0);
@@ -1710,7 +1724,7 @@ function tick() {
     gs.noPower = powerRatio < 1;
     const recipe = PLAYER_RECIPES[group.recipe];
     if (!recipe) { gs.active = false; gs.activeCount = 0; continue; }
-    const count = group.buildings.length;
+    const count = group.count;
     const outputKey = Object.keys(recipe.outputs)[0];
     const { speedMult, prodBonus } = calcGroupModifiers('assembly', count, gs.modules);
     const inv = Math.floor(state.inventory[outputKey] ?? 0);
@@ -1754,7 +1768,7 @@ function tick() {
     gs.noPower = powerRatio < 1;
     const recipe = PLAYER_RECIPES[group.recipe];
     if (!recipe) { gs.active = false; gs.activeCount = 0; continue; }
-    const count = group.buildings.length;
+    const count = group.count;
     const outputKey = Object.keys(recipe.outputs)[0];
     const { speedMult, prodBonus } = calcGroupModifiers('assembly2', count, gs.modules);
     const inv = Math.floor(state.inventory[outputKey] ?? 0);
@@ -1798,7 +1812,7 @@ function tick() {
     gs.noPower = powerRatio < 1;
     const recipe = PLAYER_RECIPES[group.recipe];
     if (!recipe) { gs.active = false; gs.activeCount = 0; continue; }
-    const count = group.buildings.length;
+    const count = group.count;
     const outputKey = Object.keys(recipe.outputs)[0];
     const { speedMult, prodBonus } = calcGroupModifiers('assembly3', count, gs.modules);
     const inv = Math.floor(state.inventory[outputKey] ?? 0);
@@ -1842,7 +1856,7 @@ function tick() {
     gs.noPower = powerRatio < 1;
     const recipe = FURNACE_RECIPES[group.recipe];
     if (!recipe) { gs.active = false; gs.activeCount = 0; continue; }
-    const count = group.buildings.length;
+    const count = group.count;
     const outputKey = Object.keys(recipe.outputs)[0];
     const { speedMult, prodBonus } = calcGroupModifiers('electricFurnace', count, gs.modules);
     const inv = Math.floor(state.inventory[outputKey] ?? 0);
@@ -1887,7 +1901,7 @@ function tick() {
     const patch = state.patches[group.resource];
     if (!patch || patch.remaining <= 0) { gs.starved = true; continue; }
     gs.starved = false;
-    const count = group.buildings.length;
+    const count = group.count;
     const extracted = Math.min(PUMPJACK_SPEED * miningProdMult() * count * dt * powerRatio, patch.remaining);
     patch.remaining -= extracted;
     recordProduced(group.resource, extracted);
@@ -1903,7 +1917,7 @@ function tick() {
     gs.noPower = powerRatio < 1;
     const recipe = PLAYER_RECIPES[group.recipe];
     if (!recipe) { gs.active = false; gs.activeCount = 0; continue; }
-    const count = group.buildings.length;
+    const count = group.count;
     const outputKey = Object.keys(recipe.outputs)[0];
     const { speedMult, prodBonus } = calcGroupModifiers('oilRefinery', count, gs.modules);
     const inv = Math.floor(state.inventory[outputKey] ?? 0);
@@ -1947,7 +1961,7 @@ function tick() {
     gs.noPower = powerRatio < 1;
     const recipe = PLAYER_RECIPES[group.recipe];
     if (!recipe) { gs.active = false; gs.activeCount = 0; continue; }
-    const count = group.buildings.length;
+    const count = group.count;
     const outputKey = Object.keys(recipe.outputs)[0];
     const { speedMult, prodBonus } = calcGroupModifiers('chemicalPlant', count, gs.modules);
     const inv = Math.floor(state.inventory[outputKey] ?? 0);
@@ -1991,7 +2005,7 @@ function tick() {
     gs.noPower = powerRatio < 1;
     const recipe = PLAYER_RECIPES[group.recipe];
     if (!recipe) { gs.active = false; gs.activeCount = 0; continue; }
-    const count = group.buildings.length;
+    const count = group.count;
     const outputKey = Object.keys(recipe.outputs)[0];
     const { speedMult, prodBonus } = calcGroupModifiers('centrifuge', count, gs.modules);
     const inv = Math.floor(state.inventory[outputKey] ?? 0);
@@ -2043,7 +2057,7 @@ function tick() {
     gs.noPower = powerRatio < 1;
     const recipe = PLAYER_RECIPES[group.recipe];
     if (!recipe) { gs.active = false; gs.activeCount = 0; continue; }
-    const count = group.buildings.length;
+    const count = group.count;
     const outputKey = Object.keys(recipe.outputs)[0];
     const { speedMult, prodBonus } = calcGroupModifiers('rocketSilo', count, gs.modules);
     const inv = Math.floor(state.inventory[outputKey] ?? 0);
@@ -2083,7 +2097,7 @@ function tick() {
   const pumpGroup = groups['offshoreP'];
   if (pumpGroup) {
     const gs = getGS('offshoreP');
-    if (gs.enabled) { state.water = Math.min(effectiveWaterMax(), state.water + pumpGroup.buildings.length * OFFSHORE_PUMP_WATER_PER_SEC * dt); gs.starved = false; }
+    if (gs.enabled) { state.water = Math.min(effectiveWaterMax(), state.water + pumpGroup.count * OFFSHORE_PUMP_WATER_PER_SEC * dt); gs.starved = false; }
     else gs.starved = true;
   }
   _p1('offshorePumps', _tOSP);
@@ -2093,7 +2107,7 @@ function tick() {
   const boilerGroup = groups['boiler'];
   if (boilerGroup) {
     const gs = getGS('boiler');
-    const count = boilerGroup.buildings.length;
+    const count = boilerGroup.count;
     if (gs.enabled) {
       gs.coalAcc = (gs.coalAcc ?? 0) + count * BOILER_COAL_PER_SEC * dt;
       let coalOk = true;
@@ -2121,14 +2135,14 @@ function tick() {
   const solarGroup = groups['solarPanel'];
   if (solarGroup) {
     const gs = getGS('solarPanel');
-    if (gs.enabled) state.powerKw += solarGroup.buildings.length * SOLAR_PANEL_KW;
+    if (gs.enabled) state.powerKw += solarGroup.count * SOLAR_PANEL_KW;
   }
 
   // Nuclear (fuel-gated)
   const nuclearGroup = groups['nuclearReactor'];
   if (nuclearGroup) {
     const gs    = getGS('nuclearReactor');
-    const count = nuclearGroup.buildings.length;
+    const count = nuclearGroup.count;
     if (gs.enabled) {
       gs.fuelAcc = (gs.fuelAcc ?? 0) + count * dt / NUCLEAR_FUEL_INTERVAL;
       let fuelOk = true;
@@ -2153,7 +2167,7 @@ function tick() {
   const engineGroup = groups['steamEngine'];
   if (engineGroup) {
     const gs        = getGS('steamEngine');
-    const count     = engineGroup.buildings.length;
+    const count     = engineGroup.count;
     const steamMult = hasMetaPerk('perk_steam_output') ? 1.10 : 1;
     const maxKw     = count * STEAM_ENGINE_KW * steamMult;
     const shortfall = Math.max(0, totalDemand * 1.05 - state.powerKw);
@@ -2190,7 +2204,7 @@ function tick() {
   const accGroup = groups['accumulator'];
   if (accGroup) {
     const gs = getGS('accumulator');
-    const count = accGroup.buildings.length;
+    const count = accGroup.count;
     const maxCharge = count * ACCUMULATOR_CAPACITY;
     if (gs.enabled) {
       const excess = state.powerKw - totalDemand;
@@ -2212,7 +2226,7 @@ function tick() {
     const gs = getGS('radar');
     if (gs.enabled) {
       const effectiveRadarTime = hasMetaPerk('perk_radar_speed') ? RADAR_CHUNK_TIME / 1.5 : RADAR_CHUNK_TIME;
-      gs.radarAcc = (gs.radarAcc ?? 0) + radarGroup.buildings.length * powerRatio * dt;
+      gs.radarAcc = (gs.radarAcc ?? 0) + radarGroup.count * powerRatio * dt;
       while (gs.radarAcc >= effectiveRadarTime) { gs.radarAcc -= effectiveRadarTime; revealChunk(); }
     }
   }
@@ -2223,7 +2237,7 @@ function tick() {
   const labGroup = groups['lab'];
   if (labGroup && state.research.current) {
     const gs    = getGS('lab');
-    const count = labGroup.buildings.length;
+    const count = labGroup.count;
     const isInfiniteTech = state.research.current.includes(':');
     const techData = isInfiniteTech ? currentRobotTechData() : (() => {
       const t = TECHNOLOGIES[state.research.current];
@@ -2359,7 +2373,7 @@ function tick() {
   _p1('biters', _tBit);
 
   // ── Death check: if biters are enabled and all buildings are gone ──
-  if (state.settings?.biters && state.buildings.length === 0 && !state._deathHandled) {
+  if (state.settings?.biters && totalBuildingCount() === 0 && !state._deathHandled) {
     state._deathHandled = true;
     handleRunEnd('death');
     return; // stop further processing this tick
@@ -2403,8 +2417,8 @@ function displayAmt(key) {
 
 function drillCountForResource(resource) {
   const g = buildGroupMap();
-  const placed = (g[`miner|${resource}`]?.buildings.length ?? 0)
-               + (g[`electricMiner|${resource}`]?.buildings.length ?? 0);
+  const placed = (state.buildings[`miner:${resource}`]?.count ?? 0)
+               + (state.buildings[`electricMiner:${resource}`]?.count ?? 0);
   const queued = placeQueue.slice(_placeHead).filter(b =>
     (b.type === 'miner' || b.type === 'electricMiner') && b.resource === resource
   ).length;
@@ -2533,22 +2547,20 @@ function tickPlacement() {
       _placeDequeue();
       const template = { ...entry };
       delete template._batchCount;
-      for (let i = 0; i < batchCount; i++) {
-        const placed = { ...template, id: state.nextId++ };
-        state.buildings.push(placed);
-        if (placed.initModuleType) fillGroupModules(groupKey(placed), placed.initModuleType);
-      }
+      const bk = groupKey(template);
+      if (!state.buildings[bk]) state.buildings[bk] = { type: template.type, count: 0, ...(template.resource != null && { resource: template.resource }), ...(template.recipe != null && { recipe: template.recipe }) };
+      state.buildings[bk].count += batchCount;
+      if (template.initModuleType) fillGroupModules(bk, template.initModuleType);
       _groupsDirty = true; _typeCountsCache = null;
     } else {
       // Normal: use robot-speed batching across consecutive queue items
       const toPlace = Math.min(placeBatch, placeQueue.length - _placeHead);
       for (let i = 0; i < toPlace; i++) {
-        const placed = { ...placeQueue[_placeHead], id: state.nextId++ };
-        state.buildings.push(placed);
-        if (placed.initModuleType) {
-          const k = groupKey(placed);
-          fillGroupModules(k, placed.initModuleType);
-        }
+        const placed = placeQueue[_placeHead];
+        const k = groupKey(placed);
+        if (!state.buildings[k]) state.buildings[k] = { type: placed.type, count: 0, ...(placed.resource != null && { resource: placed.resource }), ...(placed.recipe != null && { recipe: placed.recipe }) };
+        state.buildings[k].count++;
+        if (placed.initModuleType) fillGroupModules(k, placed.initModuleType);
         _placeDequeue();
       }
       _groupsDirty = true; _typeCountsCache = null;
@@ -2648,29 +2660,38 @@ function setBuildingAddCount(key, val) {
 }
 
 function removeOneFromGroup(key) {
-  const groups = buildGroupMap();
-  const group  = groups[key];
-  if (!group || group.buildings.length === 0) return;
-  const removed = group.buildings[group.buildings.length - 1];
-  state.buildings = state.buildings.filter(b => b.id !== removed.id);
+  const entry = state.buildings[key];
+  if (!entry || entry.count <= 0) return;
+  const type = entry.type;
+  entry.count--;
+  if (entry.count <= 0) {
+    delete state.buildings[key];
+    delete state.groupSettings[key];
+  }
   _groupsDirty = true; _typeCountsCache = null;
-  const costs = BUILDING_COSTS[removed.type];
+  const costs = BUILDING_COSTS[type];
   if (costs) for (const [item, amt] of Object.entries(costs)) recordProduced(item, amt);
-  if (!state.buildings.some(b => groupKey(b) === key)) delete state.groupSettings[key];
   renderBuildings();
 }
 
 function changeGroupRecipe(oldKey, recipe, type) {
   const newKey = `${type}:${recipe}`;
-  for (const b of state.buildings) {
-    if (groupKey(b) === oldKey) { b.recipe = recipe; b.active = false; b.progress = 0; }
+  const entry = state.buildings[oldKey];
+  if (!entry) return;
+  if (oldKey !== newKey) {
+    entry.recipe = recipe;
+    if (state.buildings[newKey]) {
+      state.buildings[newKey].count += entry.count;
+    } else {
+      state.buildings[newKey] = entry;
+    }
+    delete state.buildings[oldKey];
+    state.groupSettings[newKey] = state.groupSettings[oldKey] ?? getGS(newKey);
+    delete state.groupSettings[oldKey];
+  } else {
+    entry.recipe = recipe;
   }
   _groupsDirty = true; _typeCountsCache = null;
-  if (oldKey !== newKey) {
-    state.groupSettings[newKey] = state.groupSettings[oldKey]
-      ?? { enabled: true, coalAcc: 0, starved: false, limit: 50, radarAcc: 0, packAcc: 0 };
-    delete state.groupSettings[oldKey];
-  }
   renderBuildings();
 }
 
@@ -2798,7 +2819,7 @@ function updateTabVisibility() {
   showTab('defense', !!state.settings?.biters);
 
   // Tutorial-gated tabs
-  const researchVisible = !tut || idx >= 3 || state.buildings.some(b => b.type === 'lab');
+  const researchVisible = !tut || idx >= 3 || (state.buildings['lab']?.count ?? 0) > 0;
   const recipesVisible  = !tut || idx >= 5 || !!state.research.done['automation'];
   const graphVisible    = !tut || idx >= 6 || !!state.research.done['logisticSciencePack'];
   showTab('research', researchVisible);
@@ -2912,7 +2933,12 @@ function renderPower() {
     <div class="fluid-cell power-cell">
       <span class="fluid-icon">⚡</span>
       <span class="fluid-val ${pClass}">${pwText}</span>
-    </div>${accLine}`;
+    </div>${accLine}
+    <div class="fluid-sep">·</div>
+    <div class="fluid-cell">
+      <span class="fluid-icon">🏆</span>
+      <span class="fluid-val">${(metaState.pendingPoints ?? 0).toFixed(2)} pts</span>
+    </div>`;
 }
 
 function renderMining() {
@@ -3194,27 +3220,16 @@ function addBuildingFromGroup(key, count, frontOfQueue = false) {
       if (i === 0) notify(`Need ${COST_LABEL[type] ?? type} — craft it first`, 'warning');
       break;
     }
-    const proto = group.buildings[0];
-    /* NODES: drill node cap check removed
-    if (type === 'miner' || type === 'electricMiner') {
-      const resource = proto.resource;
-      const maxNodes = maxDrillsForResource(resource);
-      if (drillCountForResource(resource) >= maxNodes) {
-        if (i === 0) notify(`Patch has ${maxNodes} nodes — max drills reached for ${PATCHES[resource]?.name ?? resource}`, 'warning');
-        break;
-      }
-    }
-    */
     spend(costs);
     let target;
-    if (proto.recipe !== undefined) {
-      target = { type, recipe: proto.recipe, active: false, progress: 0 };
-    } else if (proto.resource !== undefined) {
-      target = { type, resource: proto.resource, acc: 0 };
+    if (group.recipe !== undefined) {
+      target = { type, recipe: group.recipe, active: false, progress: 0 };
+    } else if (group.resource !== undefined) {
+      target = { type, resource: group.resource, acc: 0 };
     } else {
       target = { type };
     }
-    target.displayName = proto.displayName ?? type;
+    target.displayName = BUILDING_DEFS[type]?.name ?? type;
     targets.push(target);
   }
   if (targets.length > 0) {
@@ -3268,7 +3283,7 @@ function buildingMatchesSearch(group, q) {
   if (!q) return true;
   const type = group.type.toLowerCase();
   if (type.includes(q)) return true;
-  const displayName = (group.buildings[0]?.displayName ?? '').toLowerCase();
+  const displayName = (BUILDING_DEFS[group.type]?.name ?? '').toLowerCase();
   if (displayName.includes(q)) return true;
   if (group.recipe) {
     const r = PLAYER_RECIPES[group.recipe] ?? FURNACE_RECIPES[group.recipe];
@@ -3341,7 +3356,7 @@ function renderBuildings() {
   const _newBuildingsHtml = keys.map(key => {
     const group = groups[key];
     const gs    = getGS(key);
-    const count = group.buildings.length;
+    const count = group.count;
     const type  = group.type;
     // Cache key: hash relevant state; progress quantized to 5% so active groups don't thrash
     const _ch = `${count}|${gs.enabled}|${gs.starved}|${gs.active}|${gs.activeCount ?? 0}|${gs.noPower}|${gs.priority}|${gs.limit}|` +
@@ -3737,7 +3752,7 @@ function adjustGroupModules(key, modType, amount) {
   const group = groups[key];
   if (!group) return;
   const slotsPerBuilding = MODULE_SLOTS[group.type] ?? 0;
-  const totalSlots = slotsPerBuilding * group.buildings.length;
+  const totalSlots = slotsPerBuilding * group.count;
   if (!gs.modules) gs.modules = {};
   const usedSlots = Object.values(gs.modules).reduce((s, n) => s + n, 0);
   const current = gs.modules[modType] ?? 0;
@@ -3766,7 +3781,7 @@ function fillGroupModules(key, modType) {
   const group = groups[key];
   if (!group) return;
   const slotsPerBuilding = MODULE_SLOTS[group.type] ?? 0;
-  const totalSlots = slotsPerBuilding * group.buildings.length;
+  const totalSlots = slotsPerBuilding * group.count;
   if (!gs.modules) gs.modules = {};
   const current = gs.modules[modType] ?? 0;
   const usedOther = Object.entries(gs.modules).reduce((s, [k, n]) => k === modType ? s : s + n, 0);
@@ -3957,7 +3972,7 @@ function renderResearchTree() {
       const prereqHtml = prereqNames ? `<div class="tech-node-prereqs">Req: ${prereqNames}</div>` : '';
       html += `<div class="tech-node ${cls}" data-node-key="${key}" ${clickData} title="${tech.description}">
         <div class="tech-node-head">
-          <span class="tech-node-icon">${techIconHtml(tech)}</span>
+          <span class="tech-node-icon">${tech.iconHtml()}</span>
           <div>
             <div class="tech-node-name">${tech.name}</div>
             <div class="tech-node-cost">${costStr}</div>
@@ -4130,9 +4145,9 @@ function renderResearchStatus() {
   } else {
     const tech = TECHNOLOGIES[res.current];
     if (!tech) { el.innerHTML = ''; return; }
-    totalNeeded  = Math.max(...Object.values(tech.cost));
+    totalNeeded  = tech.totalPacks();
     timePerPack  = tech.timePerPack;
-    icon = techIconHtml(tech);
+    icon = tech.iconHtml();
     name = tech.name;
   }
 
@@ -4183,10 +4198,17 @@ function renderRobotTechs() {
   const canResearchSpeed = !cur && labCount > 0;
 
   const speedIsQueued = (state.research.queue ?? []).includes('robot:speed');
+  const speedAutoOn = state.research.infiniteAutoStart === 'robot:speed';
+  const speedAutoBtn = `<button class="btn-sm ${speedAutoOn ? 'btn-primary' : 'btn-secondary'} rcard-btn"
+    style="margin-left:auto;font-size:.7rem;padding:.15rem .5rem"
+    onclick="toggleInfiniteAutoStart('robot:speed')"
+    title="${speedAutoOn ? 'Stop auto-repeating this tech' : 'Automatically restart each level when it completes'}">
+    Auto: ${speedAutoOn ? 'ON' : 'OFF'}</button>`;
   html += `<div class="robot-tech-group">
     <div class="robot-tech-header">
       <span>Worker Robot Speed</span>
       <span class="robot-tech-badge">Level ${speedLevel}${speedLevel > 0 ? ` · +${(speedLevel * WORKER_SPEED_PER_LEVEL * 100).toFixed(0)}% robot effectiveness` : ''}</span>
+      ${speedAutoBtn}
     </div>
     <div class="robot-tech-card ${speedIsCur ? 'rcard-current' : speedIsQueued ? 'rcard-queued' : ''}">
       <div class="rcard-name">Level ${nextSpeedLvl}</div>
@@ -4533,9 +4555,14 @@ function fightBiterWave() {
   let buildingsLost = 0;
   if (totalOverflow > 0) {
     buildingsLost = Math.floor(totalOverflow / BUILDING_TOUGHNESS);
-    for (let i = 0; i < buildingsLost && state.buildings.length > 0; i++) {
-      state.buildings.pop();
+    for (let i = 0; i < buildingsLost; i++) {
+      const keys = Object.keys(state.buildings).filter(k => state.buildings[k].count > 0);
+      if (keys.length === 0) break;
+      const k = keys[Math.floor(Math.random() * keys.length)];
+      state.buildings[k].count--;
+      if (state.buildings[k].count <= 0) delete state.buildings[k];
     }
+    _groupsDirty = true; _typeCountsCache = null;
   }
 
   // Apply irradiation to threat scaling (add extra threat points)

@@ -613,13 +613,13 @@ function _camelToScream(str) {
 function buildScriptContext() {
   const inv      = state.inventory       ?? {};
   const delta    = state.inventoryDelta  ?? {};
-  const bldgs    = state.buildings       ?? [];
+  const bldgs    = state.buildings       ?? {};
   const p        = state.perimeter       ?? {};
   const research = state.research        ?? {};
   const pq       = placeQueue.slice(_placeHead);
 
-  const countType  = t => bldgs.filter(b => b.type === t).length;
-  const countMiner = (t, r) => bldgs.filter(b => b.type === t && b.resource === r).length;
+  const countType  = t => Object.values(bldgs).filter(g => g.type === t).reduce((s, g) => s + g.count, 0);
+  const countMiner = (t, r) => bldgs[`${t}:${r}`]?.count ?? 0;
 
   const ctx = {};
 
@@ -1248,7 +1248,7 @@ function runAutoScript() {
         ...ctx,
         _research:  state.research,
         _inventory: state.inventory,
-        _buildings: state.buildings,
+        _buildings: Object.entries(state.buildings).map(([key, g]) => ({ key, ...g })),
         _patches:   state.patches,
         _perimeter: state.perimeter,
         _chunks:    state.chunksRevealed,

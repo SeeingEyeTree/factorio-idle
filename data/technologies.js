@@ -4,502 +4,499 @@
 
 const TECHNOLOGIES = {
   // ── Red science only ──────────────────────────────────────────
-  automation: {
+  automation: new Technology({
     name: 'Automation', icon: '⚙️', iconImg: 'data/icon_imgs/assembler_machine_1.png',
     cost: { redScience: 10 }, timePerPack: 10,
     prereqs: [],
     description: 'Unlocks Assembly Machine Mk1',
     unlockRecipes: ['assemblyMachine1Item'], unlockBuildings: ['assembly'],
-  },
-  military: {
+  }),
+  military: new Technology({
     name: 'Military', icon: '⚙️',
     cost: { redScience: 10 }, timePerPack: 15,
     prereqs: [],
     description: 'Unlocks the damage upgrades for gun turrets',
-    unlockRecipes: [], unlockBuildings: [],// unlocks the damge upgrades for gun turrets
-  },
-  logistics: {
+    unlockRecipes: [], unlockBuildings: [],
+  }),
+  logistics: new Technology({
     name: 'Logistics', icon: '🔁',
     cost: { redScience: 20 }, timePerPack: 15,
     prereqs: [],
     description: 'Reduces building placement time by 0.25 seconds',
     unlockRecipes: [], unlockBuildings: [],
-  },
+  }),
   /*
-  landfill: {
+  landfill: new Technology({
     name: 'Landfill', icon: '🏝️',
     cost: { redScience: 50, greenScience: 50 }, timePerPack: 30,
     prereqs: ['logisticSciencePack'],
     description: 'Unlocks Landfill to convert water tiles to land',
     unlockRecipes: ['landfill'], unlockBuildings: [],
-  },*/
-  radarTech: {
+  }),*/
+  radarTech: new Technology({
     name: 'Radar', icon: '📡', iconImg: 'data/icon_imgs/radar.png',
     cost: { redScience: 20 }, timePerPack: 10,
     prereqs: [],
     description: 'Unlocks Radar for map exploration',
     unlockRecipes: ['radarItem'], unlockBuildings: ['radar'],
-  },
-  electricMiningDrill: {
+  }),
+  electricMiningDrill: new Technology({
     name: 'Electric Mining Drill', icon: '🔌', iconImg: 'data/icon_imgs/electric_mining_drill.png',
     cost: { redScience: 25 }, timePerPack: 10,
     prereqs: [],
     description: 'Unlocks Electric Mining Drill (0.5/s, 90 kW, no coal)',
     unlockRecipes: ['electricMinerItem'], unlockBuildings: ['electricMiner'],
-  },
-  steelProcessing: {
+  }),
+  steelProcessing: new Technology({
     name: 'Steel Processing', icon: '🪙',
     cost: { redScience: 50 }, timePerPack: 5,
     prereqs: ['automation'],
     description: 'Enables steel smelting from iron plates',
     unlockRecipes: ['steel'], unlockBuildings: [],
-  },
-  logisticSciencePack: {
+  }),
+  logisticSciencePack: new Technology({
     name: 'Logistic Science Pack', icon: '🟢', iconImg: 'data/icon_imgs/science_pack_2.png',
     cost: { redScience: 75 }, timePerPack: 5,
     prereqs: ['automation', 'logistics'],
     description: 'Unlocks Green Science Pack crafting',
     unlockRecipes: ['greenScience'], unlockBuildings: [],
-  },
-  gunTurret: {
+  }),
+  gunTurret: new Technology({
     name: 'Gun Turret', icon: '🟢',
     cost: { redScience: 10 }, timePerPack: 10,
     prereqs: [],
     description: 'Unlocks Gun Turret for basic defense',
     unlockRecipes: ['gunTurretItem','firearmMagazine'], unlockBuildings: [],
-  },
+  }),
   // ── Red + Green science ───────────────────────────────────────
-  military2: {
+  military2: new Technology({
     name: 'Military 2', icon: '⚙️',
     cost: { redScience: 20, greenScience: 20 }, timePerPack: 15,
     prereqs: ['steelProcessing', 'military', 'logisticSciencePack'],
     description: 'Grenades go boom. Piercing rounds go pew.',
     unlockRecipes: ['grenade', 'piercingRoundsMag'], unlockBuildings: [],
-  },
-  automation2: {
+  }),
+  automation2: new Technology({
     name: 'Automation 2', icon: '🏗️', iconImg: 'data/icon_imgs/assembler_machine_2.png',
     cost: { redScience: 40, greenScience: 40 }, timePerPack: 15,
     prereqs: ['automation', 'logisticSciencePack', 'steelProcessing'],
     description: 'Unlocks Assembly Machine Mk2 (speed ×0.75, 150 kW)',
     unlockRecipes: ['assemblyMachine2Item'], unlockBuildings: ['assembly2'],
-  },
-  advancedMaterialProcessing: {
+  }),
+  advancedMaterialProcessing: new Technology({
     name: 'Advanced Material Processing', icon: '🟧', iconImg: 'data/icon_imgs/steel_furnace.png',
     cost: { redScience: 75, greenScience: 75 }, timePerPack: 30,
     prereqs: ['logisticSciencePack', 'steelProcessing'],
     description: 'Unlocks Steel Furnace (2× faster smelting)',
     unlockRecipes: ['steelFurnaceItem'], unlockBuildings: ['steelFurnace'],
-  },
-  engineTech: {
+  }),
+  engineTech: new Technology({
     name: 'Engine', icon: '🛠️', iconImg: 'data/icon_imgs/engine_unit.png',
     cost: { redScience: 100, greenScience: 100 }, timePerPack: 15,
     prereqs: ['logisticSciencePack', 'steelProcessing'],
     description: 'Unlocks Engine Unit crafting',
     unlockRecipes: ['engineUnit'], unlockBuildings: [],
-  },
-  accumulators: {
+  }),
+  accumulators: new Technology({
     name: 'Electric energy accumulators', icon: '🔋', iconImg: 'data/icon_imgs/accumulator.png',
     cost: { redScience: 150, greenScience: 150 }, timePerPack: 30,
     prereqs: ['batteryTech'],
     description: 'Unlocks Accumulator (stores 5 MJ of power)',
     unlockRecipes: ['accumulatorItem'], unlockBuildings: ['accumulator'],
-  },
-  solarEnergy: {
+  }),
+  solarEnergy: new Technology({
     name: 'Solar Energy', icon: '☀️', iconImg: 'data/icon_imgs/solar_panel.png',
     cost: { redScience: 250, greenScience: 250 }, timePerPack: 30,
     prereqs: ['logisticSciencePack', 'steelProcessing'],
     description: 'Unlocks Solar Panel (60 kW, no fuel required)',
     unlockRecipes: ['solarPanelItem'], unlockBuildings: ['solarPanel'],
-  },
-  logistics2: {
+  }),
+  logistics2: new Technology({
     name: 'Logistics 2', icon: '⏩',
     cost: { redScience: 200, greenScience: 200 }, timePerPack: 30,
     prereqs: ['logisticSciencePack', 'logistics'],
     description: 'Further reduces building placement time by 0.25 seconds (0.5s total with Logistics)',
     unlockRecipes: [], unlockBuildings: [],
-  },
-  scriptingTech: {
+  }),
+  scriptingTech: new Technology({
     name: 'Scripting', icon: '📜',
     cost: { redScience: 500, greenScience: 500 }, timePerPack: 30,
     prereqs: ['logistics2'],
     description: 'Unlocks the Script editor — automate your factory with Python-like scripts',
     unlockRecipes: [], unlockBuildings: [],
-  },
+  }),
   // ── Red + Green (oil era) ─────────────────────────────────────
-  /*fluidHandling: {
+  /*fluidHandling: new Technology({
     name: 'Fluid Handling', icon: '🌊',
     cost: { redScience: 50, greenScience: 50 }, timePerPack: 15,
     prereqs: ['engineTech', 'automation2'],
     description: 'Fluid infrastructure — prerequisite for oil industry',
     unlockRecipes: [], unlockBuildings: [],
-  },*/
-  concrete: {
+  }),*/
+  concrete: new Technology({
     name: 'Concrete', icon: '🌊',
     cost: { redScience: 250, greenScience: 250 }, timePerPack: 30,
     prereqs: ['advancedMaterialProcessing', 'automation2'],
     description: 'Unlocks concrete, an item used to craft more advanced buildings',
     unlockRecipes: ['concrete', 'ironStick'], unlockBuildings: [],
-  },
-  oilGathering: {
+  }),
+  oilGathering: new Technology({
     name: 'Oil Gathering', icon: '🛢️',
     cost: { redScience: 100, greenScience: 100 }, timePerPack: 30,
     prereqs: ['concrete'],
     description: 'Unlocks Pumpjack for crude oil extraction',
     unlockRecipes: ['pumpjackItem'], unlockBuildings: ['pumpjack'],
-  },
-  plastics: {
+  }),
+  plastics: new Technology({
     name: 'Plastics', icon: '🧪',
     cost: { redScience: 200, greenScience: 200 }, timePerPack: 30,
     prereqs: ['oilGathering'],
     description: 'Unlocks plastic bar production from petroleum gas (coming with oil update)',
     unlockRecipes: ['plasticBar'], unlockBuildings: [],
-  },
-  batteryTech: {
+  }),
+  batteryTech: new Technology({
     name: 'Battery', icon: '🪫',
     cost: { redScience: 150, greenScience: 150 }, timePerPack: 30,
     prereqs: ['sulfurProcessing'],
     description: 'Unlocks Battery crafting (requires sulfur from oil processing)',
     unlockRecipes: ['battery'], unlockBuildings: [],
-  },
-  sulfurProcessing: {
+  }),
+  sulfurProcessing: new Technology({
     name: 'Sulfur Processing', icon: '💛',
     cost: { redScience: 150, greenScience: 150 }, timePerPack: 30,
     prereqs: ['oilGathering'],
     description: 'Enables sulfur production from petroleum gas (coming with oil update)',
     unlockRecipes: ['sulfur'], unlockBuildings: [],
-  },
-  advancedCircuit: {
+  }),
+  advancedCircuit: new Technology({
     name: 'Advanced Circuit', icon: '💻',
     cost: { redScience: 200, greenScience: 200 }, timePerPack: 15,
     prereqs: ['plastics'],
     description: 'Unlocks Advanced Circuit crafting (coming with oil update)',
     unlockRecipes: ['advancedCircuit'], unlockBuildings: [],
-  },
-  chemicalSciencePack: {
+  }),
+  chemicalSciencePack: new Technology({
     name: 'Chemical Science Pack', icon: '🧪', iconImg: 'data/icon_imgs/science_pack_3.png',
     cost: { redScience: 75, greenScience: 75 }, timePerPack: 10,
     prereqs: ['advancedCircuit', 'sulfurProcessing'],
     description: 'Unlocks Blue Science Pack crafting',
     unlockRecipes: ['blueScience'], unlockBuildings: [],
-  },
+  }),
 
   // ── Blue science tier ─────────────────────────────────────────
 
-  advancedOilProcessing: {
+  advancedOilProcessing: new Technology({
     name: 'Advanced Oil Processing', icon: '⚗️',
     cost: { redScience: 75, greenScience: 75, blueScience: 75 }, timePerPack: 45,
     prereqs: ['chemicalSciencePack'],
     description: 'Unlocks advanced oil cracking for more efficient petroleum use',
-    unlockRecipes: [ 'rocketFuel','advancedOilProcessing','heavyOilCracking', 'lightOilCracking','solidFuelHeavy', 'solidFuelLight'], unlockBuildings: [],
-  },
-  lubricantTech: {
+    unlockRecipes: ['rocketFuel','advancedOilProcessing','heavyOilCracking','lightOilCracking','solidFuelHeavy','solidFuelLight'], unlockBuildings: [],
+  }),
+  lubricantTech: new Technology({
     name: 'Lubricant', icon: '🫙',
     cost: { redScience: 50, greenScience: 50, blueScience: 50 }, timePerPack: 30,
     prereqs: ['advancedOilProcessing'],
     description: 'Enables lubricant production from heavy oil',
     unlockRecipes: ['lubricant'], unlockBuildings: [],
-  },
-  electricEngine: {
+  }),
+  electricEngine: new Technology({
     name: 'Electric Engine', icon: '🌀', iconImg: 'data/icon_imgs/electric_engine_unit.png',
     cost: { redScience: 50, greenScience: 50, blueScience: 50 }, timePerPack: 30,
     prereqs: ['lubricantTech'],
     description: 'Unlocks Electric Engine Unit crafting',
     unlockRecipes: ['electricEngineUnit'], unlockBuildings: [],
-  },
-  robotics: {
+  }),
+  robotics: new Technology({
     name: 'Robotics', icon: '🦾', iconImg: 'data/icon_imgs/flying_robot_frame.png',
     cost: { redScience: 75, greenScience: 75, blueScience: 75 }, timePerPack: 30,
     prereqs: ['electricEngine', 'batteryTech'],
     description: 'Foundation for drone automation technologies',
     unlockRecipes: ['flyingRobotFrame'], unlockBuildings: [],
-  },
-  constructionRobotics: {
+  }),
+  constructionRobotics: new Technology({
     name: 'Construction Robotics', icon: '🤖', iconImg: 'data/icon_imgs/construction_robot.png',
     cost: { redScience: 100, greenScience: 100, blueScience: 100 }, timePerPack: 30,
     prereqs: ['robotics'],
     description: 'Unlocks Construction Robots (active deployment coming soon)',
     unlockRecipes: ['constructionRobotItem'], unlockBuildings: [],
-  },
+  }),
   // ── Production / Military / Utility tier ─────────────────────
-  railTech: {
+  railTech: new Technology({
     name: 'Railway', icon: '🛤️',
     cost: { redScience: 75, greenScience: 75 }, timePerPack: 30,
     prereqs: ['logistics2', 'engineTech'],
     description: 'Unlocks Rail and train infrastructure crafting',
     unlockRecipes: ['rail','ironStick','locomotive'], unlockBuildings: [],
-  },
-  spidertron: {
+  }),
+  spidertron: new Technology({
     name: 'Spider Tron', icon: '🕷️', iconImg: 'data/icon_imgs/spidertron.png',
-    cost: { redScience: 2500, greenScience: 2500, blueScience: 2500, yellowScience: 2500,purpleScience: 2500, blackScience: 2500 }, timePerPack: 30,
+    cost: { redScience: 2500, greenScience: 2500, blueScience: 2500, yellowScience: 2500, purpleScience: 2500, blackScience: 2500 }, timePerPack: 30,
     prereqs: ['speedModuleTech3', 'nuclearPowerTech', 'military4'],
     description: 'Its a spider. It has guns. It can climb walls. It is the ultimate combat machine.',
     unlockRecipes: ['spidertron', 'spidertronItem'], unlockBuildings: [],
-  },
-  military3: {
+  }),
+  military3: new Technology({
     name: 'Military 3', icon: '⚙️',
     cost: { redScience: 100, greenScience: 100, blueScience: 100, blackScience: 100 }, timePerPack: 30,
     prereqs: ['militarySciencePack', 'chemicalSciencePack'],
     description: 'Here for reasons',
     unlockRecipes: ['slowdownCapsule','poisonCapsule'], unlockBuildings: [],
-  },
-  military4: {
+  }),
+  military4: new Technology({
     name: 'Military 4', icon: '⚙️',
     cost: { redScience: 150, greenScience: 150, blueScience: 150, blackScience: 150 }, timePerPack: 45,
     prereqs: ['military3', 'utilitySciencePack'],
     description: 'Here for reasons',
     unlockRecipes: [], unlockBuildings: [],
-  },
-  artillery: {
+  }),
+  artillery: new Technology({
     name: 'Artillery', icon: '⚙️',
     cost: { redScience: 2000, greenScience: 2000, blueScience: 2000, blackScience: 2000, yellowScience: 2000 }, timePerPack: 30,
-    prereqs: ['military4'],// concre radar as well be I want clean tech tree
+    prereqs: ['military4'],
     description: 'The best in big bata boom hardware',
     unlockRecipes: ['artilleryShell', 'artilleryTurretItem'], unlockBuildings: [],
-  },
+  }),
   /*
-  flammables: {
+  flammables: new Technology({
     name: 'Flammables', icon: '🔥',
     cost: { redScience: 50, greenScience: 50 }, timePerPack: 30,
     prereqs: ['oilProcessingTech'],
     description: 'Unlocks solid fuel production from heavy oil and light oil',
     unlockRecipes: [], unlockBuildings: [],
-  },*/
-  electricFurnaceTech: {
+  }),*/
+  electricFurnaceTech: new Technology({
     name: 'Electric Furnace', icon: '⚡', iconImg: 'data/icon_imgs/electric_furnace.png',
     cost: { redScience: 250, greenScience: 250, blueScience: 250 }, timePerPack: 30,
     prereqs: ['advancedMaterialProcessing', 'chemicalSciencePack'],
     description: 'Unlocks Electric Furnace (2× speed, 180 kW, no coal)',
     unlockRecipes: ['electricFurnaceItem'], unlockBuildings: ['electricFurnace'],
-  },
-  militarySciencePack: {
+  }),
+  militarySciencePack: new Technology({
     name: 'Military Science Pack', icon: '⬛', iconImg: 'data/icon_imgs/military_science_pack.png',
     cost: { redScience: 30, greenScience: 30 }, timePerPack: 15,
     prereqs: ['military2', 'stoneWallTech'],
     description: 'Unlocks Military Science Pack crafting and military items',
     unlockRecipes: ['blackScience'], unlockBuildings: [],
-  },
-  stoneWallTech: {
+  }),
+  stoneWallTech: new Technology({
     name: 'Stone Wall', icon: '🧱',
     cost: { redScience: 10 }, timePerPack: 10,
     prereqs: [],
     description: 'Unlocks Stone Wall crafting and military items',
     unlockRecipes: ['stoneWall'], unlockBuildings: [],
-  },
-  /*modules: {
+  }),
+  /*modules: new Technology({
     name: 'Modules', icon: '🟣',
     cost: { redScience: 100, greenScience: 100 }, timePerPack: 30,
     prereqs: ['advancedCircuit'],
     description: 'Unlocks Productivity Module 1',
     unlockRecipes: [], unlockBuildings: [],
-  },*/
-  productionModuleTech1: {
+  }),*/
+  productionModuleTech1: new Technology({
     name: 'Productivity Module 1', icon: '🟣',
     cost: { redScience: 50, greenScience: 50 }, timePerPack: 30,
     prereqs: ['advancedCircuit'],
     description: 'Unlocks Productivity Module 1',
     unlockRecipes: ['productivityModule'], unlockBuildings: [],
-  },
-  productionModuleTech2: {
+  }),
+  productionModuleTech2: new Technology({
     name: 'Productivity Module 2', icon: '🟣',
     cost: { redScience: 75, greenScience: 75, blueScience: 75 }, timePerPack: 30,
     prereqs: ['productionModuleTech1', 'processingUnitTech'],
     description: 'Unlocks Productivity Module 2',
     unlockRecipes: ['productivityModule2'], unlockBuildings: [],
-  },
-  productionModuleTech3: {
+  }),
+  productionModuleTech3: new Technology({
     name: 'Productivity Module 3', icon: '🟣',
     cost: { redScience: 300, greenScience: 300, blueScience: 300, purpleScience: 300 }, timePerPack: 60,
     prereqs: ['productionModuleTech2', 'productionSciencePack'],
     description: 'Unlocks Productivity Module 3',
     unlockRecipes: ['productivityModule3'], unlockBuildings: [],
-  },
-  speedModuleTech1: {
+  }),
+  speedModuleTech1: new Technology({
     name: 'Speed Module 1', icon: '🟣',
     cost: { redScience: 50, greenScience: 50 }, timePerPack: 30,
     prereqs: ['advancedCircuit'],
     description: 'Unlocks Speed Module 1',
     unlockRecipes: ['speedModule'], unlockBuildings: [],
-  },
-  speedModuleTech2: {
+  }),
+  speedModuleTech2: new Technology({
     name: 'Speed Module 2', icon: '🟣',
     cost: { redScience: 75, greenScience: 75, blueScience: 75 }, timePerPack: 30,
     prereqs: ['speedModuleTech1', 'processingUnitTech'],
     description: 'Unlocks Speed Module 2',
     unlockRecipes: ['speedModule2'], unlockBuildings: [],
-  },
-  speedModuleTech3: {
+  }),
+  speedModuleTech3: new Technology({
     name: 'Speed Module 3', icon: '🟣',
     cost: { redScience: 300, greenScience: 300, blueScience: 300, purpleScience: 300 }, timePerPack: 60,
     prereqs: ['speedModuleTech2', 'productionSciencePack'],
     description: 'Unlocks Speed Module 3',
     unlockRecipes: ['speedModule3'], unlockBuildings: [],
-  },
+  }),
   /*
-  beaconTech: {
+  beaconTech: new Technology({
     name: 'Beacon', icon: '📡',
     cost: { redScience: 75, greenScience: 75, blueScience: 75, purpleScience: 75 }, timePerPack: 30,
     prereqs: ['productionSciencePack', 'processingUnitTech'],
     description: 'Unlocks Beacon for signal transmission',
     unlockRecipes: ['beaconItem'], unlockBuildings: [],
-  },
+  }),
   */
-  productionSciencePack: {
+  productionSciencePack: new Technology({
     name: 'Production Science Pack', icon: '🟣', iconImg: 'data/icon_imgs/production_science_pack.png',
     cost: { redScience: 100, greenScience: 100, blueScience: 100 }, timePerPack: 30,
     prereqs: ['electricFurnaceTech', 'railTech', 'productionModuleTech1'],
     description: 'Unlocks Production Science Pack and productivity modules',
     unlockRecipes: ['purpleScience'], unlockBuildings: [],
-  },
-  processingUnitTech: {
+  }),
+  processingUnitTech: new Technology({
     name: 'Processing Unit', icon: '💠',
     cost: { redScience: 300, greenScience: 300, blueScience: 300 }, timePerPack: 30,
     prereqs: ['chemicalSciencePack'],
     description: 'Unlocks Processing Unit crafting',
     unlockRecipes: ['processingUnit'], unlockBuildings: [],
-  },
-  automation3: {
+  }),
+  automation3: new Technology({
     name: 'Automation 3', icon: '🏗️',
     cost: { redScience: 150, greenScience: 150, blueScience: 150, purpleScience: 150 }, timePerPack: 60,
     prereqs: ['speedModuleTech1', 'productionSciencePack', 'electricEngine'],
     description: 'Unlocks Assembly Machine Mk3 (speed ×1.25, 375 kW)',
     unlockRecipes: ['assemblyMachine3Item'], unlockBuildings: ['assembly3'],
-  },
-  uraniumProcessing: {
+  }),
+  uraniumProcessing: new Technology({
     name: 'Getting started with uranium', icon: '⚛️',
     cost: { redScience: 300, greenScience: 300, blueScience: 300 }, timePerPack: 30,
     prereqs: ['processingUnitTech', 'productionSciencePack'],
     description: 'Unlocks Centrifuge for uranium processing.',
     unlockRecipes: ['centrifugeItem', 'uraniumProcessing'], unlockBuildings: ['centrifuge','nuclearReactor'],
-  },
-  kovarexEnrichmentTech: {
+  }),
+  kovarexEnrichmentTech: new Technology({
     name: 'Kovarex Enrichment Process', icon: '⚛️',
     cost: { redScience: 1500, greenScience: 1500, blueScience: 1500, purpleScience: 1500 }, timePerPack: 30,
     prereqs: ['uraniumProcessing'],
     description: 'Unlocks Kovarex Enrichment Process for efficient uranium enrichment (requires 40 uranium-235 and 5 uranium-238 to produce 41 uranium-235)',
     unlockRecipes: ['kovarexEnrichment'], unlockBuildings: [],
-  },
-  atomicBombTech: {
+  }),
+  atomicBombTech: new Technology({
     name: 'Big boom', icon: '⚛️',
-    cost: { redScience: 5000, greenScience: 5000, blueScience: 5000, purpleScience: 5000, yellowScience: 5000 ,blackScience: 5000}, timePerPack: 30,
+    cost: { redScience: 5000, greenScience: 5000, blueScience: 5000, purpleScience: 5000, yellowScience: 5000, blackScience: 5000 }, timePerPack: 30,
     prereqs: ['kovarexEnrichmentTech','military4'],
     description: 'Why use small bomb when big bomb do trick?',
     unlockRecipes: ['atomicBomb'], unlockBuildings: [],
-  },
+  }),
   /*
-  flamethrowerTech: {
+  flamethrowerTech: new Technology({
     name: 'Flamethrower', icon: '🔥',
     cost: { redScience: 50, greenScience: 50, blackScience: 50 }, timePerPack: 30,
     prereqs: ['militarySciencePack', 'oilProcessingTech'],
     description: 'Unlocks Flamethrower for close-range combat',
     unlockRecipes: ['flamethrowerTurretItem'], unlockBuildings: [],
-  },
-    landMineTech: {
+  }),
+  landMineTech: new Technology({
     name: 'Land Mine', icon: '💣',
     cost: { redScience: 100, greenScience: 100, blackScience: 100 }, timePerPack: 30,
     prereqs: ['militarySciencePack', 'oilProcessingTech'],
     description: 'Unlocks Land Mine for defensive purposes def not war crimes',
     unlockRecipes: ['landMine'], unlockBuildings: [],
-  },*/
-  uraniumAmmoTech: {
+  }),*/
+  uraniumAmmoTech: new Technology({
     name: 'Uranium Ammo', icon: '☢️',
-    cost: { redScience: 1000, greenScience: 1000, blueScience: 1000 ,yellowScience: 1000,blackScience: 1000}, timePerPack: 45,
+    cost: { redScience: 1000, greenScience: 1000, blueScience: 1000, yellowScience: 1000, blackScience: 1000 }, timePerPack: 45,
     prereqs: ['uraniumProcessing','military4'],
     description: 'Unlocks uranium ammo for anti-tank weapons',
     unlockRecipes: ['uraniumRoundsMag'], unlockBuildings: [],
-  },
-  nuclearPowerTech: {
+  }),
+  nuclearPowerTech: new Technology({
     name: 'Nuclear Reactor', icon: '🏭',
-    cost: { redScience: 800, greenScience: 800, blueScience: 800}, timePerPack: 60,
+    cost: { redScience: 800, greenScience: 800, blueScience: 800 }, timePerPack: 60,
     prereqs: ['uraniumProcessing'],
     description: 'Enables construction of nuclear reactor power plants (488.88 MW per complex)',
     unlockRecipes: ['nuclearReactorItem', 'heatPipeItem', 'heatExchangerItem', 'steamTurbineItem', 'uraniumFuelCell'], unlockBuildings: ['nuclearReactor'],
-  },
-  oilProcessingTech: {
+  }),
+  oilProcessingTech: new Technology({
     name: 'Oil Processing', icon: '⚗️',
     cost: { redScience: 75, greenScience: 75 }, timePerPack: 30,
     prereqs: ['oilGathering'],
     description: 'Unlocks Oil Refinery for processing crude oil',
     unlockRecipes: ['oilRefineryItem', 'basicOilProcessing', 'chemicalPlantItem','solidFuelPetro'], unlockBuildings: ['oilRefinery','chemicalPlant'],
-  },
-  /*chemicalPlantTech: {
+  }),
+  /*chemicalPlantTech: new Technology({
     name: 'Chemical Plant', icon: '⚗️',
     cost: { redScience: 75, greenScience: 75 }, timePerPack: 30,
     prereqs: ['oilGathering', 'fluidHandling'],
     description: 'Unlocks Chemical Plant for advanced processing',
     unlockRecipes: ['sulfur', , , , 'lubricant'], unlockBuildings: ['chemicalPlant'],
-  },*/
-  lowDensityStructureTech: {
+  }),*/
+  lowDensityStructureTech: new Technology({
     name: 'Low Density Structure', icon: '🪶',
     cost: { redScience: 300, greenScience: 300, blueScience: 300 }, timePerPack: 45,
     prereqs: ['chemicalSciencePack', 'advancedMaterialProcessing'],
     description: 'Unlocks Low Density Structure for rocket construction',
     unlockRecipes: ['lowDensityStructure'], unlockBuildings: [],
-  },
-  rocketFuelTech: {
+  }),
+  rocketFuelTech: new Technology({
     name: 'Rocket Fuel', icon: '🔥',
     cost: { redScience: 300, greenScience: 300, blueScience: 300 }, timePerPack: 45,
     prereqs: ['advancedOilProcessing'],
     description: 'Unlocks Rocket Fuel production',
     unlockRecipes: ['rocketFuel'], unlockBuildings: [],
-  },
+  }),
   /*
-  satelliteTech: {
+  satelliteTech: new Technology({
     name: 'Satellite', icon: '🛰️',
     cost: { redScience: 500, greenScience: 500, blueScience: 500, purpleScience: 500, yellowScience: 500 }, timePerPack: 60,
     prereqs: ['rocketSiloTech'],
     description: 'Unlocks Satellite for launching with the Rocket Silo to produce Space Science',
     unlockRecipes: ['satellite','spaceScience'], unlockBuildings: [],
-  },*/
-  rainbowSciencePack: {
+  }),*/
+  rainbowSciencePack: new Technology({
     name: 'Rainbow Science Pack', icon: '🌈',
-    cost: { redScience: 1000, greenScience: 1000, blueScience: 1000, purpleScience: 1000, yellowScience: 1000, spaceScience: 1000,blackScience: 1000 }, timePerPack: 60,
+    cost: { redScience: 1000, greenScience: 1000, blueScience: 1000, purpleScience: 1000, yellowScience: 1000, spaceScience: 1000, blackScience: 1000 }, timePerPack: 60,
     prereqs: ['rocketSiloTech'],
     description: 'Unlocks Rainbow Science Pack — the ultimate science pack, crafted from all others ps Your welcom for a nother prod layer',
     unlockRecipes: ['rainbowScience'], unlockBuildings: [],
-  },
-  utilitySciencePack: {
+  }),
+  utilitySciencePack: new Technology({
     name: 'Utility Science Pack', icon: '🟡', iconImg: 'data/icon_imgs/utility_science_pack.png',
     cost: { redScience: 100, greenScience: 100, blueScience: 100 }, timePerPack: 30,
     prereqs: ['robotics', 'processingUnitTech', 'lowDensityStructureTech'],
     description: 'Unlocks Utility Science Pack and late-game items',
     unlockRecipes: ['yellowScience', 'flyingRobotFrame', 'electricEngineUnit'], unlockBuildings: [],
-  },
-  rocketSiloTech: {
+  }),
+  rocketSiloTech: new Technology({
     name: 'Rocket Silo', icon: '🚀',
     cost: { redScience: 1000, greenScience: 1000, blueScience: 1000, purpleScience: 1000, yellowScience: 1000 }, timePerPack: 60,
-    prereqs: ['utilitySciencePack', 'rocketFuelTech','solarEnergy','productionModuleTech3', 'speedModuleTech3'],
+    prereqs: ['utilitySciencePack', 'rocketFuelTech', 'solarEnergy', 'productionModuleTech3', 'speedModuleTech3'],
     description: 'Unlocks Rocket Silo — build rocket parts and launch satellites for Space Science',
     unlockRecipes: ['rocketSiloItem', 'rocketPart', 'satellite','spaceScience'], unlockBuildings: ['rocketSilo'],
-  },
-  laserTech: {
+  }),
+  laserTech: new Technology({
     name: 'Laser', icon: '🔴',
     cost: { redScience: 100, greenScience: 100, blueScience: 100 }, timePerPack: 30,
     prereqs: ['batteryTech', 'chemicalSciencePack'],
     description: 'Laser technology — prerequisite for Laser Turret and laser weapon damage upgrades',
     unlockRecipes: [], unlockBuildings: [],
-  },
-    laserTurretTech: {
+  }),
+  laserTurretTech: new Technology({
     name: 'Laser turret', icon: '🔴',
     cost: { redScience: 150, greenScience: 150, blueScience: 150, blackScience: 150 }, timePerPack: 30,
     prereqs: ['laserTech', 'militarySciencePack'],
     description: 'Unlocks Laser Turret for advanced defense',
     unlockRecipes: ['laserTurretItem'], unlockBuildings: [],
-  },
-  explosivesTech: {
+  }),
+  explosivesTech: new Technology({
     name: 'Explosives', icon: '💥',
     cost: { redScience: 100, greenScience: 100 }, timePerPack: 15,
     prereqs: ['sulfurProcessing'],
     description: 'Unlocks Explosives crafting',
     unlockRecipes: ['explosives'], unlockBuildings: [],
-  },
-  gamerModule: {
+  }),
+  gamerModule: new Technology({
     name: 'Gamer Module', icon: '⚛️',
     cost: { rainbowScience: 1000 }, timePerPack: 60,
     prereqs: ['rainbowSciencePack'],
     description: 'Unlocks Gamer Module — only for the most elite of gamers',
     unlockRecipes: ['gamerModule'], unlockBuildings: [],
-  },
+  }),
 };
-
-
-
