@@ -616,7 +616,7 @@ function buildScriptContext() {
   const bldgs    = state.buildings       ?? [];
   const p        = state.perimeter       ?? {};
   const research = state.research        ?? {};
-  const pq       = placeQueue            ?? [];
+  const pq       = placeQueue.slice(_placeHead);
 
   const countType  = t => bldgs.filter(b => b.type === t).length;
   const countMiner = (t, r) => bldgs.filter(b => b.type === t && b.resource === r).length;

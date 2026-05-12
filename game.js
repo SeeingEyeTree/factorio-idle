@@ -332,6 +332,7 @@ const starredMaxCh = {}; // { 'ironOre_count': 6, 'ironOre_rate': 7, ... }
 let lastInventoryHtml  = '';
 let _groupsCache  = null;
 let _groupsDirty  = true;
+let _typeCountsCache = null; // { boiler: N, steamEngine: N, ... }
 const _cardCache  = {}; // key → { hash, html }
 let _lastTickTime  = Date.now();
 let _renderLoopId  = null;
@@ -341,6 +342,89 @@ let metaSubTab = 'buildings';
 let currentSaveFile = null;
 let _pendingScriptRestore = null;
 let lastSaveMs = 0;
+
+// ── Tutorial System ───────────────────────────────────────────
+
+let _tutGlowOn = false;
+let _tutGlowIntervalId = null;
+
+const TUTORIAL_GOALS = [
+  {
+    text: 'Place 10 burner miners on iron ore and 8 stone furnaces smelting iron. Don\'t forget coal and stone',
+    check: s => {
+      const ironMiners   = s.buildings.filter(b => (b.type==='miner'||b.type==='electricMiner') && b.resource==='ironOre').length;
+      const ironFurnaces = s.buildings.filter(b => (b.type==='furnace'||b.type==='steelFurnace'||b.type==='electricFurnace') && b.recipe==='ironPlate').length;
+      return ironMiners >= 10 && ironFurnaces >= 8;
+    },
+    glowCraft: ['burnerMinerItem','stoneFurnaceItem'],
+  },
+  {
+    text: 'Place 5 miners on copper ore and 4 furnaces smelting copper',
+    check: s => {
+      const copperMiners   = s.buildings.filter(b => (b.type==='miner'||b.type==='electricMiner') && b.resource==='copperOre').length;
+      const copperFurnaces = s.buildings.filter(b => (b.type==='furnace'||b.type==='steelFurnace'||b.type==='electricFurnace') && b.recipe==='copperPlate').length;
+      return copperMiners >= 5 && copperFurnaces >= 4;
+    },
+    glowCraft: ['burnerMinerItem','stoneFurnaceItem'],
+  },
+  {
+    text: 'Build 1 offshore pump, 1 boiler and 2 steam engines for power',
+    check: s => {
+      const pumps   = s.buildings.filter(b => b.type==='offshoreP').length;
+      const boilers = s.buildings.filter(b => b.type==='boiler').length;
+      const engines = s.buildings.filter(b => b.type==='steamEngine').length;
+      return pumps >= 1 && boilers >= 1 && engines >= 2;
+    },
+    glowCraft: ['offshorePumpItem','boilerItem','steamEngineItem'],
+  },
+  {
+    text: 'Build a unpaid intern and craft a total of 10 red monster',
+    check: s => {
+      const hasLab = s.buildings.some(b => b.type==='lab');
+      const packs  = s.itemsProduced?.['redScience'] ?? 0;
+      return hasLab && packs >= 10;
+    },
+    glowCraft: ['labItem','redScience'],
+    unlockTab:  'research',
+  },
+  {
+    text: 'Research Automation technology',
+    check: s => !!s.research.done['automation'],
+    glowTab: 'research',
+    unlockTab: 'recipes',
+  },
+  {
+    text: 'Research the Logistic Science Pack (green science)',
+    check: s => !!s.research.done['logisticSciencePack'],
+    glowTab: 'research',
+    unlockTab: 'graph',
+  },
+  {
+    text: 'Research the Military Science Pack',
+    check: s => !!s.research.done['militarySciencePack'],
+    glowTab: 'research',
+  },
+  {
+    text: 'Research the Chemical Science Pack',
+    check: s => !!s.research.done['chemicalSciencePack'],
+    glowTab: 'research',
+  },
+  {
+    text: 'Research the Production Science Pack',
+    check: s => !!s.research.done['productionSciencePack'],
+    glowTab: 'research',
+  },
+  {
+    text: 'Research the Utility Science Pack',
+    check: s => !!s.research.done['utilitySciencePack'],
+    glowTab: 'research',
+  },
+  {
+    text: 'Research Space Science and Rainbow Science to complete the tech tree',
+    check: s => !!s.research.done['spaceSciencePack'] && !!s.research.done['rainbowSciencePack'],
+    glowTab: 'research',
+  },
+];
 
 function itemIcon(key) {
   const item = ITEMS[key];
@@ -536,6 +620,7 @@ function createState(settings) {
       biterGracePeriod:    420,
       biterIntervalSecs:   120,
       metaProgEnabled: false,
+      tutorialEnabled: true,
       ...settings,
     },
     placementRecipes: defaultPlacementRecipes(),
@@ -544,10 +629,10 @@ function createState(settings) {
       Object.entries(PATCHES).map(([k, v]) => {
         const patchMult = (settings.metaProgEnabled && metaState.skillPerks?.perk_patch_size) ? 1.25 : 1;
         const base = Math.floor(v.base * mult * patchMult);
-        const starterNodes = base > 0 ? Math.round((35 + Math.floor(Math.random() * 21)) * mult * patchMult) : 0;
+        /* NODES: const starterNodes = base > 0 ? Math.round((35 + Math.floor(Math.random() * 21)) * mult * patchMult) : 0; */
         return [k, {
           remaining:    base,
-          nodes:        starterNodes,
+          /* NODES: nodes: starterNodes, */
           pendingFinds: [],
         }];
       })
@@ -602,9 +687,11 @@ function createState(settings) {
       laserDamageLevel:     0,
       artilleryRangeLevel:  0,
       artilleryDamageLevel: 0,
+      infiniteAutoStart:    null,
     },
     craftQueue:  [],
     craftActive: null,
+    tutorial: { goalIndex: 0 },
     scriptMemory: {},
     starredItems: [],
     productionHistory: { samples: [], prodSamples: [], consSamples: [], allTimeSamples: [], allTimeInterval: 0 },
@@ -664,7 +751,7 @@ function applyStateFromEnvelope(envelope) {
   const isEnvelope = envelope?.version != null;
   const raw = isEnvelope ? envelope.state : envelope;
   state = raw;
-  _groupsDirty = true; _groupsCache = null;
+  _groupsDirty = true; _groupsCache = null; _typeCountsCache = null;
   for (const k in _cardCache) delete _cardCache[k];
 
   // Backwards-compat field initialization
@@ -697,10 +784,12 @@ function applyStateFromEnvelope(envelope) {
   if (state.settings?.radarNotif == null) state.settings.radarNotif = true;
   if (state.settings?.defaultLimitBuilding == null) state.settings.defaultLimitBuilding = 10;
   if (state.settings?.defaultLimitOther    == null) state.settings.defaultLimitOther    = Infinity;
-  // Patch compat: add nodes/pendingFinds to existing patches
+  if (state.settings?.tutorialEnabled == null) state.settings.tutorialEnabled = false; // old saves: off by default
+  if (!state.tutorial) state.tutorial = { goalIndex: 0 };
+  // Patch compat: ensure pendingFinds exists; nodes compat removed
   for (const [, patch] of Object.entries(state.patches ?? {})) {
-    if (patch.nodes        == null) patch.nodes        = patch.remaining > 0 ? 5 : 0;
-    if (!patch.pendingFinds)        patch.pendingFinds = [];
+    /* NODES: if (patch.nodes == null) patch.nodes = patch.remaining > 0 ? 5 : 0; */
+    if (!patch.pendingFinds) patch.pendingFinds = [];
   }
   if (!state.research) state.research = { done: {}, current: null, totalConsumed: 0 };
   if (state.research.totalConsumed == null)    state.research.totalConsumed    = 0;
@@ -714,6 +803,7 @@ function applyStateFromEnvelope(envelope) {
   if (state.research.laserDamageLevel   == null) state.research.laserDamageLevel   = 0;
   if (state.research.artilleryRangeLevel  == null) state.research.artilleryRangeLevel  = 0;
   if (state.research.artilleryDamageLevel == null) state.research.artilleryDamageLevel = 0;
+  if (state.research.infiniteAutoStart === undefined) state.research.infiniteAutoStart = null;
   // Migrate old per-recipe craftJobs to unified craftQueue
   if (state.craftJobs && !state.craftQueue) {
     state.craftQueue  = [];
@@ -767,7 +857,7 @@ function applyStateFromEnvelope(envelope) {
   }
 
   // Restore transient placement state
-  if (placeRafId) cancelAnimationFrame(placeRafId);
+  if (placeRafId) clearTimeout(placeRafId);
   placeRafId = null; placing = false; currentPlacing = null;
   placeQueue = isEnvelope && Array.isArray(envelope.placeQueue) ? [...envelope.placeQueue] : []; _placeHead = 0;
 
@@ -997,12 +1087,15 @@ function getGS(key) {
 function buildGroupMap() {
   if (!_groupsDirty && _groupsCache) return _groupsCache;
   const groups = {};
+  const typeCounts = {};
   for (const b of state.buildings) {
     const k = groupKey(b);
     if (!groups[k]) groups[k] = { key: k, type: b.type, resource: b.resource, recipe: b.recipe, buildings: [] };
     groups[k].buildings.push(b);
+    typeCounts[b.type] = (typeCounts[b.type] ?? 0) + 1;
   }
   _groupsCache = groups;
+  _typeCountsCache = typeCounts;
   _groupsDirty = false;
   return groups;
 }
@@ -1034,13 +1127,13 @@ function clampByU235Reserve(recipe, n) {
 }
 
 function effectiveSteamMax() {
-  const boilers = state.buildings.filter(b => b.type === 'boiler').length;
-  return STEAM_MAX + boilers * 200;
+  buildGroupMap();
+  return STEAM_MAX + (_typeCountsCache?.boiler ?? 0) * 200;
 }
 
 function effectiveWaterMax() {
-  const engines = state.buildings.filter(b => b.type === 'steamEngine').length;
-  return WATER_MAX + engines * 200;
+  buildGroupMap();
+  return WATER_MAX + (_typeCountsCache?.steamEngine ?? 0) * 200;
 }
 
 function metaEnergyMult(type) {
@@ -1237,7 +1330,8 @@ const INFINITE_TECH_PREREQS = Object.fromEntries(
 );
 
 function startInfiniteTech(type) {
-  if (state.buildings.filter(b => b.type === 'lab').length === 0) {
+  buildGroupMap();
+  if ((_typeCountsCache?.lab ?? 0) === 0) {
     notify('Place a Lab to conduct research.', 'warning'); return;
   }
   const prereq = INFINITE_TECH_PREREQS[type];
@@ -1273,6 +1367,13 @@ function startInfiniteTech(type) {
 
 function startRobotResearch(type) { startInfiniteTech(type); }
 
+function toggleInfiniteAutoStart(techType) {
+  if (!state) return;
+  state.research.infiniteAutoStart = state.research.infiniteAutoStart === techType ? null : techType;
+  lastRobotTechHtml = '';
+  renderResearch();
+}
+
 function completeRobotResearch(type) {
   const def = INFINITE_TECHS[type];
   if (!def) return;
@@ -1289,16 +1390,24 @@ function completeRobotResearch(type) {
   lastTechHash = '';
   lastRobotTechHtml = '';
 
+  // If auto-start is on for this tech, immediately restart the next level
+  if (state.research.infiniteAutoStart === type) {
+    state.research.current = type;
+    state.research.totalConsumed = 0;
+    getGS('lab').starved = false;
+    renderUI();
+    return;
+  }
+
   // Auto-start next queued item (regular or infinite tech)
   const queue = state.research.queue ?? [];
   while (queue.length > 0) {
     const next = queue.shift();
     if (next.includes(':')) {
-      // Infinite tech — start directly
       state.research.current = next;
       state.research.totalConsumed = 0;
       getGS('lab').starved = false;
-      notify(`🔬 Auto-started: ${next}`, 'info');
+      notify(`🔬 Auto-started: ${INFINITE_TECHS[next]?.displayName ?? next}`, 'info');
       break;
     } else if (!state.research.done[next]) {
       state.research.current = next;
@@ -1326,9 +1435,9 @@ function addPatchFind(resource, amount, nodes) {
   if (!patch.pendingFinds) patch.pendingFinds = [];
   if (!state.settings.biters || chunkIndex < maxChunk) {
     patch.remaining += amount;
-    patch.nodes     += nodes;
+    /* NODES: patch.nodes += nodes; */
   } else {
-    patch.pendingFinds.push({ remaining: amount, nodes, chunkIndex });
+    patch.pendingFinds.push({ remaining: amount, chunkIndex });
   }
 }
 
@@ -1449,23 +1558,24 @@ function tick() {
   }
   _p1('coal', _tCoal);
 
-  // ── Burner Miners ──
+  // ── Burner Miners ── (group-level, like electric miners)
   const _tBM = _p0();
-  for (const b of state.buildings) {
-    if (b.type !== 'miner') continue;
-    const gs = getGS(groupKey(b));
+  for (const [key, group] of Object.entries(groups)) {
+    if (group.type !== 'miner') continue;
+    const gs = getGS(key);
     if (gs.starved) continue;
-    if (!patchInPerimeter(b.resource)) { gs.outsidePerimeter = true; continue; }
+    if (!patchInPerimeter(group.resource)) { gs.outsidePerimeter = true; continue; }
     gs.outsidePerimeter = false;
-    if ((state.inventory[b.resource] ?? 0) >= gs.limit) continue;
-    const patch = state.patches[b.resource];
+    if ((state.inventory[group.resource] ?? 0) >= gs.limit) continue;
+    const patch = state.patches[group.resource];
     if (!patch || patch.remaining <= 0) continue;
-    b.acc = (b.acc ?? 0) + MINE_SPEED * dt;
-    if (b.acc >= 1) {
-      const n = Math.min(Math.floor(b.acc), patch.remaining);
+    const count = group.buildings.length;
+    gs.acc = (gs.acc ?? 0) + count * MINE_SPEED * dt;
+    if (gs.acc >= 1) {
+      const n = Math.min(Math.floor(gs.acc), patch.remaining);
       const produced = n * miningProdMult();
-      recordProduced(b.resource, produced);
-      patch.remaining -= n; b.acc -= n;
+      recordProduced(group.resource, produced);
+      patch.remaining -= n; gs.acc -= n;
     }
   }
   _p1('burnerMiners', _tBM);
@@ -2255,6 +2365,14 @@ function tick() {
     return; // stop further processing this tick
   }
 
+  // Tutorial goal advancement
+  if (state.settings.tutorialEnabled && state.tutorial) {
+    const goal = TUTORIAL_GOALS[state.tutorial.goalIndex];
+    if (goal?.check(state)) {
+      state.tutorial.goalIndex = Math.min(state.tutorial.goalIndex + 1, TUTORIAL_GOALS.length);
+    }
+  }
+
   _lastTickTime = Date.now();
   _p1('tick_total', _tTick);
 }
@@ -2284,17 +2402,20 @@ function displayAmt(key) {
 // ── Placement Queue ───────────────────────────────────────────
 
 function drillCountForResource(resource) {
-  const placed = state.buildings.filter(b =>
-    (b.type === 'miner' || b.type === 'electricMiner') && b.resource === resource
-  ).length;
+  const g = buildGroupMap();
+  const placed = (g[`miner|${resource}`]?.buildings.length ?? 0)
+               + (g[`electricMiner|${resource}`]?.buildings.length ?? 0);
   const queued = placeQueue.slice(_placeHead).filter(b =>
     (b.type === 'miner' || b.type === 'electricMiner') && b.resource === resource
   ).length;
   return placed + queued;
 }
 
-function maxDrillsForResource(resource) {
+function maxDrillsForResource(/*resource*/) {
+  /* NODES: drill slot limit removed
   return state.patches[resource]?.nodes ?? 0;
+  */
+  return Infinity;
 }
 
 function placeBuilding(type, triggerEl, ev) {
@@ -2317,20 +2438,24 @@ function placeBuilding(type, triggerEl, ev) {
     let target;
     if (type === 'miner') {
       const resource = pr.miner ?? 'ironOre';
+      /* NODES: drill node cap check removed
       const maxNodes = maxDrillsForResource(resource);
       if (drillCountForResource(resource) >= maxNodes) {
         if (i === 0) notify(`Patch has ${maxNodes} nodes — max drills reached for ${PATCHES[resource]?.name ?? resource}`, 'warning');
         break;
       }
+      */
       spend(costs);
       target = { type, resource, acc: 0 };
     } else if (type === 'electricMiner') {
       const resource = pr.electricMiner ?? 'ironOre';
+      /* NODES: drill node cap check removed
       const maxNodes = maxDrillsForResource(resource);
       if (drillCountForResource(resource) >= maxNodes) {
         if (i === 0) notify(`Patch has ${maxNodes} nodes — max drills reached for ${PATCHES[resource]?.name ?? resource}`, 'warning');
         break;
       }
+      */
       spend(costs);
       target = { type, resource, acc: 0 };
     } else if (type === 'pumpjack') {
@@ -2363,8 +2488,7 @@ function placeBuilding(type, triggerEl, ev) {
 
 function _placeDequeue() {
   if (_placeHead >= placeQueue.length) return undefined;
-  const v = placeQueue[_placeHead];
-  placeQueue[_placeHead++] = null;
+  const v = placeQueue[_placeHead++];
   if (_placeHead >= 256 && _placeHead * 2 >= placeQueue.length) {
     placeQueue = placeQueue.slice(_placeHead);
     _placeHead = 0;
@@ -2391,7 +2515,7 @@ function processNextPlacement() {
   currentPlacing = placeQueue[_placeHead];
   placing = true;
   placeStartMs = performance.now();
-  if (placeRafId) cancelAnimationFrame(placeRafId);
+  if (placeRafId) clearTimeout(placeRafId);
   tickPlacement();
 }
 
@@ -2401,7 +2525,8 @@ function tickPlacement() {
   document.getElementById('place-progress').style.width = (pct * 100) + '%';
   updatePlacementUI(placeBatch);
   if (pct >= 1) {
-    const entry      = placeQueue[_placeHead];
+    const entry = placeQueue[_placeHead];
+    if (!entry) { processNextPlacement(); return; }
     const batchCount = entry._batchCount;
     if (batchCount != null) {
       // Script batch entry: place all N buildings in one shot
@@ -2413,7 +2538,7 @@ function tickPlacement() {
         state.buildings.push(placed);
         if (placed.initModuleType) fillGroupModules(groupKey(placed), placed.initModuleType);
       }
-      _groupsDirty = true;
+      _groupsDirty = true; _typeCountsCache = null;
     } else {
       // Normal: use robot-speed batching across consecutive queue items
       const toPlace = Math.min(placeBatch, placeQueue.length - _placeHead);
@@ -2426,11 +2551,11 @@ function tickPlacement() {
         }
         _placeDequeue();
       }
-      _groupsDirty = true;
+      _groupsDirty = true; _typeCountsCache = null;
     }
     processNextPlacement();
   } else {
-    placeRafId = requestAnimationFrame(tickPlacement);
+    placeRafId = setTimeout(tickPlacement, 16);
   }
 }
 
@@ -2528,7 +2653,7 @@ function removeOneFromGroup(key) {
   if (!group || group.buildings.length === 0) return;
   const removed = group.buildings[group.buildings.length - 1];
   state.buildings = state.buildings.filter(b => b.id !== removed.id);
-  _groupsDirty = true;
+  _groupsDirty = true; _typeCountsCache = null;
   const costs = BUILDING_COSTS[removed.type];
   if (costs) for (const [item, amt] of Object.entries(costs)) recordProduced(item, amt);
   if (!state.buildings.some(b => groupKey(b) === key)) delete state.groupSettings[key];
@@ -2540,7 +2665,7 @@ function changeGroupRecipe(oldKey, recipe, type) {
   for (const b of state.buildings) {
     if (groupKey(b) === oldKey) { b.recipe = recipe; b.active = false; b.progress = 0; }
   }
-  _groupsDirty = true;
+  _groupsDirty = true; _typeCountsCache = null;
   if (oldKey !== newKey) {
     state.groupSettings[newKey] = state.groupSettings[oldKey]
       ?? { enabled: true, coalAcc: 0, starved: false, limit: 50, radarAcc: 0, packAcc: 0 };
@@ -2646,30 +2771,55 @@ function setDevTickSpeed(n) {
 }
 
 function updateTabVisibility() {
-  // Script tab: hidden until scriptingTech is researched OR script_unlock meta perk is owned (with meta prog enabled)
+  const tut = !!state.settings?.tutorialEnabled;
+  const idx = state.tutorial?.goalIndex ?? 0;
+  const goal = TUTORIAL_GOALS[idx];
+
+  // Helper: show/hide a tab button and redirect if active panel is hidden
+  const showTab = (dataTab, visible) => {
+    const btn = document.querySelector(`[data-tab="${dataTab}"]`);
+    if (!btn) return;
+    btn.style.display = visible ? '' : 'none';
+    const panel = document.getElementById('tab-' + dataTab);
+    if (panel && !visible && !panel.classList.contains('hidden')) {
+      panel.classList.add('hidden');
+      document.getElementById('tab-buildings')?.classList.remove('hidden');
+      btn.classList.remove('active');
+      document.querySelector('.tab-btn[onclick*="buildings"]')?.classList.add('active');
+    }
+  };
+
+  // Script tab: hidden until scriptingTech is researched OR script_unlock meta perk
   const scriptUnlocked = !!state.research.done?.scriptingTech
     || (!!state?.settings?.metaProgEnabled && !!metaState.skillPerks?.script_unlock);
-  const scriptBtn   = document.querySelector('[data-tab="script"]');
-  const scriptPanel = document.getElementById('tab-script');
-  if (scriptBtn) scriptBtn.style.display = scriptUnlocked ? '' : 'none';
-  if (scriptPanel && !scriptUnlocked && !scriptPanel.classList.contains('hidden')) {
-    scriptPanel.classList.add('hidden');
-    document.getElementById('tab-buildings')?.classList.remove('hidden');
-    scriptBtn?.classList.remove('active');
-    document.querySelector('.tab-btn[onclick*="buildings"]')?.classList.add('active');
-  }
+  showTab('script', scriptUnlocked);
 
   // Defense tab: hidden when biters are disabled
-  const bitersOn   = !!state.settings?.biters;
-  const defenseBtn   = document.querySelector('[data-tab="defense"]');
-  const defensePanel = document.getElementById('tab-defense');
-  if (defenseBtn) defenseBtn.style.display = bitersOn ? '' : 'none';
-  if (defensePanel && !bitersOn && !defensePanel.classList.contains('hidden')) {
-    defensePanel.classList.add('hidden');
-    document.getElementById('tab-buildings')?.classList.remove('hidden');
-    defenseBtn?.classList.remove('active');
-    document.querySelector('.tab-btn[onclick*="buildings"]')?.classList.add('active');
+  showTab('defense', !!state.settings?.biters);
+
+  // Tutorial-gated tabs
+  const researchVisible = !tut || idx >= 3 || state.buildings.some(b => b.type === 'lab');
+  const recipesVisible  = !tut || idx >= 5 || !!state.research.done['automation'];
+  const graphVisible    = !tut || idx >= 6 || !!state.research.done['logisticSciencePack'];
+  showTab('research', researchVisible);
+  showTab('recipes',  recipesVisible);
+  showTab('graph',    graphVisible);
+
+  // Apply glow to the tab button the current goal wants to highlight
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('tutorial-glow'));
+  if (tut && _tutGlowOn && goal?.glowTab) {
+    document.querySelector(`[data-tab="${goal.glowTab}"]`)?.classList.add('tutorial-glow');
   }
+}
+
+function renderTutorialGoal() {
+  const bar = document.getElementById('tutorial-goal-bar');
+  if (!bar) return;
+  if (!state?.settings?.tutorialEnabled) { bar.style.display = 'none'; return; }
+  const idx  = state.tutorial?.goalIndex ?? 0;
+  const goal = TUTORIAL_GOALS[idx];
+  bar.style.display = '';
+  bar.textContent   = goal ? `🎯 Goal: ${goal.text}` : '🏆 All goals complete!';
 }
 
 function renderUI() {
@@ -2679,6 +2829,7 @@ function renderUI() {
   renderDevPanel();
   updatePlaceButtonStates();
   updateTabVisibility();
+  renderTutorialGoal();
   const active = document.querySelector('.tab-panel:not(.hidden)');
   if (!active) return;
   if (active.id === 'tab-inventory') { const _t = _p0(); renderInventory(); _p1('render_inventory', _t); }
@@ -2732,7 +2883,8 @@ function renderPower() {
     ? `${fmtNum(pw)} kW gen${capStr} · ${fmtNum(demand)} kW use`
     : `${fmtNum(pw)} kW${capStr}`;
 
-  const accCount  = state.buildings.filter(b => b.type === 'accumulator').length;
+  buildGroupMap();
+  const accCount  = _typeCountsCache?.accumulator ?? 0;
   const accMax    = accCount * ACCUMULATOR_CAPACITY;
   const accCharge = state.accumulatorCharge ?? 0;
   const accPct    = accMax > 0 ? (accCharge / accMax * 100).toFixed(1) : '0';
@@ -2809,16 +2961,16 @@ function renderMining() {
     const locked   = !inPerim && (patch.pendingFinds?.length > 0);
     card.classList.toggle('depleted', depleted && !locked);
     card.classList.toggle('patch-locked', locked);
+    /* NODES: drill count display removed
     const drills    = drillCountForResource(key);
     const maxDrills = patch.nodes;
+    */
     const remText   = locked
       ? `Outside perimeter (${fmtNum((patch.pendingFinds ?? []).reduce((s, f) => s + f.remaining, 0))} known)`
       : `${fmtNum(Math.floor(patch.remaining))} remaining`;
     card.querySelector('.patch-remaining').textContent = remText;
     const nodesEl = card.querySelector('.patch-nodes');
-    if (nodesEl) {
-      nodesEl.textContent = inPerim && maxDrills > 0 ? `${drills}/${maxDrills} drills` : '';
-    }
+    if (nodesEl) nodesEl.textContent = '';
     const btn = card.querySelector('.btn-mine');
     btn.disabled = depleted || cooling || locked;
     btn.className = `btn-mine${(depleted || cooling || locked) ? ' disabled' : ''}`;
@@ -2856,7 +3008,10 @@ function renderCrafting() {
         const cancelBtn = total > 0
           ? `<button class="btn-craft-cancel" data-cancel="${key}" title="Cancel queue">✕</button>` : '';
 
-        return `<div class="craft-card ${isActive ? 'craft-active' : ''}">
+        const tutGlowClass = (_tutGlowOn && state.settings.tutorialEnabled &&
+          TUTORIAL_GOALS[state.tutorial?.goalIndex]?.glowCraft?.includes(key))
+          ? ' tutorial-glow' : '';
+        return `<div class="craft-card ${isActive ? 'craft-active' : ''}${tutGlowClass}">
           <div class="craft-header"><span class="craft-icon">${outIcon}</span><span class="craft-name">${recipe.name}</span></div>
           <div class="craft-recipe-line">${inputStr} ${outStr} · ${recipe.time}s</div>
           ${statusLine}
@@ -3040,7 +3195,7 @@ function addBuildingFromGroup(key, count, frontOfQueue = false) {
       break;
     }
     const proto = group.buildings[0];
-    // Drill node cap check for miners
+    /* NODES: drill node cap check removed
     if (type === 'miner' || type === 'electricMiner') {
       const resource = proto.resource;
       const maxNodes = maxDrillsForResource(resource);
@@ -3049,6 +3204,7 @@ function addBuildingFromGroup(key, count, frontOfQueue = false) {
         break;
       }
     }
+    */
     spend(costs);
     let target;
     if (proto.recipe !== undefined) {
@@ -3075,6 +3231,11 @@ function setRadarNotif(val) {
   if (state) state.settings.radarNotif = val;
 }
 
+function setTutorialEnabled(val) {
+  if (state) state.settings.tutorialEnabled = val;
+  renderUI();
+}
+
 function setDefaultLimit(which, val, isInf) {
   if (!state) return;
   const limit = isInf ? Infinity : Math.max(1, parseInt(val) || 1);
@@ -3098,6 +3259,9 @@ function renderSettings() {
   if (dlbNumEl) { dlbNumEl.value = dlb === Infinity ? '' : dlb; dlbNumEl.disabled = dlb === Infinity; }
   if (dloInfEl)  dloInfEl.checked  = dlo === Infinity;
   if (dloNumEl) { dloNumEl.value = dlo === Infinity ? '' : dlo; dloNumEl.disabled = dlo === Infinity; }
+
+  const tutEl = document.getElementById('settings-tutorial');
+  if (tutEl) tutEl.checked = state.settings.tutorialEnabled === true;
 }
 
 function buildingMatchesSearch(group, q) {
@@ -3126,6 +3290,14 @@ function getMissingInputs(recipe) {
     .filter(([k, needed]) => (state.inventory[k] ?? 0) < needed)
     .map(([k]) => ITEMS[k]?.name ?? k);
   return missing.length ? missing : null;
+}
+
+function partialRunMsg(recipe, activeN, count) {
+  if (!recipe?.inputs || activeN >= count) return '';
+  const bottleneck = Object.entries(recipe.inputs)
+    .filter(([k, needed]) => (state.inventory[k] ?? 0) < needed * count)
+    .map(([k]) => ITEMS[k]?.name ?? k);
+  return bottleneck.length ? ` · Need: ${bottleneck.join(', ')}` : '';
 }
 
 function recipeRateStr(activeN, count, machineSpeed, speedMult, pRatio, recipe, outputKey, prodBonus) {
@@ -3165,7 +3337,8 @@ function renderBuildings() {
     return;
   }
 
-  container.innerHTML = keys.map(key => {
+  let _anyCardMiss = false;
+  const _newBuildingsHtml = keys.map(key => {
     const group = groups[key];
     const gs    = getGS(key);
     const count = group.buildings.length;
@@ -3176,6 +3349,7 @@ function renderBuildings() {
       `${gs.acidStarved ?? 0}|${gs.standby ?? 0}|${Math.round((gs.progress ?? 0) * 20)}|` +
       `${(type === 'miner' || type === 'electricMiner') ? placeQueue.length - _placeHead : 0}`;
     if (_cardCache[key]?.hash === _ch) return _cardCache[key].html;
+    _anyCardMiss = true;
     const _cardHtml = (() => {
 
     if (type === 'miner' || type === 'electricMiner') {
@@ -3190,16 +3364,18 @@ function renderBuildings() {
       const isActive = gs.enabled && !gs.starved && !acidStarved && hasPatch && !atLimit && !outsidePerim;
       const pRatio   = state.powerRatio ?? 1;
       const brownStr = noPower ? ` · ⚡ ${Math.round(pRatio * 100)}% power` : '';
+      /* NODES: drill count display removed
       const drills   = drillCountForResource(group.resource);
       const maxNodes = maxDrillsForResource(group.resource);
       const nodesStr = maxNodes > 0 ? ` · ${drills}/${maxNodes} nodes` : '';
+      */
       const statusTxt = !gs.enabled  ? 'Disabled'
                        : outsidePerim ? '🔒 Outside perimeter'
                        : gs.starved   ? '⚡ No Coal'
                        : acidStarved  ? '⚗️ No Sulfuric Acid'
                        : atLimit      ? `⏸ Output limit (${gs.limit})`
                        : !hasPatch    ? 'Patch depleted'
-                                      : `${(count * speed * (type === 'electricMiner' ? calcGroupModifiers('electricMiner', count, gs.modules).speedMult : 1) * pRatio).toFixed(2)}/sec${brownStr}${nodesStr}`;
+                                      : `${(count * speed * (type === 'electricMiner' ? calcGroupModifiers('electricMiner', count, gs.modules).speedMult : 1) * pRatio).toFixed(2)}/sec${brownStr}`;
       const meta = type === 'miner'
         ? `coal: ${(count * COAL_PER_MINER).toFixed(4)}/sec`
         : `${ELECTRIC_MINER_KW * count} kW`;
@@ -3207,7 +3383,7 @@ function renderBuildings() {
       const label = type === 'miner'
         ? `Burner Miner — ${PATCHES[group.resource]?.name}`
         : `Electric Miner — ${PATCHES[group.resource]?.name}`;
-      return buildingCard(icon, label, count, meta, statusTxt, isActive, avgAcc, key, '', true, type === 'electricMiner' ? 'electricMiner' : null);
+      return buildingCard(icon, label, count, meta, statusTxt, isActive, -1, key, '', true, type === 'electricMiner' ? 'electricMiner' : null);
     }
 
     if (type === 'furnace') {
@@ -3221,7 +3397,7 @@ function renderBuildings() {
                        : gs.starved  ? '⚡ No Coal'
                        : atLimit     ? `⏸ Output limit (${gs.limit})`
                        : activeN === count ? `Smelting (${activeN}/${count})`
-                       : activeN > 0  ? `Smelting (${activeN}/${count})`
+                       : activeN > 0  ? `Smelting (${activeN}/${count})${partialRunMsg(recipe, activeN, count)}`
                                       : waitMsg;
       const { speedMult, prodBonus } = calcGroupModifiers('furnace', count, gs.modules);
       const rateStr = recipeRateStr(activeN, count, 1, speedMult, 1, recipe, outputKey, prodBonus);
@@ -3242,7 +3418,7 @@ function renderBuildings() {
                        : gs.starved  ? '⚡ No Coal'
                        : atLimit     ? `⏸ Output limit (${gs.limit})`
                        : activeN === count ? `Smelting (${activeN}/${count})`
-                       : activeN > 0  ? `Smelting (${activeN}/${count})`
+                       : activeN > 0  ? `Smelting (${activeN}/${count})${partialRunMsg(recipe, activeN, count)}`
                                       : waitMsg;
       const { speedMult, prodBonus } = calcGroupModifiers('steelFurnace', count, gs.modules);
       const rateStr = recipeRateStr(activeN, count, STEEL_FURNACE_SPEED, speedMult, 1, recipe, outputKey, prodBonus);
@@ -3263,7 +3439,7 @@ function renderBuildings() {
       const statusTxt = !gs.enabled ? 'Disabled'
                        : atLimit    ? `⏸ Output limit (${gs.limit})`
                        : activeN === count ? `Crafting (${activeN}/${count})${brownStr}`
-                       : activeN > 0  ? `Crafting (${activeN}/${count})${brownStr}`
+                       : activeN > 0  ? `Crafting (${activeN}/${count})${brownStr}${partialRunMsg(recipe, activeN, count)}`
                                       : `${waitMsg}${brownStr}`;
       const { speedMult, prodBonus } = calcGroupModifiers('assembly', count, gs.modules);
       const pRatio = state.powerRatio ?? 1;
@@ -3285,7 +3461,7 @@ function renderBuildings() {
       const statusTxt = !gs.enabled ? 'Disabled'
                        : atLimit    ? `⏸ Output limit (${gs.limit})`
                        : activeN === count ? `Crafting (${activeN}/${count})${brownStr}`
-                       : activeN > 0  ? `Crafting (${activeN}/${count})${brownStr}`
+                       : activeN > 0  ? `Crafting (${activeN}/${count})${brownStr}${partialRunMsg(recipe, activeN, count)}`
                                       : `${waitMsg}${brownStr}`;
       const { speedMult: sm2, prodBonus: pb2 } = calcGroupModifiers('assembly2', count, gs.modules);
       const pRatio2 = state.powerRatio ?? 1;
@@ -3393,7 +3569,7 @@ function renderBuildings() {
       const statusTxt2 = !gs.enabled ? 'Disabled'
                        : atLimit     ? `⏸ Output limit (${gs.limit})`
                        : activeN === count ? `Smelting (${activeN}/${count})${brownStr}`
-                       : activeN > 0  ? `Smelting (${activeN}/${count})${brownStr}`
+                       : activeN > 0  ? `Smelting (${activeN}/${count})${brownStr}${partialRunMsg(recipe, activeN, count)}`
                                       : `${waitMsg}${brownStr}`;
       const { speedMult: smEF, prodBonus: pbEF } = calcGroupModifiers('electricFurnace', count, gs.modules);
       const rateStr = recipeRateStr(activeN, count, ELECTRIC_FURNACE_SPEED, smEF, state.powerRatio ?? 1, recipe, outputKey, pbEF);
@@ -3414,7 +3590,7 @@ function renderBuildings() {
       const statusTxt2 = !gs.enabled ? 'Disabled'
                        : atLimit     ? `⏸ Output limit (${gs.limit})`
                        : activeN === count ? `Crafting (${activeN}/${count})${brownStr}`
-                       : activeN > 0  ? `Crafting (${activeN}/${count})${brownStr}`
+                       : activeN > 0  ? `Crafting (${activeN}/${count})${brownStr}${partialRunMsg(recipe, activeN, count)}`
                                       : `${waitMsg}${brownStr}`;
       const { speedMult: sm3, prodBonus: pb3 } = calcGroupModifiers('assembly3', count, gs.modules);
       const rateStr = recipeRateStr(activeN, count, ASSEMBLY3_SPEED, sm3, state.powerRatio ?? 1, recipe, outputKey, pb3);
@@ -3450,7 +3626,7 @@ function renderBuildings() {
       const statusTxt2 = !gs.enabled ? 'Disabled'
                        : atLimit     ? `⏸ Output limit (${gs.limit})`
                        : activeN === count ? `Processing (${activeN}/${count})${brownStr}`
-                       : activeN > 0  ? `Processing (${activeN}/${count})${brownStr}`
+                       : activeN > 0  ? `Processing (${activeN}/${count})${brownStr}${partialRunMsg(recipe, activeN, count)}`
                                       : `${waitMsg}${brownStr}`;
       const { speedMult: smOR, prodBonus: pbOR } = calcGroupModifiers('oilRefinery', count, gs.modules);
       const rateStr = recipeRateStr(activeN, count, OIL_REFINERY_SPEED, smOR, state.powerRatio ?? 1, recipe, outputKey, pbOR);
@@ -3471,7 +3647,7 @@ function renderBuildings() {
       const statusTxt2 = !gs.enabled ? 'Disabled'
                        : atLimit     ? `⏸ Output limit (${gs.limit})`
                        : activeN === count ? `Processing (${activeN}/${count})${brownStr}`
-                       : activeN > 0  ? `Processing (${activeN}/${count})${brownStr}`
+                       : activeN > 0  ? `Processing (${activeN}/${count})${brownStr}${partialRunMsg(recipe, activeN, count)}`
                                       : `${waitMsg}${brownStr}`;
       const { speedMult: smCP, prodBonus: pbCP } = calcGroupModifiers('chemicalPlant', count, gs.modules);
       const rateStr = recipeRateStr(activeN, count, CHEMICAL_PLANT_SPEED, smCP, state.powerRatio ?? 1, recipe, outputKey, pbCP);
@@ -3492,7 +3668,7 @@ function renderBuildings() {
       const statusTxt2 = !gs.enabled ? 'Disabled'
                        : atLimit     ? `⏸ Output limit (${gs.limit})`
                        : activeN === count ? `Processing (${activeN}/${count})${brownStr}`
-                       : activeN > 0  ? `Processing (${activeN}/${count})${brownStr}`
+                       : activeN > 0  ? `Processing (${activeN}/${count})${brownStr}${partialRunMsg(recipe, activeN, count)}`
                                       : `${waitMsg}${brownStr}`;
       const { speedMult: smCen, prodBonus: pbCen } = calcGroupModifiers('centrifuge', count, gs.modules);
       const rateStr = recipeRateStr(activeN, count, CENTRIFUGE_SPEED, smCen, state.powerRatio ?? 1, recipe, outputKey, pbCen);
@@ -3513,7 +3689,7 @@ function renderBuildings() {
       const statusTxt2 = !gs.enabled ? 'Disabled'
                        : atLimit     ? `⏸ Output limit (${gs.limit})`
                        : activeN === count ? `Building (${activeN}/${count})${brownStr}`
-                       : activeN > 0  ? `Building (${activeN}/${count})${brownStr}`
+                       : activeN > 0  ? `Building (${activeN}/${count})${brownStr}${partialRunMsg(recipe, activeN, count)}`
                                       : `${waitMsg}${brownStr}`;
       const { speedMult: smRS, prodBonus: pbRS } = calcGroupModifiers('rocketSilo', count, gs.modules);
       const rateStr = recipeRateStr(activeN, count, ROCKET_SILO_SPEED, smRS, state.powerRatio ?? 1, recipe, outputKey, pbRS);
@@ -3540,7 +3716,11 @@ function renderBuildings() {
   })();
   _cardCache[key] = { hash: _ch, html: _cardHtml };
   return _cardHtml;
-}).join('');
+  }).join('');
+  if (_anyCardMiss || container.dataset.keyCount !== String(keys.length)) {
+    container.innerHTML = _newBuildingsHtml;
+    container.dataset.keyCount = String(keys.length);
+  }
 }
 
 function buildModSummary(mods) {
@@ -3925,7 +4105,8 @@ function renderResearchStatus() {
   const el = document.getElementById('research-status');
   if (!el) return;
   const res  = state.research;
-  const labs = state.buildings.filter(b => b.type === 'lab').length;
+  buildGroupMap();
+  const labs = _typeCountsCache?.lab ?? 0;
   const gs   = getGS('lab');
 
   if (!res.current) {
@@ -3937,15 +4118,15 @@ function renderResearchStatus() {
   }
 
   let name, icon, totalNeeded, timePerPack;
-  if (res.current.startsWith('robot:')) {
+  const infDef = INFINITE_TECHS[res.current];
+  if (infDef) {
     const rd = currentRobotTechData();
     if (!rd) { el.innerHTML = ''; return; }
-    totalNeeded  = rd.totalNeeded;
-    timePerPack  = rd.timePerPack;
-    icon = '🤖';
-    name = res.current === 'robot:speed'
-      ? `Worker Robot Speed Level ${(res.robotSpeedLevel ?? 0) + 1}`
-      : `Worker Robot Cargo Size Level ${(res.robotCargoLevel ?? 0) + 1}`;
+    totalNeeded = rd.totalNeeded;
+    timePerPack = rd.timePerPack;
+    const level = (res[infDef.stateField] ?? 0) + 1;
+    icon = '🔬';
+    name = `${infDef.displayName} Level ${level}`;
   } else {
     const tech = TECHNOLOGIES[res.current];
     if (!tech) { el.innerHTML = ''; return; }
@@ -3980,7 +4161,8 @@ function renderRobotTechs() {
   if (!el) return;
 
   const cur      = state.research.current;
-  const labCount = state.buildings.filter(b => b.type === 'lab').length;
+  buildGroupMap();
+  const labCount = _typeCountsCache?.lab ?? 0;
   let html = '';
 
   // ── Robot Upgrades (gated behind Robotics tech) ──
@@ -4074,15 +4256,17 @@ function renderRobotTechs() {
     const data    = getDataFn(nextLvl);
     const isCur   = cur === techType;
     const isQueued = (state.research.queue ?? []).includes(techType);
-    const isRainbow = data.cost['rainbowScience'] != null && Object.keys(data.cost).length === 1;
-    const autoQueueBtn = isRainbow && !isCur && !isQueued && labCount
-      ? `<button class="btn-secondary rcard-btn" style="margin-left:auto;font-size:.7rem;padding:.15rem .5rem" onclick="startInfiniteTech('${techType}')">+ Queue Next</button>`
-      : '';
+    const autoOn = state.research.infiniteAutoStart === techType;
+    const autoBtn = `<button class="btn-sm ${autoOn ? 'btn-primary' : 'btn-secondary'} rcard-btn"
+      style="margin-left:auto;font-size:.7rem;padding:.15rem .5rem"
+      onclick="toggleInfiniteAutoStart('${techType}')"
+      title="${autoOn ? 'Stop auto-repeating this tech' : 'Automatically restart each level when it completes'}">
+      Auto: ${autoOn ? 'ON' : 'OFF'}</button>`;
     let out = `<div class="robot-tech-group">
       <div class="robot-tech-header">
         <span>${label}</span>
         <span class="robot-tech-badge">Level ${level}${level > 0 ? ' · ' + bonusLabel(level) : ''}</span>
-        ${autoQueueBtn}
+        ${autoBtn}
       </div>
       <div class="robot-tech-card ${isCur ? 'rcard-current' : isQueued ? 'rcard-queued' : ''}">
         <div class="rcard-name">Level ${nextLvl}</div>
@@ -4497,7 +4681,7 @@ function expandPerimeter() {
     for (const find of patch.pendingFinds) {
       if (find.chunkIndex < chunksNeeded) {
         patch.remaining += find.remaining;
-        patch.nodes     += find.nodes;
+        /* NODES: patch.nodes += find.nodes; */
       } else {
         stillLocked.push(find);
       }
@@ -5095,12 +5279,15 @@ function renderGraphAllTime(canvas, ctx, ph, starred) {
     ctx.stroke();
   });
 
-  // X-axis time labels
+  // X-axis time labels — left=oldest, right=now
   const elapsedMin = Math.round(tSpan / 60000);
-  ctx.fillStyle = '#6b7587'; ctx.font = '10px monospace'; ctx.textAlign = 'center';
-  ctx.fillText('0', pad.left, H - 4);
-  ctx.fillText(elapsedMin + 'm ago', W - pad.right, H - 4);
-  ctx.fillText(Math.round(elapsedMin/2) + 'm ago', W/2, H - 4);
+  const fmtAge = m => m >= 1440 ? (m/1440).toFixed(1)+'d ago'
+                    : m >= 60   ? (m/60).toFixed(1)+'h ago'
+                    :             m+'m ago';
+  ctx.fillStyle = '#6b7587'; ctx.font = '10px monospace';
+  ctx.textAlign = 'left';  ctx.fillText(fmtAge(elapsedMin), pad.left, H - 4);
+  ctx.textAlign = 'right'; ctx.fillText('now', W - pad.right, H - 4);
+  ctx.textAlign = 'center'; ctx.fillText(fmtAge(Math.round(elapsedMin/2)), W/2, H - 4);
 }
 
 function renderGraph() {
@@ -5331,10 +5518,16 @@ function showGame() {
   lastPerimeterHtml  = '';
   lastWavePreviewHash = '';
   lastMetaHtml       = '';
-  _groupsDirty = true; _groupsCache = null;
+  _groupsDirty = true; _groupsCache = null; _typeCountsCache = null;
   for (const k in _cardCache) delete _cardCache[k];
   const searchEl = document.getElementById('buildings-search');
   if (searchEl) searchEl.value = '';
+  // Tutorial glow pulse: briefly set _tutGlowOn every 5 seconds
+  if (_tutGlowIntervalId) clearInterval(_tutGlowIntervalId);
+  _tutGlowIntervalId = setInterval(() => {
+    _tutGlowOn = true;
+    setTimeout(() => { _tutGlowOn = false; }, 1400);
+  }, 5000);
   setupEventDelegation();
   // Restore script content from loaded save
   if (_pendingScriptRestore) {

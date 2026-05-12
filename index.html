@@ -141,17 +141,18 @@
   <div id="dev-panel" class="dev-panel hidden"></div>
 
   <nav class="tab-nav">
-    <button class="tab-btn"        onclick="switchTab('mining', this)">⛏ Mining</button>
-    <button class="tab-btn"        onclick="switchTab('inventory', this)">🎒 Inventory</button>
-    <button class="tab-btn"        onclick="switchTab('crafting', this)">🔧 Crafting</button>
-    <button class="tab-btn active" onclick="switchTab('buildings', this)">🏭 Buildings</button>
-    <button class="tab-btn" id="tab-btn-research" onclick="switchTab('research', this)">🔬 Research</button>
-    <button class="tab-btn"        onclick="switchTab('defense', this)" data-tab="defense">🛡️ Defense</button>
-    <button class="tab-btn"        onclick="switchTab('recipes', this)">📖 Recipes</button>
-    <button class="tab-btn"        onclick="switchTab('graph', this)">📈 Graph</button>
-    <button class="tab-btn"        onclick="switchTab('script', this)"  data-tab="script">📜 Script</button>
-    <button class="tab-btn"        onclick="switchTab('settings', this)">⚙ Settings</button>
+    <button class="tab-btn"        onclick="switchTab('mining', this)"    data-tab="mining">⛏ Mining</button>
+    <button class="tab-btn"        onclick="switchTab('inventory', this)"  data-tab="inventory">🎒 Inventory</button>
+    <button class="tab-btn"        onclick="switchTab('crafting', this)"   data-tab="crafting">🔧 Crafting</button>
+    <button class="tab-btn active" onclick="switchTab('buildings', this)"  data-tab="buildings">🏭 Buildings</button>
+    <button class="tab-btn" id="tab-btn-research" onclick="switchTab('research', this)" data-tab="research">🔬 Research</button>
+    <button class="tab-btn"        onclick="switchTab('defense', this)"    data-tab="defense">🛡️ Defense</button>
+    <button class="tab-btn"        onclick="switchTab('recipes', this)"    data-tab="recipes">📖 Recipes</button>
+    <button class="tab-btn"        onclick="switchTab('graph', this)"      data-tab="graph">📈 Graph</button>
+    <button class="tab-btn"        onclick="switchTab('script', this)"     data-tab="script">📜 Script</button>
+    <button class="tab-btn"        onclick="switchTab('settings', this)"   data-tab="settings">⚙ Settings</button>
   </nav>
+  <div id="tutorial-goal-bar" style="display:none"></div>
 
   <main class="tab-content">
 
@@ -589,6 +590,16 @@
                 <label class="default-limit-inf-label">
                   <input type="checkbox" id="settings-dlo-inf" checked onchange="setDefaultLimit('defaultLimitOther', 0, this.checked)"> ∞
                 </label>
+              </div>
+            </div>
+            <div class="settings-row">
+              <div>
+                <div class="settings-row-label">Tutorial</div>
+                <div class="settings-row-desc">Show goals and tab guidance for new players.</div>
+              </div>
+              <div class="toggle-row">
+                <input type="checkbox" id="settings-tutorial" class="sr-only" onchange="setTutorialEnabled(this.checked)">
+                <label for="settings-tutorial" class="toggle"></label>
               </div>
             </div>
             <div class="settings-row">
