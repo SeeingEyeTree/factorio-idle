@@ -233,19 +233,19 @@ button {
 
 .btn-group { display: flex; gap: .5rem; }
 
-.density-btn {
+.density-btn, .difficulty-btn {
   flex: 1; padding: .45rem;
   background: var(--surf2); color: var(--dim);
   border: 1px solid var(--border); border-radius: 4px;
   font-size: .85rem;
 }
-.density-btn.active {
+.density-btn.active, .difficulty-btn.active {
   background: linear-gradient(180deg, #f9b94a 0%, var(--accent2) 100%);
   color: #111;
   border-color: var(--accent);
   font-weight: 700;
 }
-.density-btn:hover:not(.active) { border-color: var(--accent); color: var(--accent); }
+.density-btn:hover:not(.active), .difficulty-btn:hover:not(.active) { border-color: var(--accent); color: var(--accent); }
 
 .toggle-row { display: flex; align-items: center; gap: .75rem; }
 .toggle {
@@ -519,6 +519,15 @@ button {
 .btn-craft-cancel:hover { background: var(--red); color: #fff; border-color: var(--red); }
 
 /* ── Mining Tab ─────────────────────────────────────────────── */
+
+#base-map {
+  width: min(80vw, 80vh);
+  height: min(80vw, 80vh);
+  display: block;
+  margin-bottom: 1.5rem;
+  border-radius: 6px;
+  image-rendering: pixelated;
+}
 
 .patch-grid {
   display: grid;
@@ -926,6 +935,126 @@ button {
 .notif.show { transform: translateX(0); }
 .notif.notif-info    { border-left: 3px solid var(--accent); }
 .notif.notif-warning { border-left: 3px solid var(--red); }
+
+/* ── Ore Patch Popup ─────────────────────────────────────────── */
+.ore-popup {
+  position: absolute;
+  background: var(--surf2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  min-width: 200px;
+  z-index: 100;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  pointer-events: all;
+}
+.ore-popup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.ore-popup-title { font-weight: 700; font-size: .95rem; color: var(--accent); }
+.ore-popup-close {
+  background: none; border: none; color: var(--dim);
+  cursor: pointer; font-size: 1rem; padding: 0 2px; line-height: 1;
+}
+.ore-popup-close:hover { color: #fff; }
+.ore-popup-stats { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+.ore-popup-row { display: flex; justify-content: space-between; gap: 16px; font-size: .85rem; }
+.ore-popup-row span { color: var(--dim); }
+.ore-popup-row strong { color: #fff; }
+.ore-popup-mine-btn { width: 100%; }
+
+/* Wrapper needed to position popup relative to canvas */
+#base-map-wrap { position: relative; display: inline-block; margin-bottom: 1.5rem; }
+#base-map-wrap #base-map { margin-bottom: 0; }
+
+/* ── Tile Background Picker ──────────────────────────────────── */
+.tile-bg-picker {
+  position: absolute;
+  background: var(--surf2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  z-index: 102;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  min-width: 240px;
+}
+.tile-picker-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 8px; font-weight: 600; font-size: .9rem;
+}
+.tile-picker-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px;
+  margin-bottom: 8px;
+}
+.tile-picker-option {
+  aspect-ratio: 1; border: 2px solid transparent; border-radius: 4px;
+  background: var(--surf3); cursor: pointer; padding: 0; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  font-size: .6rem; color: var(--dim);
+}
+.tile-picker-option img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.tile-picker-option:hover { border-color: var(--accent); }
+.tile-picker-option.selected { border-color: #fff; box-shadow: 0 0 0 1px var(--accent); }
+.tile-picker-actions { display: flex; gap: 6px; }
+.tile-picker-btn {
+  flex: 1; background: var(--surf3); border: 1px solid var(--border);
+  border-radius: 5px; color: #fff; cursor: pointer; font-size: .8rem;
+  padding: 5px 4px;
+}
+.tile-picker-btn:hover { background: var(--accent); border-color: var(--accent); }
+
+/* ── Building Popup ──────────────────────────────────────────── */
+.building-popup {
+  position: absolute;
+  background: var(--surf2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  min-width: 210px;
+  z-index: 101;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  pointer-events: all;
+}
+.bld-popup-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.bld-popup-title  { font-weight: 700; font-size: .95rem; color: var(--accent); }
+.bld-popup-nav    { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 10px; }
+.bld-popup-recipe { flex: 1; text-align: center; font-size: .85rem; color: var(--dim); }
+.bld-popup-arrow-prev, .bld-popup-arrow-next {
+  background: none; border: 1px solid var(--border); border-radius: 4px;
+  color: #fff; cursor: pointer; font-size: 1.1rem; line-height: 1; padding: 1px 6px;
+}
+.bld-popup-arrow-prev:disabled, .bld-popup-arrow-next:disabled { opacity: 0.3; cursor: default; }
+.bld-popup-stats  { display: flex; flex-direction: column; gap: 5px; }
+.bld-popup-row    { display: flex; justify-content: space-between; gap: 16px; font-size: .85rem; }
+.bld-popup-row span { color: var(--dim); }
+.bld-popup-row strong { color: #fff; }
+
+/* ── Biter Encounter Popup ───────────────────────────────────── */
+.biter-popup {
+  position: fixed;
+  bottom: 80px;
+  right: 20px;
+  background: rgba(10,10,10,0.93);
+  border: 2px solid #c44;
+  border-radius: 10px;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  z-index: 1500;
+  max-width: 420px;
+  opacity: 0;
+  transform: translateX(40px);
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+.biter-popup.biter-popup-show { opacity: 1; transform: translateX(0); }
+.biter-popup.biter-popup-fade { opacity: 0; transform: translateX(40px); }
+.biter-popup-img { width: 128px; height: 128px; object-fit: cover; border-radius: 6px; flex-shrink: 0; }
+.biter-popup-text { font-size: .9rem; color: #ddd; line-height: 1.6; margin: 0; }
+.biter-popup-name { color: #ff6655; font-size: 1.05rem; display: block; margin-top: 4px; }
 
 /* ── Script Tab ─────────────────────────────────────────────── */
 

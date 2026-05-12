@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Grid Labels</title>
+<style>
+  body { margin: 0; background: #111; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+  canvas { display: block; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+  const GRID = 15;
+  const SIZE = Math.min(window.innerWidth, window.innerHeight) * 0.95;
+  const canvas = document.getElementById('c');
+  canvas.width = canvas.height = SIZE;
+  const ctx = canvas.getContext('2d');
+  const tile = SIZE / GRID;
+
+  const img = new Image();
+  img.src = 'data/map_imgs/grass_map_composed.png';
+  img.onload = draw;
+  img.onerror = draw;
+
+  function draw() {
+    // Background
+    if (img.complete && img.naturalWidth > 0) {
+      ctx.drawImage(img, 0, 0, SIZE, SIZE);
+    } else {
+      ctx.fillStyle = '#2d5a1b';
+      ctx.fillRect(0, 0, SIZE, SIZE);
+    }
+
+    // Grid lines
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= GRID; i++) {
+      ctx.beginPath(); ctx.moveTo(i * tile, 0); ctx.lineTo(i * tile, SIZE); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, i * tile); ctx.lineTo(SIZE, i * tile); ctx.stroke();
+    }
+
+    // Column numbers (top)
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (let col = 0; col < GRID; col++) {
+      const x = (col + 0.5) * tile;
+      const y = tile * 0.5;
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.fillRect(x - tile * 0.38, y - tile * 0.28, tile * 0.76, tile * 0.56);
+      ctx.fillStyle = '#fff';
+      ctx.font = `bold ${Math.round(tile * 0.38)}px monospace`;
+      ctx.fillText(col, x, y);
+    }
+
+    // Row numbers (left)
+    for (let row = 0; row < GRID; row++) {
+      const x = tile * 0.5;
+      const y = (row + 0.5) * tile;
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.fillRect(x - tile * 0.38, y - tile * 0.28, tile * 0.76, tile * 0.56);
+      ctx.fillStyle = '#ffdd55';
+      ctx.font = `bold ${Math.round(tile * 0.38)}px monospace`;
+      ctx.fillText(row, x, y);
+    }
+  }
+</script>
+</body>
+</html>

@@ -63,11 +63,6 @@
     </div>
 
     <div class="field hidden biters-option-field">
-      <label>Grace Period (minutes before first attack)</label>
-      <input type="number" id="grace-period-input" class="modal-number-input" value="7" min="0" max="120" step="1">
-    </div>
-
-    <div class="field hidden biters-option-field">
       <label>Wave Frequency</label>
       <select id="wave-interval-select" class="modal-number-input" style="width:auto">
         <option value="240">Rare (every 4 min)</option>
@@ -78,18 +73,18 @@
     </div>
 
     <div class="field hidden biters-option-field">
-      <label>Threat Points / Wave (early game)</label>
-      <input type="number" id="biter-points-pre-red-input" class="modal-number-input" value="0.5" min="0" max="100" step="0.1">
+      <label>Difficulty</label>
+      <div class="btn-group">
+        <button class="difficulty-btn" data-diff="easy">Easy</button>
+        <button class="difficulty-btn active" data-diff="normal">Normal</button>
+        <button class="difficulty-btn" data-diff="hard">Hard</button>
+        <button class="difficulty-btn" data-diff="custom">Custom</button>
+      </div>
     </div>
 
-    <div class="field hidden biters-option-field">
-      <label>Threat Points / Wave (late game, post-blue)</label>
-      <input type="number" id="biter-points-post-blue-input" class="modal-number-input" value="4" min="0" max="1000" step="0.5">
-    </div>
-
-    <div class="field hidden biters-option-field">
-      <label>Max Threat Points (linear cap)</label>
-      <input type="number" id="biter-points-cap-input" class="modal-number-input" value="500" min="1" max="100000" step="10">
+    <div class="field hidden" id="biter-custom-mult-field">
+      <label>Custom Multiplier</label>
+      <input type="number" id="biter-custom-mult-input" class="modal-number-input" value="1" min="0.01" max="100" step="0.1">
     </div>
 
     <div class="btn-row modal-actions">
@@ -141,7 +136,7 @@
   <div id="dev-panel" class="dev-panel hidden"></div>
 
   <nav class="tab-nav">
-    <button class="tab-btn"        onclick="switchTab('mining', this)"    data-tab="mining">⛏ Mining</button>
+    <button class="tab-btn"        onclick="switchTab('mining', this)"    data-tab="mining">🏠 Base</button>
     <button class="tab-btn"        onclick="switchTab('inventory', this)"  data-tab="inventory">🎒 Inventory</button>
     <button class="tab-btn"        onclick="switchTab('crafting', this)"   data-tab="crafting">🔧 Crafting</button>
     <button class="tab-btn active" onclick="switchTab('buildings', this)"  data-tab="buildings">🏭 Buildings</button>
@@ -156,8 +151,47 @@
 
   <main class="tab-content">
 
-    <!-- Mining Tab -->
+    <!-- Base Tab -->
     <section id="tab-mining" class="tab-panel hidden">
+      <div id="base-map-wrap">
+        <canvas id="base-map"></canvas>
+        <div id="ore-patch-popup" class="hidden ore-popup" data-ore-key="">
+          <div class="ore-popup-header">
+            <span class="ore-popup-title"></span>
+            <button class="ore-popup-close" onclick="closeOrePatchPopup()">✕</button>
+          </div>
+          <div class="ore-popup-stats">
+            <div class="ore-popup-row"><span>Remaining</span><strong class="ore-popup-remaining"></strong></div>
+            <div class="ore-popup-row"><span>Mined from ground</span><strong class="ore-popup-mined"></strong></div>
+            <div class="ore-popup-row"><span>Manifested</span><strong class="ore-popup-manifest"></strong></div>
+          </div>
+          <button class="btn-primary ore-popup-mine-btn" onclick="_orePopupMine()">Mine</button>
+        </div>
+        <div id="building-popup" class="hidden building-popup">
+          <div class="bld-popup-header">
+            <span class="bld-popup-title"></span>
+            <button class="ore-popup-close" onclick="closeBuildingPopup()">✕</button>
+          </div>
+          <div class="bld-popup-nav">
+            <button class="bld-popup-arrow-prev" onclick="_bldPopupPrev()">&#8249;</button>
+            <span class="bld-popup-recipe"></span>
+            <button class="bld-popup-arrow-next" onclick="_bldPopupNext()">&#8250;</button>
+          </div>
+          <div class="bld-popup-stats"></div>
+        </div>
+        <div id="tile-bg-picker" class="hidden tile-bg-picker">
+          <div class="tile-picker-header">
+            <span>Tile Background</span>
+            <button class="ore-popup-close" onclick="closeTileBgPicker()">✕</button>
+          </div>
+          <div class="tile-picker-grid"></div>
+          <div class="tile-picker-actions">
+            <button class="tile-picker-btn" onclick="_applyTileBg('tile')">This Tile</button>
+            <button class="tile-picker-btn" onclick="_applyTileBg('row')">Entire Row</button>
+            <button class="tile-picker-btn" onclick="_applyTileBg('col')">Entire Col</button>
+          </div>
+        </div>
+      </div>
       <h3 class="section-label">Resource Patches</h3>
       <p id="chunk-info"></p>
       <div id="resource-patches" class="patch-grid"></div>
@@ -739,6 +773,11 @@
     </section>
 
   </main>
+</div>
+
+<div id="biter-encounter-popup" class="hidden biter-popup">
+  <img class="biter-popup-img" src="" alt="Biter" width="128" height="128">
+  <p class="biter-popup-text">Your experiments on the interns have attracted the wrath of<br><strong class="biter-popup-name"></strong></p>
 </div>
 
 <script src="data/recipes.js"></script>

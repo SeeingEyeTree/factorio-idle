@@ -732,8 +732,8 @@ function buildScriptContext() {
   ctx.LASER_DAMAGE_LEVEL = research.laserDamageLevel ?? 0;
 
   // ── Build queue variables
-  ctx.Q_len    = pq.reduce((s, b) => s + (b._batchCount ?? 1), 0);  // total buildings pending placement
-  ctx.Q_miners = pq.filter(b => b.type === 'miner' || b.type === 'electricMiner').length;
+  ctx.Q_len    = pq.reduce((s, b) => s + b.count, 0);
+  ctx.Q_miners = pq.filter(b => b.type === 'miner' || b.type === 'electricMiner').reduce((s, b) => s + b.count, 0);
   const { batch: placeBatchSize } = computePlaceTimeSec();
   ctx.PLACE_BATCH = placeBatchSize;  // buildings placed per placement interval
 
@@ -1046,23 +1046,26 @@ function scriptPlaceBuilding(type, arg, n, moduleType) {
   const count = typeof n === 'number' ? Math.max(1, Math.floor(n)) : 1;
   const pr    = state.placementRecipes ?? defaultPlacementRecipes();
 
-  // Miners: per-item loop required (limited by available ore nodes)
+  // Miners: per-item loop (checks drillCountForResource cap each iteration)
   if (realType === 'miner' || realType === 'electricMiner') {
     const resource = (arg ? (RESOURCE_MAP[arg] ?? arg) : null) ?? pr[realType] ?? 'ironOre';
-    let placed = 0;
+    let actualCount = 0;
     for (let i = 0; i < count; i++) {
       if (!canAfford(costs)) { if (i === 0) scriptOutput.push({ type: 'warn', text: `place: can't afford ${_displayName}` }); break; }
-      if (drillCountForResource(resource) >= maxDrillsForResource(resource)) {
+      if (drillCountForResource(resource) + actualCount >= maxDrillsForResource(resource)) {
         if (i === 0) scriptOutput.push({ type: 'warn', text: `place: max drills reached for ${resource}` });
         break;
       }
       spend(costs);
-      const t = { type: realType, resource, acc: 0, displayName: _displayName };
+      actualCount++;
+    }
+    if (actualCount > 0) {
+      const t = { type: realType, resource, count: actualCount };
       if (moduleType) t.initModuleType = moduleType;
       placeQueue.push(t);
-      placed++;
+      scriptOutput.push({ type: 'info', text: `Queued ${actualCount}× ${_displayName}` });
+      if (!placing) processNextPlacement();
     }
-    if (placed > 0) { scriptOutput.push({ type: 'info', text: `Queued ${placed}× ${_displayName}` }); if (!placing) processNextPlacement(); }
     return;
   }
 
@@ -1086,22 +1089,14 @@ function scriptPlaceBuilding(type, arg, n, moduleType) {
     }
   }
 
-  // Batch spend (equivalent to calling spend(costs) actualCount times)
+  // Batch spend
   for (const [k, qty] of Object.entries(costs)) {
     state.inventory[k] = (state.inventory[k] ?? 0) - qty * actualCount;
   }
 
-  // Build template and push ONE queue entry with _batchCount
-  let target;
-  if (realType === 'pumpjack') {
-    target = { type: realType, resource: 'crudeOil', acc: 0 };
-  } else if (recipe !== null) {
-    target = { type: realType, recipe, active: false, progress: 0 };
-  } else {
-    target = { type: realType };
-  }
-  target.displayName  = _displayName;
-  target._batchCount  = actualCount;
+  const target = { type: realType, count: actualCount };
+  if (realType === 'pumpjack') target.resource = 'crudeOil';
+  else if (recipe !== null)    target.recipe   = recipe;
   if (moduleType) target.initModuleType = moduleType;
 
   placeQueue.push(target);

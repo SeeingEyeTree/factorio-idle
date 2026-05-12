@@ -16,10 +16,6 @@ const PLACE_TIME_MIN         = 0.1;    // minimum raw time before batch mode kic
 const PLACE_TIME_LOOP        = 0.1;    // effective time used in batch mode
 const BITER_INTERVAL       = 120;
 const BITER_RAMP           = 1.0;    // multiplier on wave number for scaling
-const BITER_HP_CAP         = 3000;   // max hp per biter
-const BITER_DPS_CAP        = 90;     // max dps per biter
-const BITER_COUNT_CAP      = 200;    // max biters per wave
-const BITER_ARMOR_CAP      = 5;      // max armor per biter
 const COAL_PER_MINER       = 0.0375;
 const COAL_PER_FURNACE     = 0.0225;
 const WATER_MAX            = 25000;
@@ -117,14 +113,25 @@ const ATOMIC_BOMB_DAMAGE        = 1e9;    // damage dealt by one atomic bomb to 
 const ATOMIC_BOMBS_PER_SPIDER   = 5;      // bombs available per spidertron per wave
 const IRRADIATION_SCALING_RATE  = 0.001;  // how much each bomb use increases biter threat scaling
 
-// ── Biter Scaling Constants (tweak for balance) ────────────────
-const BITER_POINTS_PRE_RED    = 0.5;   // threat points gained per wave before red science
-const BITER_POINTS_POST_RED   = 1.0;   // threat points gained per wave after red science
-const BITER_POINTS_POST_GREEN = 2.0;   // threat points gained per wave after green science
-const BITER_POINTS_POST_BLUE  = 4.0;   // threat points gained per wave after blue science (and above, pre-rainbow)
-const BITER_POINTS_CAP_LINEAR = 500.0; // max threat points in linear phase
+// ── Biter Scaling Constants (0→1 linear scale; >1 = rainbow exponential) ──
+const BITER_POINTS_PRE_RED    = 0.001;  // threat points gained per wave before red science
+const BITER_POINTS_POST_RED   = 0.002;  // threat points gained per wave after red science
+const BITER_POINTS_POST_GREEN = 0.004;  // threat points gained per wave after green science
+const BITER_POINTS_POST_BLUE  = 0.008;  // threat points gained per wave after blue science (pre-rainbow)
+const BITER_POINTS_CAP_LINEAR = 1.0;    // linear phase cap; rainbow exponential kicks in above this
 const BITER_POINTS_EXP_BASE_INITIAL = 1.01;  // initial exponential base (per wave) after rainbow
 const BITER_POINTS_EXP_BASE_GROWTH  = 0.0001; // how much the base increases per wave after rainbow
+
+// ── Biter Tier Table ──────────────────────────────────────────────────────
+const BITER_TIERS = [
+  { threshold: 1/3000,   name: 'Death destroyer of worlds',   img: 'data/icon_imgs/Baby_Rabbit.jpeg' },
+  { threshold: 5/3000,   name: 'Crouching Mantis Hidden Bug', img: 'data/icon_imgs/Crouching_Mantis_Hidden_Bug.jpeg' },
+  { threshold: 25/3000,  name: 'Spoider',                     img: 'data/icon_imgs/Spider.jpeg' },
+  { threshold: 80/3000,  name: 'Blue Beetle',                 img: 'data/icon_imgs/Blue_Beetle.jpeg' },
+  { threshold: 135/3000, name: 'Invisible Purple Unicorn',    img: 'data/icon_imgs/Invis.jpeg' },
+  { threshold: 190/3000, name: 'Angry Bee',                   img: 'data/icon_imgs/Angry_Bee.jpeg' },
+  { threshold: 1.0,      name: 'OSHA',                        img: 'data/icon_imgs/OSHA.png' },
+];
 
 // ITEMS, ALWAYS_SHOW, FURNACE_RECIPES, PLAYER_RECIPES, CRAFT_SECTIONS loaded from data/recipes.js
 // TECHNOLOGIES loaded from data/technologies.js
@@ -299,7 +306,8 @@ let placing         = false;
 let currentPlacing  = null;
 let placeStartMs    = null;
 let placeRafId      = null;
-let selectedDensity = 'medium';
+let selectedDensity   = 'medium';
+let selectedDifficulty = 'normal';
 let mouseHeld       = false;
 let biterWaveWarned = false;
 
@@ -607,14 +615,12 @@ function defaultPlacementRecipes() {
 
 function createState(settings) {
   const mult = DENSITY_MULT[settings.density] ?? 1.0;
-  const metaEnabled = !!(settings.metaProgEnabled && metaState.skillPerks?.perk_grace);
-  const gracePeriod = (settings.biterGracePeriod ?? 420) + (metaEnabled ? 60 : 0);
   const st = {
     settings: {
       defaultLimitBuilding: 10,
       defaultLimitOther: Infinity,
-      biterGracePeriod:    420,
       biterIntervalSecs:   120,
+      biterDifficultyMult: 1,
       metaProgEnabled: false,
       tutorialEnabled: true,
       ...settings,
@@ -639,9 +645,12 @@ function createState(settings) {
       'miner:stone':       { type: 'miner',   resource: 'stone',    count: 1 },
       'miner:coal':        { type: 'miner',   resource: 'coal',     count: 1 },
     },
-    biterTimer:     settings.biters ? -gracePeriod : 0,
+    biterTimer:      0,
+    biterActivated:  false,
+    savePlayTime:    0,
+    biterSeenTiers:  {},
     biterWaveNumber: 0,
-    lastBiterWave:  null,
+    lastBiterWave:   null,
     perimeter: {
       sideLength: 10,
       walls: 0,
@@ -655,7 +664,7 @@ function createState(settings) {
       atomicBombsUsedThisWave: 0,
       irradiationLevel: 0,
     },
-    biterThreatPoints: 0,
+    biterThreatPoints: 15/3000,
     biterWavesAfterRainbow: 0,
     bitersKilled: 0,
     groupSettings:  {},
@@ -697,6 +706,10 @@ function createState(settings) {
     devTickSpeed: 1,
     itemsProduced: {},
     itemsConsumed: {},
+    patchConsumed: {},
+    baseProduced:  {},
+    mapTiles:      {},
+    tileBg:        {},
     rateSnapshot: { time: 0, produced: {}, consumed: {} },
     saveCreatedAt: Date.now(),
     _deathHandled: false,
@@ -777,8 +790,16 @@ function applyStateFromEnvelope(envelope) {
   if (state.perimeter.spidertrons       == null) state.perimeter.spidertrons       = 0;
   if (state.perimeter.atomicBombsUsedThisWave == null) state.perimeter.atomicBombsUsedThisWave = 0;
   if (state.perimeter.irradiationLevel  == null) state.perimeter.irradiationLevel  = 0;
-  if (state.biterThreatPoints == null) state.biterThreatPoints = 0;
+  if (state.biterThreatPoints == null) state.biterThreatPoints = 15/3000;
+  // Migrate old saves: biterThreatPoints was in 0–500 scale, now 0–1
+  if (state.biterThreatPoints > 5) state.biterThreatPoints = state.biterThreatPoints / 500;
   if (state.biterWavesAfterRainbow == null) state.biterWavesAfterRainbow = 0;
+  // Biter activation migration
+  if (state.biterActivated == null)
+    state.biterActivated = (state.biterWaveNumber ?? 0) > 0 || (state.biterTimer ?? 0) > 0;
+  if (state.savePlayTime  == null) state.savePlayTime  = 1800; // old saves: treat as already past 30min
+  if (!state.biterSeenTiers)       state.biterSeenTiers = {};
+
   if (!state.inventoryDelta)           state.inventoryDelta   = {};
   if (!state.placementRecipes)         state.placementRecipes = defaultPlacementRecipes();
   if (state.devMode         == null)   state.devMode          = false;
@@ -825,8 +846,8 @@ function applyStateFromEnvelope(envelope) {
   if (!state.productionHistory) state.productionHistory = { samples: [], prodSamples: [], consSamples: [] };
   if (!state.productionHistory.prodSamples) state.productionHistory.prodSamples = [];
   if (!state.productionHistory.consSamples) state.productionHistory.consSamples = [];
-  if (state.settings?.biterGracePeriod  == null) state.settings.biterGracePeriod  = 420;
-  if (state.settings?.biterIntervalSecs == null) state.settings.biterIntervalSecs = 120;
+  if (state.settings?.biterIntervalSecs  == null) state.settings.biterIntervalSecs  = 120;
+  if (state.settings?.biterDifficultyMult == null) state.settings.biterDifficultyMult = 1;
   if (!state.seen) state.seen = {};
   if (state.bitersKilled == null) state.bitersKilled = 0;
   if (state.settings?.metaProgEnabled == null) {
@@ -834,6 +855,10 @@ function applyStateFromEnvelope(envelope) {
   }
   if (!state.itemsProduced) state.itemsProduced = {};
   if (!state.itemsConsumed) state.itemsConsumed = {};
+  if (!state.patchConsumed)  state.patchConsumed  = {};
+  if (!state.baseProduced)   state.baseProduced   = {};
+  if (!state.mapTiles)       state.mapTiles       = {};
+  if (!state.tileBg)         state.tileBg         = {};
   if (!state.rateSnapshot) state.rateSnapshot = { time: 0, produced: {}, consumed: {} };
   if (!state.saveCreatedAt) state.saveCreatedAt = Date.now();
   if (state._deathHandled == null) state._deathHandled = false;
@@ -863,6 +888,15 @@ function applyStateFromEnvelope(envelope) {
   if (placeRafId) clearTimeout(placeRafId);
   placeRafId = null; placing = false; currentPlacing = null;
   placeQueue = isEnvelope && Array.isArray(envelope.placeQueue) ? [...envelope.placeQueue] : []; _placeHead = 0;
+  // Migrate old queue entries that used individual objects (acc/active/progress/displayName) without count
+  placeQueue = placeQueue.map(e => {
+    if (e.count != null) return e;
+    const n = { type: e.type, count: e._batchCount ?? 1 };
+    if (e.resource != null) n.resource = e.resource;
+    if (e.recipe   != null) n.recipe   = e.recipe;
+    if (e.initModuleType)   n.initModuleType = e.initModuleType;
+    return n;
+  });
 
   // Script content is restored in showGame() once the DOM is ready
   _pendingScriptRestore = isEnvelope
@@ -1590,6 +1624,7 @@ function tick() {
       const produced = n * miningProdMult();
       recordProduced(group.resource, produced);
       patch.remaining -= n; gs.acc -= n;
+      state.patchConsumed[group.resource] = (state.patchConsumed[group.resource] ?? 0) + n;
     }
   }
   _p1('burnerMiners', _tBM);
@@ -1620,6 +1655,7 @@ function tick() {
       const prod = group.resource === 'uraniumOre' ? 1 : miningProdMult();
       recordProduced(group.resource, n * prod);
       patch.remaining -= n; gs.acc -= n;
+      state.patchConsumed[group.resource] = (state.patchConsumed[group.resource] ?? 0) + n;
     }
   }
   _p1('electricMiners', _tEM);
@@ -1664,6 +1700,8 @@ function tick() {
               const w = Math.floor(gs.prodFrac[k]); gs.prodFrac[k] -= w;
               if (w > 0) recordProduced(k, w);
             }
+            for (const [k, v] of Object.entries(recipe.outputs))
+              state.baseProduced[k] = (state.baseProduced[k] ?? 0) + v * actual;
             gs.progress -= actual; gs.active = true;
           } else { gs.progress = 0; gs.active = false; }
         }
@@ -1707,6 +1745,8 @@ function tick() {
               const w = Math.floor(gs.prodFrac[k]); gs.prodFrac[k] -= w;
               if (w > 0) recordProduced(k, w);
             }
+            for (const [k, v] of Object.entries(recipe.outputs))
+              state.baseProduced[k] = (state.baseProduced[k] ?? 0) + v * actual;
             gs.progress -= actual; gs.active = true;
           } else { gs.progress = 0; gs.active = false; }
         }
@@ -1751,6 +1791,8 @@ function tick() {
               const w = Math.floor(gs.prodFrac[k]); gs.prodFrac[k] -= w;
               if (w > 0) recordProduced(k, w);
             }
+            for (const [k, v] of Object.entries(recipe.outputs))
+              state.baseProduced[k] = (state.baseProduced[k] ?? 0) + v * actual;
             gs.progress -= actual; gs.active = true;
           } else { gs.progress = 0; gs.active = false; }
         }
@@ -1795,6 +1837,8 @@ function tick() {
               const w = Math.floor(gs.prodFrac[k]); gs.prodFrac[k] -= w;
               if (w > 0) recordProduced(k, w);
             }
+            for (const [k, v] of Object.entries(recipe.outputs))
+              state.baseProduced[k] = (state.baseProduced[k] ?? 0) + v * actual;
             gs.progress -= actual; gs.active = true;
           } else { gs.progress = 0; gs.active = false; }
         }
@@ -1839,6 +1883,8 @@ function tick() {
               const w = Math.floor(gs.prodFrac[k]); gs.prodFrac[k] -= w;
               if (w > 0) recordProduced(k, w);
             }
+            for (const [k, v] of Object.entries(recipe.outputs))
+              state.baseProduced[k] = (state.baseProduced[k] ?? 0) + v * actual;
             gs.progress -= actual; gs.active = true;
           } else { gs.progress = 0; gs.active = false; }
         }
@@ -1883,6 +1929,8 @@ function tick() {
               const w = Math.floor(gs.prodFrac[k]); gs.prodFrac[k] -= w;
               if (w > 0) recordProduced(k, w);
             }
+            for (const [k, v] of Object.entries(recipe.outputs))
+              state.baseProduced[k] = (state.baseProduced[k] ?? 0) + v * actual;
             gs.progress -= actual; gs.active = true;
           } else { gs.progress = 0; gs.active = false; }
         }
@@ -1944,6 +1992,8 @@ function tick() {
               const w = Math.floor(gs.prodFrac[k]); gs.prodFrac[k] -= w;
               if (w > 0) recordProduced(k, w);
             }
+            for (const [k, v] of Object.entries(recipe.outputs))
+              state.baseProduced[k] = (state.baseProduced[k] ?? 0) + v * actual;
             gs.progress -= actual; gs.active = true;
           } else { gs.progress = 0; gs.active = false; }
         }
@@ -1988,6 +2038,8 @@ function tick() {
               const w = Math.floor(gs.prodFrac[k]); gs.prodFrac[k] -= w;
               if (w > 0) recordProduced(k, w);
             }
+            for (const [k, v] of Object.entries(recipe.outputs))
+              state.baseProduced[k] = (state.baseProduced[k] ?? 0) + v * actual;
             gs.progress -= actual; gs.active = true;
           } else { gs.progress = 0; gs.active = false; }
         }
@@ -2029,8 +2081,13 @@ function tick() {
             if (group.recipe === 'uraniumProcessing') {
               for (let i = 0; i < actual; i++) {
                 state.uraniumProcessingCount = (state.uraniumProcessingCount ?? 0) + 1;
-                if (state.uraniumProcessingCount % 143 === 0) recordProduced('uranium235', 1);
-                else recordProduced('uranium238', 1);
+                if (state.uraniumProcessingCount % 143 === 0) {
+                  recordProduced('uranium235', 1);
+                  state.baseProduced['uranium235'] = (state.baseProduced['uranium235'] ?? 0) + 1;
+                } else {
+                  recordProduced('uranium238', 1);
+                  state.baseProduced['uranium238'] = (state.baseProduced['uranium238'] ?? 0) + 1;
+                }
               }
             } else {
               for (const [k, v] of Object.entries(recipe.outputs)) {
@@ -2039,6 +2096,8 @@ function tick() {
                 const w = Math.floor(gs.prodFrac[k]); gs.prodFrac[k] -= w;
                 if (w > 0) recordProduced(k, w);
               }
+              for (const [k, v] of Object.entries(recipe.outputs))
+                state.baseProduced[k] = (state.baseProduced[k] ?? 0) + v * actual;
             }
             gs.progress -= actual; gs.active = true;
           } else { gs.progress = 0; gs.active = false; }
@@ -2084,6 +2143,8 @@ function tick() {
               const w = Math.floor(gs.prodFrac[k]); gs.prodFrac[k] -= w;
               if (w > 0) recordProduced(k, w);
             }
+            for (const [k, v] of Object.entries(recipe.outputs))
+              state.baseProduced[k] = (state.baseProduced[k] ?? 0) + v * actual;
             gs.progress -= actual; gs.active = true;
           } else { gs.progress = 0; gs.active = false; }
         }
@@ -2359,15 +2420,23 @@ function tick() {
   // ── Biters ──
   const _tBit = _p0();
   if (state.settings.biters) {
-    state.biterTimer += dt;
-    const interval = biterInterval();
-    if (state.biterTimer >= interval) {
-      state.biterTimer = 0;
-      biterWaveWarned = false;
-      fightBiterWave();
-    } else if (state.biterTimer > 0 && !biterWaveWarned && interval - state.biterTimer <= 30) {
-      biterWaveWarned = true;
-      notify(`⚠️ Biter wave incoming in ~${Math.ceil(interval - state.biterTimer)}s!`, 'warning');
+    state.savePlayTime = (state.savePlayTime ?? 0) + dt;
+    if (!state.biterActivated) {
+      const redMade  = (state.itemsProduced?.redScience ?? 0) > 0;
+      const timeMade = state.savePlayTime >= 1800;
+      if (redMade || timeMade) { state.biterActivated = true; state.biterTimer = 0; }
+    } else {
+      state.biterTimer += dt;
+      const interval = biterInterval();
+      if (state.biterTimer >= interval) {
+        state.biterTimer = 0;
+        biterWaveWarned = false;
+        fightBiterWave();
+      } else if (!biterWaveWarned && interval - state.biterTimer <= 30) {
+        biterWaveWarned = true;
+        const tierName = getBiterTierData(state.biterThreatPoints ?? 0)?.name ?? 'Biters';
+        notify(`⚠️ ${tierName} wave incoming in ~${Math.ceil(interval - state.biterTimer)}s!`, 'warning');
+      }
     }
   }
   _p1('biters', _tBit);
@@ -2419,9 +2488,9 @@ function drillCountForResource(resource) {
   const g = buildGroupMap();
   const placed = (state.buildings[`miner:${resource}`]?.count ?? 0)
                + (state.buildings[`electricMiner:${resource}`]?.count ?? 0);
-  const queued = placeQueue.slice(_placeHead).filter(b =>
-    (b.type === 'miner' || b.type === 'electricMiner') && b.resource === resource
-  ).length;
+  const queued = placeQueue.slice(_placeHead)
+    .filter(e => (e.type === 'miner' || e.type === 'electricMiner') && e.resource === resource)
+    .reduce((s, e) => s + e.count, 0);
   return placed + queued;
 }
 
@@ -2441,57 +2510,28 @@ function placeBuilding(type, triggerEl, ev) {
 
   const pr = state.placementRecipes ?? defaultPlacementRecipes();
   const costs = BUILDING_COSTS[type];
-  const targets = [];
 
+  let resource = null, recipe = null;
+  if (type === 'miner')              resource = pr.miner ?? 'ironOre';
+  else if (type === 'electricMiner') resource = pr.electricMiner ?? 'ironOre';
+  else if (type === 'pumpjack')      resource = 'crudeOil';
+  else if (BUILDING_DEFS[type]?.hasRecipe) recipe = pr[type] ?? '';
+
+  let actualCount = 0;
   for (let i = 0; i < count; i++) {
-    if (!canAfford(costs)) {
-      if (i === 0) notify(`Need ${COST_LABEL[type]} — craft it first`, 'warning');
-      break;
-    }
-
-    let target;
-    if (type === 'miner') {
-      const resource = pr.miner ?? 'ironOre';
-      /* NODES: drill node cap check removed
-      const maxNodes = maxDrillsForResource(resource);
-      if (drillCountForResource(resource) >= maxNodes) {
-        if (i === 0) notify(`Patch has ${maxNodes} nodes — max drills reached for ${PATCHES[resource]?.name ?? resource}`, 'warning');
-        break;
-      }
-      */
-      spend(costs);
-      target = { type, resource, acc: 0 };
-    } else if (type === 'electricMiner') {
-      const resource = pr.electricMiner ?? 'ironOre';
-      /* NODES: drill node cap check removed
-      const maxNodes = maxDrillsForResource(resource);
-      if (drillCountForResource(resource) >= maxNodes) {
-        if (i === 0) notify(`Patch has ${maxNodes} nodes — max drills reached for ${PATCHES[resource]?.name ?? resource}`, 'warning');
-        break;
-      }
-      */
-      spend(costs);
-      target = { type, resource, acc: 0 };
-    } else if (type === 'pumpjack') {
-      spend(costs);
-      target = { type, resource: 'crudeOil', acc: 0 };
-    } else if (BUILDING_DEFS[type]?.hasRecipe) {
-      spend(costs);
-      target = { type, recipe: pr[type] ?? '', active: false, progress: 0 };
-    } else {
-      spend(costs);
-      target = { type };
-    }
-    target.displayName = BUILDING_DEFS[type]?.name ?? type;
-    targets.push(target);
+    if (!canAfford(costs)) { if (i === 0) notify(`Need ${COST_LABEL[type]} — craft it first`, 'warning'); break; }
+    spend(costs);
+    actualCount++;
   }
 
-  if (targets.length > 0) {
-    if (frontOfQueue) _placeEnqueueFront(targets);
-    else placeQueue.push(...targets);
+  if (actualCount > 0) {
+    const entry = { type, count: actualCount };
+    if (resource != null) entry.resource = resource;
+    if (recipe   != null) entry.recipe   = recipe;
+    if (frontOfQueue) _placeEnqueueFront(entry);
+    else placeQueue.push(entry);
     updatePlacementUI();
     if (!placing) processNextPlacement();
-    // Visual feedback: briefly flash the place button
     if (triggerEl) {
       const btn = triggerEl.closest('.btn-place') ?? triggerEl;
       btn.classList.add('btn-active-flash');
@@ -2510,11 +2550,14 @@ function _placeDequeue() {
   return v;
 }
 
-function _placeEnqueueFront(targets) {
-  if (_placeHead >= targets.length) {
-    for (let i = targets.length - 1; i >= 0; i--) placeQueue[--_placeHead] = targets[i];
+function _placeEnqueueFront(entry) {
+  const head = placeQueue[_placeHead];
+  if (head && groupKey(head) === groupKey(entry)) {
+    head.count += entry.count;
+  } else if (_placeHead > 0) {
+    placeQueue[--_placeHead] = entry;
   } else {
-    placeQueue = [...targets, ...placeQueue.slice(_placeHead)];
+    placeQueue = [entry, ...placeQueue.slice(_placeHead)];
     _placeHead = 0;
   }
 }
@@ -2541,30 +2584,16 @@ function tickPlacement() {
   if (pct >= 1) {
     const entry = placeQueue[_placeHead];
     if (!entry) { processNextPlacement(); return; }
-    const batchCount = entry._batchCount;
-    if (batchCount != null) {
-      // Script batch entry: place all N buildings in one shot
-      _placeDequeue();
-      const template = { ...entry };
-      delete template._batchCount;
-      const bk = groupKey(template);
-      if (!state.buildings[bk]) state.buildings[bk] = { type: template.type, count: 0, ...(template.resource != null && { resource: template.resource }), ...(template.recipe != null && { recipe: template.recipe }) };
-      state.buildings[bk].count += batchCount;
-      if (template.initModuleType) fillGroupModules(bk, template.initModuleType);
-      _groupsDirty = true; _typeCountsCache = null;
-    } else {
-      // Normal: use robot-speed batching across consecutive queue items
-      const toPlace = Math.min(placeBatch, placeQueue.length - _placeHead);
-      for (let i = 0; i < toPlace; i++) {
-        const placed = placeQueue[_placeHead];
-        const k = groupKey(placed);
-        if (!state.buildings[k]) state.buildings[k] = { type: placed.type, count: 0, ...(placed.resource != null && { resource: placed.resource }), ...(placed.recipe != null && { recipe: placed.recipe }) };
-        state.buildings[k].count++;
-        if (placed.initModuleType) fillGroupModules(k, placed.initModuleType);
-        _placeDequeue();
-      }
-      _groupsDirty = true; _typeCountsCache = null;
-    }
+    const toPlace = Math.min(placeBatch, entry.count);
+    const k = groupKey(entry);
+    if (!state.buildings[k]) state.buildings[k] = { type: entry.type, count: 0,
+      ...(entry.resource != null && { resource: entry.resource }),
+      ...(entry.recipe   != null && { recipe:   entry.recipe   }) };
+    state.buildings[k].count += toPlace;
+    if (entry.initModuleType) fillGroupModules(k, entry.initModuleType);
+    entry.count -= toPlace;
+    if (entry.count <= 0) _placeDequeue();
+    _groupsDirty = true; _typeCountsCache = null;
     processNextPlacement();
   } else {
     placeRafId = setTimeout(tickPlacement, 16);
@@ -2575,13 +2604,11 @@ function updatePlacementUI(placeBatch) {
   const label = document.getElementById('placement-label');
   const queueInfo = document.getElementById('place-queue-info');
   if (placing && currentPlacing) {
-    const scriptBatch = currentPlacing._batchCount;
-    const robotBatch  = placeBatch ?? computePlaceTimeSec().batch;
-    const displayN    = scriptBatch ?? (robotBatch > 1 ? robotBatch : null);
-    const batchStr    = displayN != null ? ` ×${displayN.toLocaleString()}` : '';
-    label.textContent = `Placing ${currentPlacing.displayName}${batchStr}…`;
-    const liveLen = placeQueue.length - _placeHead;
-    if (queueInfo) queueInfo.textContent = liveLen > 1 ? `+${liveLen - 1} queued` : '';
+    const batchStr = currentPlacing.count > 1 ? ` ×${currentPlacing.count.toLocaleString()}` : '';
+    const name = BUILDING_DEFS[currentPlacing.type]?.name ?? currentPlacing.type;
+    label.textContent = `Placing ${name}${batchStr}…`;
+    const otherQueued = placeQueue.slice(_placeHead + 1).reduce((s, e) => s + e.count, 0);
+    if (queueInfo) queueInfo.textContent = otherQueued > 0 ? `+${otherQueued} queued` : '';
   } else {
     label.textContent = 'Build Queue';
     document.getElementById('place-progress').style.width = '0%';
@@ -2598,6 +2625,7 @@ function manualMine(resource) {
   if (!patch || patch.remaining <= 0) return;
   recordProduced(resource, 1);
   patch.remaining--;
+  state.patchConsumed[resource] = (state.patchConsumed[resource] ?? 0) + 1;
   miningCooldowns[resource] = true;
   setTimeout(() => { delete miningCooldowns[resource]; renderMining(); }, 500);
   renderInventory();
@@ -3214,27 +3242,18 @@ function addBuildingFromGroup(key, count, frontOfQueue = false) {
   const type = group.type;
   if (!isUnlocked('building', type)) { notify(`Research required.`, 'warning'); return; }
   const costs = BUILDING_COSTS[type] ?? {};
-  const targets = [];
+  let actualCount = 0;
   for (let i = 0; i < count; i++) {
-    if (!canAfford(costs)) {
-      if (i === 0) notify(`Need ${COST_LABEL[type] ?? type} — craft it first`, 'warning');
-      break;
-    }
+    if (!canAfford(costs)) { if (i === 0) notify(`Need ${COST_LABEL[type] ?? type} — craft it first`, 'warning'); break; }
     spend(costs);
-    let target;
-    if (group.recipe !== undefined) {
-      target = { type, recipe: group.recipe, active: false, progress: 0 };
-    } else if (group.resource !== undefined) {
-      target = { type, resource: group.resource, acc: 0 };
-    } else {
-      target = { type };
-    }
-    target.displayName = BUILDING_DEFS[type]?.name ?? type;
-    targets.push(target);
+    actualCount++;
   }
-  if (targets.length > 0) {
-    if (frontOfQueue) _placeEnqueueFront(targets);
-    else placeQueue.push(...targets);
+  if (actualCount > 0) {
+    const entry = { type, count: actualCount };
+    if (group.resource != null) entry.resource = group.resource;
+    if (group.recipe   != null) entry.recipe   = group.recipe;
+    if (frontOfQueue) _placeEnqueueFront(entry);
+    else placeQueue.push(entry);
     updatePlacementUI();
     if (!placing) processNextPlacement();
   }
@@ -3362,7 +3381,7 @@ function renderBuildings() {
     const _ch = `${count}|${gs.enabled}|${gs.starved}|${gs.active}|${gs.activeCount ?? 0}|${gs.noPower}|${gs.priority}|${gs.limit}|` +
       `${gs.selectedModuleType}|${JSON.stringify(gs.modules ?? {})}|${gs.outsidePerimeter ?? 0}|` +
       `${gs.acidStarved ?? 0}|${gs.standby ?? 0}|${Math.round((gs.progress ?? 0) * 20)}|` +
-      `${(type === 'miner' || type === 'electricMiner') ? placeQueue.length - _placeHead : 0}`;
+      `${(type === 'miner' || type === 'electricMiner') ? placeQueue.slice(_placeHead).filter(e => e.resource === group.resource).reduce((s,e)=>s+e.count,0) : 0}`;
     if (_cardCache[key]?.hash === _ch) return _cardCache[key].html;
     _anyCardMiss = true;
     const _cardHtml = (() => {
@@ -4382,13 +4401,23 @@ function hasRainbowScience() {
   return (state.inventory?.[rk] ?? 0) > 0 || !!state.research?.done?.['rainbowSciencePack'];
 }
 
+function getBiterTierData(points) {
+  let tier = null;
+  for (const t of BITER_TIERS) {
+    if (points >= t.threshold) tier = t;
+    else break;
+  }
+  return tier;
+}
+
 function getBiterWaveStats() {
   const pts = state.biterThreatPoints ?? 0;
-  const count = Math.min(BITER_COUNT_CAP, Math.round(5 + pts * 0.5));
-  const hp    = Math.min(BITER_HP_CAP,   Math.round(15 + pts * 8));
-  const armor = Math.min(BITER_ARMOR_CAP, Math.floor(pts * 0.01));
-  const dps   = Math.min(BITER_DPS_CAP,  2 + pts * 0.18);
-  return { count, hp, armor, dps };
+  return {
+    count: Math.max(1, Math.round(pts * 300)),
+    hp:    Math.max(1, Math.round(pts * 3000)),
+    armor: Math.floor(pts * 4),
+    dps:   pts * 400,
+  };
 }
 
 function calcDefenseDPS(waveArmor, laserRatio = 1) {
@@ -4420,21 +4449,29 @@ function fightBiterWave() {
     state.biterWavesAfterRainbow = wavesAfterRainbow + 1;
   } else {
     const tier = getPlayerScienceTier();
+    const dm = state.settings?.biterDifficultyMult ?? 1;
     let pointsPerWave;
-    if      (tier === 0) pointsPerWave = state.settings?.biterPointsPreRed  ?? BITER_POINTS_PRE_RED;
-    else if (tier === 1) pointsPerWave = BITER_POINTS_POST_RED;
-    else if (tier === 2) pointsPerWave = BITER_POINTS_POST_GREEN;
-    else                 pointsPerWave = state.settings?.biterPointsPostBlue ?? BITER_POINTS_POST_BLUE;
-    const cap = state.settings?.biterPointsCap ?? BITER_POINTS_CAP_LINEAR;
-    state.biterThreatPoints = Math.min(cap, (state.biterThreatPoints ?? 0) + pointsPerWave);
+    if      (tier === 0) pointsPerWave = BITER_POINTS_PRE_RED    * dm;
+    else if (tier === 1) pointsPerWave = BITER_POINTS_POST_RED   * dm;
+    else if (tier === 2) pointsPerWave = BITER_POINTS_POST_GREEN  * dm;
+    else                 pointsPerWave = BITER_POINTS_POST_BLUE   * dm;
+    state.biterThreatPoints = Math.min(BITER_POINTS_CAP_LINEAR, (state.biterThreatPoints ?? 0) + pointsPerWave);
+  }
+
+  // ── Tier popup (fires when entering a new tier for the first time) ──
+  const newTierData = getBiterTierData(state.biterThreatPoints ?? 0);
+  if (newTierData && !(state.biterSeenTiers ?? {})[newTierData.name]) {
+    if (!state.biterSeenTiers) state.biterSeenTiers = {};
+    state.biterSeenTiers[newTierData.name] = true;
+    showBiterPopup(newTierData);
   }
 
   const base    = getBiterWaveStats();
 
   const actualCount = Math.max(1, base.count + Math.floor((Math.random() - 0.5) * 4));
-  const actualHP    = Math.max(5, base.hp    + Math.floor((Math.random() - 0.5) * 10));
+  const actualHP    = Math.max(1, base.hp    + Math.floor((Math.random() - 0.5) * 10));
   const actualArmor = Math.max(0, base.armor + Math.floor((Math.random() - 0.5) * 2));
-  const actualDPS   = Math.max(1, base.dps   + (Math.random() - 0.5) * 3);
+  const actualDPS   = Math.max(0, base.dps   + (Math.random() - 0.5) * (base.dps * 0.1));
 
   const p            = state.perimeter;
   const totalBiterHP = actualCount * actualHP;
@@ -4551,10 +4588,10 @@ function fightBiterWave() {
     p.irradiationLevel = (p.irradiationLevel ?? 0) + bombsUsed;
   }
 
-  // Apply overflow damage to buildings
+  // Apply overflow damage to buildings (minimum 1 if any overflow)
   let buildingsLost = 0;
   if (totalOverflow > 0) {
-    buildingsLost = Math.floor(totalOverflow / BUILDING_TOUGHNESS);
+    buildingsLost = Math.max(1, Math.floor(totalOverflow / BUILDING_TOUGHNESS));
     for (let i = 0; i < buildingsLost; i++) {
       const keys = Object.keys(state.buildings).filter(k => state.buildings[k].count > 0);
       if (keys.length === 0) break;
@@ -4571,18 +4608,15 @@ function fightBiterWave() {
     state.biterThreatPoints = (state.biterThreatPoints ?? 0) + irradiationBonus;
   }
 
-  // ── Meta progression: track kills and award pending points ───
+  // ── Meta progression ───────────────────────────────────────────
   if (state.settings?.biters) {
-    const killMult = (bombsUsed > 0) ? 0.01 : 1;
-    const waveWeightedKills = actualCount * killMult;
-    state.bitersKilled = (state.bitersKilled ?? 0) + actualCount;
-    // Compute the incremental point delta from this wave's kills
-    const prevWeightedKills = metaState.weightedKills ?? 0;
-    const pointDelta = Math.log10(1 + (prevWeightedKills + waveWeightedKills) * 1e-4) * 10
-                     - Math.log10(1 + prevWeightedKills * 1e-4) * 10;
-    metaState.weightedKills = prevWeightedKills + waveWeightedKills;
-    metaState.pendingPoints = (metaState.pendingPoints ?? 0) + pointDelta;
-    saveMetaState();
+    state.bitersKilled = (state.bitersKilled ?? 0) + actualCount * sectionsAttacked;
+    const pts = state.biterThreatPoints ?? 0;
+    const pointDelta = Math.floor(pts - 1) / 67;
+    if (pointDelta > 0) {
+      metaState.pendingPoints = (metaState.pendingPoints ?? 0) + pointDelta;
+      saveMetaState();
+    }
   }
 
   state.biterWaveNumber = waveNum;
@@ -4612,12 +4646,13 @@ function fightBiterWave() {
   };
 
   lastPerimeterHtml = ''; lastWavePreviewHash = '';
+  const _waveNotifName = getBiterTierData(state.biterThreatPoints ?? 0)?.name ?? 'Biters';
   if (waveKilledByArtillery)
-    notify(`✓ Biter wave ${waveNum} destroyed by artillery!`, 'info');
+    notify(`✓ ${_waveNotifName} wave ${waveNum} destroyed by artillery!`, 'info');
   else if (buildingsLost > 0)
-    notify(`⚠ Biter wave ${waveNum}: ${buildingsLost} building${buildingsLost > 1 ? 's' : ''} destroyed!`, 'warning');
+    notify(`⚠ ${_waveNotifName} wave ${waveNum}: ${buildingsLost} building${buildingsLost > 1 ? 's' : ''} destroyed!`, 'warning');
   else
-    notify(`✓ Biter wave ${waveNum} repelled!`, 'info');
+    notify(`✓ ${_waveNotifName} wave ${waveNum} repelled!`, 'info');
 }
 
 function skipToNextBiterWave() {
@@ -4743,8 +4778,8 @@ function renderPerimeter() {
   const nextWave  = state.biterWaveNumber + 1;
   const base      = getBiterWaveStats();
   const interval  = biterInterval();
-  const timeLeft  = state.biterTimer < 0
-    ? `Grace: ${Math.ceil(-state.biterTimer)}s`
+  const timeLeft  = !state.biterActivated
+    ? `Waiting (${Math.max(0, Math.ceil(1800 - (state.savePlayTime ?? 0)))}s or red science)`
     : `${Math.ceil(interval - (state.biterTimer ?? 0))}s`;
   const ammoType  = p.ammoType ?? 'firearmMagazine';
 
@@ -5010,24 +5045,25 @@ function renderPerimeter() {
     ].join('|');
     if (wph !== lastWavePreviewHash) {
       lastWavePreviewHash = wph;
+      const _previewTierName = getBiterTierData(state.biterThreatPoints ?? 0)?.name ?? 'Biters';
       lastWavePreviewHtml = `<div class="perimeter-card perimeter-card-wide">
-    <div class="perimeter-card-title">📊 Next Wave Prediction — Wave ${nextWave}</div>
+    <div class="perimeter-card-title">📊 Next Wave — Wave ${nextWave} · ${_previewTierName}</div>
     <div class="perimeter-wave-row">
       <div class="perimeter-wave-col">
         <div class="perimeter-label">Biters</div>
-        <div class="perimeter-range">${Math.floor(base.count * 0.8)}–${Math.floor(base.count * 1.2)}</div>
+        <div class="perimeter-range">${base.count}</div>
       </div>
       <div class="perimeter-wave-col">
         <div class="perimeter-label">HP per biter</div>
-        <div class="perimeter-range">${Math.floor(base.hp * 0.8)}–${Math.floor(base.hp * 1.2)}</div>
+        <div class="perimeter-range">${base.hp}</div>
       </div>
       <div class="perimeter-wave-col">
         <div class="perimeter-label">Armor</div>
-        <div class="perimeter-range">${Math.max(0, base.armor - 1)}–${base.armor + 1}</div>
+        <div class="perimeter-range">${base.armor}</div>
       </div>
       <div class="perimeter-wave-col">
         <div class="perimeter-label">DPS per biter</div>
-        <div class="perimeter-range">${(base.dps * 0.8).toFixed(1)}–${(base.dps * 1.2).toFixed(1)}</div>
+        <div class="perimeter-range">${base.dps.toFixed(1)}</div>
       </div>
     </div>
     <div class="perimeter-stat-row" style="margin-top:.5rem">
@@ -5106,16 +5142,33 @@ function renderPerimeter() {
   el.innerHTML = html;
 }
 
+function showBiterPopup(tierData) {
+  const el = document.getElementById('biter-encounter-popup');
+  if (!el) return;
+  el.querySelector('.biter-popup-img').src  = tierData.img;
+  el.querySelector('.biter-popup-name').textContent = tierData.name;
+  el.classList.remove('hidden', 'biter-popup-fade');
+  void el.offsetWidth;
+  el.classList.add('biter-popup-show');
+  clearTimeout(el._hideTimer);
+  el._hideTimer = setTimeout(() => {
+    el.classList.add('biter-popup-fade');
+    el.addEventListener('transitionend', () => { el.classList.add('hidden'); el.classList.remove('biter-popup-show','biter-popup-fade'); }, { once: true });
+  }, 6000);
+}
+
 function renderBiterIndicator() {
   const el = document.getElementById('biter-indicator');
   if (!state.settings.biters) { el.classList.add('hidden'); return; }
   el.classList.remove('hidden');
-  if (state.biterTimer < 0) {
-    el.textContent = `⏳ Grace: ${Math.ceil(-state.biterTimer)}s`;
+  if (!state.biterActivated) {
+    const remaining = Math.max(0, Math.ceil(1800 - (state.savePlayTime ?? 0)));
+    el.textContent = `⏳ Biters: red science or ${remaining}s`;
     el.classList.remove('biter-warning');
   } else {
-    const secs = Math.ceil(biterInterval() - state.biterTimer);
-    el.textContent = `⚠ Biters: ${secs}s`;
+    const secs     = Math.ceil(biterInterval() - (state.biterTimer ?? 0));
+    const tierName = getBiterTierData(state.biterThreatPoints ?? 0)?.name ?? 'Biters';
+    el.textContent = `⚠ ${tierName}: ${secs}s`;
     el.classList.toggle('biter-warning', secs <= 30);
   }
 }
@@ -5483,6 +5536,8 @@ function toggleBitersField(enabled) {
   document.querySelectorAll('.biters-option-field').forEach(el => {
     el.classList.toggle('hidden', !enabled);
   });
+  const customField = document.getElementById('biter-custom-mult-field');
+  if (customField) customField.classList.toggle('hidden', !enabled || selectedDifficulty !== 'custom');
 }
 
 function updatePlaceButtonStates() {
@@ -5513,14 +5568,13 @@ function closeNewGameModal() { document.getElementById('new-game-modal').classLi
 
 function startNewGame() {
   const biters = document.getElementById('biters-toggle').checked;
-  const graceMins = parseFloat(document.getElementById('grace-period-input')?.value ?? '7') || 0;
-  const biterGracePeriod = Math.round(Math.max(0, graceMins) * 60);
   const biterIntervalSecs = parseInt(document.getElementById('wave-interval-select')?.value ?? '120', 10) || 120;
-  const biterPointsPreRed  = parseFloat(document.getElementById('biter-points-pre-red-input')?.value  ?? String(BITER_POINTS_PRE_RED))  || BITER_POINTS_PRE_RED;
-  const biterPointsPostBlue= parseFloat(document.getElementById('biter-points-post-blue-input')?.value ?? String(BITER_POINTS_POST_BLUE)) || BITER_POINTS_POST_BLUE;
-  const biterPointsCap     = parseFloat(document.getElementById('biter-points-cap-input')?.value      ?? String(BITER_POINTS_CAP_LINEAR)) || BITER_POINTS_CAP_LINEAR;
-  const metaProgEnabled    = document.getElementById('meta-prog-toggle')?.checked ?? false;
-  state = createState({ density: selectedDensity, biters, biterGracePeriod, biterIntervalSecs, biterPointsPreRed, biterPointsPostBlue, biterPointsCap, metaProgEnabled });
+  let biterDifficultyMult = 1;
+  if      (selectedDifficulty === 'easy')   biterDifficultyMult = 0.5;
+  else if (selectedDifficulty === 'hard')   biterDifficultyMult = 2;
+  else if (selectedDifficulty === 'custom') biterDifficultyMult = parseFloat(document.getElementById('biter-custom-mult-input')?.value) || 1;
+  const metaProgEnabled = document.getElementById('meta-prog-toggle')?.checked ?? false;
+  state = createState({ density: selectedDensity, biters, biterIntervalSecs, biterDifficultyMult, metaProgEnabled });
   placeQueue = []; _placeHead = 0; placing = false; currentPlacing = null; biterWaveWarned = false;
   currentSaveFile = null;
   _pendingScriptRestore = null;
@@ -5591,6 +5645,8 @@ function switchTab(tab, el) {
   document.getElementById('tab-' + tab).classList.remove('hidden');
   el.classList.add('active');
   if (tab === 'research') document.getElementById('tab-btn-research')?.classList.remove('tab-alert');
+  if (tab === 'mining') { initBaseMap(); startBaseMapLoop(); }
+  else stopBaseMapLoop();
   renderUI();
 }
 
@@ -6004,8 +6060,649 @@ function renderMetaProgression(containerId = 'meta-screen-content') {
   if (ewEl) ewEl.textContent = pending > 0 ? `+${pending.toFixed(2)} pts on end` : '';
 }
 
+// ── Base Map Canvas ───────────────────────────────────────────────────────────
+
+const MAP_GRID      = 15;  // tile columns and rows
+const WALL_RING     = 1;   // tile ring index from each edge where walls are drawn
+const MAP_INNER_MIN = 3;   // inner zone col/row lower bound (inclusive)
+const MAP_INNER_MAX = 11;  // inner zone col/row upper bound (inclusive)
+const BUILDING_MAP_MILESTONES = [10, 100, 1000, 10000];
+
+const BUILDING_MAP_CATEGORIES = {
+  furnace: {
+    label: 'Furnace',
+    types: ['furnace', 'steelFurnace', 'electricFurnace'],
+    getRecipes: () => Object.entries(FURNACE_RECIPES).map(([k, r]) => ({ key: k, ...r })),
+    color: '#7a3a1a',
+    slotImgs: [
+      'data/icon_imgs/stone_furnace.png',
+      'data/icon_imgs/steel_furnace.png',
+      'data/icon_imgs/electric_furnace.png',
+      'data/icon_imgs/electric_furnace.png',
+    ],
+    defaults: [{ col: 3, row: 6 }, { col: 3, row: 7 }, { col: 3, row: 8 }, { col: 3, row: 9 }],
+  },
+  assembly: {
+    label: 'Assembler',
+    types: ['assembly', 'assembly2', 'assembly3'],
+    getRecipes: () => Object.entries(PLAYER_RECIPES).filter(([, r]) => !r.machinery || r.machinery === 'assembly').map(([k, r]) => ({ key: k, ...r })),
+    color: '#2a4a6a',
+    slotImgs: [
+      'data/icon_imgs/assembler_machine_1.png',
+      'data/icon_imgs/assembler_machine_2.png',
+      'data/icon_imgs/assembler_machine_3.png',
+      'data/icon_imgs/assembler_machine_3.png',
+    ],
+    defaults: [{ col: 4, row: 8 }, { col: 4, row: 9 }, { col: 5, row: 9 }, { col: 5, row: 8 }],
+  },
+  chemPlant: {
+    label: 'Chem Plant',
+    types: ['chemicalPlant'],
+    getRecipes: () => Object.entries(PLAYER_RECIPES).filter(([, r]) => r.machinery === 'chemical').map(([k, r]) => ({ key: k, ...r })),
+    color: '#2a6a3a',
+    slotImgs: Array(4).fill('data/icon_imgs/chem_plant.jpg'),
+    defaults: [{ col: 8, row: 8 }, { col: 9, row: 8 }, { col: 8, row: 9 }, { col: 9, row: 9 }],
+  },
+  oilRefinery: {
+    label: 'Oil Refinery',
+    types: ['oilRefinery'],
+    getRecipes: () => Object.entries(PLAYER_RECIPES).filter(([, r]) => r.machinery === 'refinery').map(([k, r]) => ({ key: k, ...r })),
+    color: '#5a4a1a',
+    slotImgs: Array(4).fill(null),
+    defaults: [{ col: 10, row: 7 }, { col: 11, row: 7 }, { col: 10, row: 8 }, { col: 11, row: 8 }],
+  },
+  centrifuge: {
+    label: 'Centrifuge',
+    types: ['centrifuge'],
+    getRecipes: () => Object.entries(PLAYER_RECIPES).filter(([, r]) => r.machinery === 'centrifuge').map(([k, r]) => ({ key: k, ...r })),
+    color: '#1a3a6a',
+    slotImgs: Array(4).fill('data/icon_imgs/Centrifuge.jpg'),
+    defaults: [{ col: 10, row: 5 }, { col: 11, row: 5 }, { col: 10, row: 6 }, { col: 11, row: 6 }],
+  },
+  rocketSilo: {
+    label: 'Rocket Silo',
+    types: ['rocketSilo'],
+    getRecipes: () => Object.entries(PLAYER_RECIPES).filter(([, r]) => r.machinery === 'rocket_silo').map(([k, r]) => ({ key: k, ...r })),
+    color: '#4a1a6a',
+    slotImgs: Array(4).fill('data/icon_imgs/rocket_silo.jpg'),
+    defaults: [{ col: 6, row: 11 }, { col: 7, row: 11 }, { col: 8, row: 11 }, { col: 9, row: 11 }],
+  },
+};
+
+const CONCRETE_TILES = [
+  { key: 'gray',   label: 'Gray',   src: 'data/map_imgs/concrete_tile.png' },
+  { key: 'red',    label: 'Red',    src: 'data/map_imgs/concrete_tile_red.png' },
+  { key: 'green',  label: 'Green',  src: 'data/map_imgs/concrete_tile_green.png' },
+  { key: 'black',  label: 'Black',  src: 'data/map_imgs/concrete_tile_black.png' },
+  { key: 'white',  label: 'White',  src: 'data/map_imgs/concrete_tile_white.png' },
+  { key: 'blue',   label: 'Blue',   src: 'data/map_imgs/concrete_tile_blue.png' },
+  { key: 'pink',   label: 'Pink',   src: 'data/map_imgs/concrete_tile_pink.png' },
+  { key: 'teal',   label: 'Teal',   src: 'data/map_imgs/concrete_tile_teal.png' },
+  { key: 'orange', label: 'Orange', src: 'data/map_imgs/concrete_tile_cropped_orange.png' },
+  { key: 'yellow', label: 'Yellow', src: 'data/map_imgs/concrete_tile_cropped_yellow.png' },
+  { key: 'purple', label: 'Purple', src: 'data/map_imgs/concrete_tile_cropped_purple.png' },
+];
+
+// Tile positions of each ore patch on the 15×15 grid (col, row, 0-indexed)
+const ORE_PATCH_TILES = {
+  ironOre:    { col: 5,  row: 5  },
+  copperOre:  { col: 7,  row: 4  },
+  coal:       { col: 6,  row: 7  },
+  stone:      { col: 7,  row: 5  },
+  crudeOil:   { col: 11, row: 4  },
+  uraniumOre: { col: 9,  row: 10 },
+};
+
+let _grassImg       = null;
+let _wallImgs       = {};
+let _mapAnimFrame   = null;
+let _dragState      = null;   // null | {slotKey, catKey, slotIdx}
+let _mouseCanvasPos = { x: 0, y: 0 };
+let _clickTimer     = null;
+let _bldImgs           = {};     // preloaded building images keyed by src path
+let _bldPopupCat       = null;
+let _bldPopupRecipeIdx = 0;
+let _concreteImgs      = {};     // preloaded concrete tile images keyed by key
+let _tilePicker        = null;   // {col, row, selectedKey} — current picker state
+
+function initBaseMap() {
+  const canvas = document.getElementById('base-map');
+  if (!canvas) return;
+  const size = canvas.offsetWidth;
+  if (size === 0) return;
+  canvas.width  = size;
+  canvas.height = size;
+}
+
+function startBaseMapLoop() {
+  if (_mapAnimFrame) return;
+  function loop(ts) {
+    const tab = document.getElementById('tab-mining');
+    if (!tab || tab.classList.contains('hidden')) { _mapAnimFrame = null; return; }
+    renderBaseMap(ts);
+    _mapAnimFrame = requestAnimationFrame(loop);
+  }
+  _mapAnimFrame = requestAnimationFrame(loop);
+}
+
+function stopBaseMapLoop() {
+  if (_mapAnimFrame) { cancelAnimationFrame(_mapAnimFrame); _mapAnimFrame = null; }
+}
+
+function renderBaseMap(ts) {
+  const canvas = document.getElementById('base-map');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const S = canvas.width;
+  if (S === 0) return;
+
+  _drawBackgroundLayer(ctx, S);
+  _drawTileBgLayer(ctx, S);
+  _drawBuildingsLayer(ctx, S, ts);
+  _drawEffectsLayer(ctx, S, ts);
+}
+
+function _drawBackgroundLayer(ctx, S) {
+  if (_grassImg?.complete && _grassImg.naturalWidth > 0) {
+    ctx.drawImage(_grassImg, 0, 0, S, S);
+  } else {
+    ctx.fillStyle = '#2d5a1b';
+    ctx.fillRect(0, 0, S, S);
+  }
+}
+
+function _drawTileBgLayer(ctx, S) {
+  if (!state?.tileBg) return;
+  const tileSize = S / MAP_GRID;
+  for (const [key, tileKey] of Object.entries(state.tileBg)) {
+    const img = _concreteImgs[tileKey];
+    if (!img?.complete || img.naturalWidth === 0) continue;
+    const [col, row] = key.split(',').map(Number);
+    ctx.drawImage(img, col * tileSize, row * tileSize, tileSize, tileSize);
+  }
+}
+
+function _drawBuildingsLayer(ctx, S, ts) {
+  _drawWalls(ctx, S);
+  _drawOrePatchIndicators(ctx, S);
+  _drawBuildingIcons(ctx, S);
+}
+
+function _drawEffectsLayer(ctx, S, ts) {
+  // future: particles, biter animations
+}
+
+function _drawOrePatchIndicators(ctx, S) {
+  // Map image already shows ore locations; no overlay drawn
+}
+
+// ── Building icon helpers ─────────────────────────────────────────────────────
+
+function _totalOfCategory(catKey) {
+  const cat = BUILDING_MAP_CATEGORIES[catKey];
+  if (!cat || !state?.buildings) return 0;
+  return Object.values(state.buildings)
+    .filter(g => cat.types.includes(g.type))
+    .reduce((sum, g) => sum + (g.count ?? 0), 0);
+}
+
+function _slotCount(catKey) {
+  const n = _totalOfCategory(catKey);
+  for (let i = BUILDING_MAP_MILESTONES.length - 1; i >= 0; i--)
+    if (n >= BUILDING_MAP_MILESTONES[i]) return i + 1;
+  return 0;
+}
+
+function _getOrAutoplaceTile(catKey, slotIdx) {
+  const stateKey = `${catKey}_${slotIdx}`;
+  if (state?.mapTiles?.[stateKey]) return state.mapTiles[stateKey];
+  const def = BUILDING_MAP_CATEGORIES[catKey]?.defaults?.[slotIdx];
+  if (def && state?.mapTiles) { state.mapTiles[stateKey] = { ...def }; return state.mapTiles[stateKey]; }
+  return null;
+}
+
+function _isInnerTile(col, row) {
+  return col >= MAP_INNER_MIN && col <= MAP_INNER_MAX
+      && row >= MAP_INNER_MIN && row <= MAP_INNER_MAX;
+}
+
+function _isOreTile(col, row) {
+  return Object.values(ORE_PATCH_TILES).some(p => p.col === col && p.row === row);
+}
+
+function _getBuildingAtTile(col, row) {
+  for (const catKey of Object.keys(BUILDING_MAP_CATEGORIES)) {
+    const count = _slotCount(catKey);
+    for (let i = 0; i < count; i++) {
+      const pos = state?.mapTiles?.[`${catKey}_${i}`];
+      if (pos && pos.col === col && pos.row === row) return { catKey, slotIdx: i };
+    }
+  }
+  return null;
+}
+
+function _drawBuildingIcons(ctx, S) {
+  if (!state) return;
+  const tileSize = S / MAP_GRID;
+  const dragKey  = _dragState?.slotKey;
+
+  for (const [catKey, cat] of Object.entries(BUILDING_MAP_CATEGORIES)) {
+    const count = _slotCount(catKey);
+    for (let i = 0; i < count; i++) {
+      const slotKey = `${catKey}_${i}`;
+      const pos = _getOrAutoplaceTile(catKey, i);
+      if (!pos) continue;
+      const px = pos.col * tileSize;
+      const py = pos.row * tileSize;
+
+      if (slotKey === dragKey) {
+        ctx.fillStyle = 'rgba(0,0,0,0.75)';
+        ctx.fillRect(px, py, tileSize, tileSize);
+      } else {
+        _drawBuildingTile(ctx, cat, i, px, py, tileSize);
+      }
+    }
+  }
+
+  if (_dragState) {
+    const cat = BUILDING_MAP_CATEGORIES[_dragState.catKey];
+    if (cat) _drawBuildingTile(ctx, cat, _dragState.slotIdx, _mouseCanvasPos.x - tileSize / 2, _mouseCanvasPos.y - tileSize / 2, tileSize);
+  }
+}
+
+function _drawBuildingTile(ctx, cat, slotIdx, px, py, tileSize) {
+  const pad = 2;
+  ctx.fillStyle = cat.color;
+  ctx.beginPath();
+  ctx.roundRect(px + pad, py + pad, tileSize - pad * 2, tileSize - pad * 2, tileSize * 0.12);
+  ctx.fill();
+  const src = cat.slotImgs[slotIdx];
+  const img = src ? _bldImgs[src] : null;
+  if (img?.complete && img.naturalWidth > 0) {
+    const ip = tileSize * 0.08;
+    ctx.drawImage(img, px + ip, py + ip, tileSize - ip * 2, tileSize - ip * 2);
+  } else if (!src) {
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.font = `bold ${Math.round(tileSize * 0.2)}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(cat.label, px + tileSize / 2, py + tileSize / 2);
+  }
+}
+
+function _mapClickToOre(canvasX, canvasY, S) {
+  const tileSize = S / MAP_GRID;
+  const hitR = tileSize * 0.7; // click radius in pixels
+  for (const [key, pos] of Object.entries(ORE_PATCH_TILES)) {
+    const patch = state?.patches?.[key];
+    if (!patch) continue;
+    const cx = (pos.col + 0.5) * tileSize;
+    const cy = (pos.row + 0.5) * tileSize;
+    const dx = canvasX - cx, dy = canvasY - cy;
+    if (dx * dx + dy * dy <= hitR * hitR) return key;
+  }
+  return null;
+}
+
+function _canvasCoords(e, canvas) {
+  const rect = canvas.getBoundingClientRect();
+  return {
+    cx: (e.clientX - rect.left) * (canvas.width  / rect.width),
+    cy: (e.clientY - rect.top)  * (canvas.height / rect.height),
+  };
+}
+
+function _handleMapMouseMove(e) {
+  const canvas = document.getElementById('base-map');
+  if (!canvas) return;
+  const { cx, cy } = _canvasCoords(e, canvas);
+  _mouseCanvasPos.x = cx;
+  _mouseCanvasPos.y = cy;
+  if (_dragState) { canvas.style.cursor = 'grabbing'; return; }
+  const tileSize = canvas.width / MAP_GRID;
+  const col = Math.floor(cx / tileSize);
+  const row = Math.floor(cy / tileSize);
+  canvas.style.cursor = _getBuildingAtTile(col, row) ? 'grab' : 'default';
+}
+
+function _handleMapDblClick(e) {
+  clearTimeout(_clickTimer);
+  _clickTimer = null;
+  const canvas = document.getElementById('base-map');
+  if (!canvas) return;
+  const { cx, cy } = _canvasCoords(e, canvas);
+  const tileSize = canvas.width / MAP_GRID;
+  const col = Math.floor(cx / tileSize);
+  const row = Math.floor(cy / tileSize);
+  if (!_isInnerTile(col, row) || _isOreTile(col, row)) return;
+  const hit = _getBuildingAtTile(col, row);
+  if (hit) {
+    _dragState = { slotKey: `${hit.catKey}_${hit.slotIdx}`, catKey: hit.catKey, slotIdx: hit.slotIdx };
+    e.stopPropagation();
+  }
+}
+
+function _handleMapClick(e) {
+  const canvas = document.getElementById('base-map');
+  if (!canvas) return;
+  const { cx, cy } = _canvasCoords(e, canvas);
+
+  if (_dragState) {
+    const tileSize = canvas.width / MAP_GRID;
+    const col = Math.floor(cx / tileSize);
+    const row = Math.floor(cy / tileSize);
+    if (_isInnerTile(col, row) && !_isOreTile(col, row)) {
+      const existing = _getBuildingAtTile(col, row);
+      if (existing) {
+        const oldPos = { ...state.mapTiles[_dragState.slotKey] };
+        state.mapTiles[`${existing.catKey}_${existing.slotIdx}`] = oldPos;
+      }
+      state.mapTiles[_dragState.slotKey] = { col, row };
+    }
+    _dragState = null;
+    canvas.style.cursor = 'default';
+    e.stopPropagation();
+    return;
+  }
+
+  clearTimeout(_clickTimer);
+  _clickTimer = setTimeout(() => {
+    _clickTimer = null;
+    const tileSize = canvas.width / MAP_GRID;
+    const col = Math.floor(cx / tileSize);
+    const row = Math.floor(cy / tileSize);
+    const oreKey = _mapClickToOre(cx, cy, canvas.width);
+    if (oreKey) { openOrePatchPopup(oreKey); return; }
+    const hit = _getBuildingAtTile(col, row);
+    if (hit) { openBuildingPopup(hit.catKey); return; }
+    openTileBgPicker(col, row, cx, cy, canvas);
+  }, 220);
+}
+
+function openOrePatchPopup(key) {
+  const patch   = state?.patches?.[key];
+  const info    = PATCHES[key] ?? { name: key, icon: '🪨' };
+  const pos     = ORE_PATCH_TILES[key];
+  const popup   = document.getElementById('ore-patch-popup');
+  if (!popup || !patch) return;
+
+  const consumed   = state.patchConsumed?.[key] ?? 0;
+  const produced   = state.itemsProduced?.[key]  ?? 0;
+  const manifested = Math.max(0, produced - consumed);
+  const cooling    = !!miningCooldowns[key];
+  const inPerim    = patchInPerimeter(key);
+  const depleted   = patch.remaining <= 0;
+  const canMine    = !depleted && !cooling && inPerim;
+
+  popup.dataset.oreKey = key;
+  popup.querySelector('.ore-popup-title').textContent = `${info.icon} ${info.name}`;
+  popup.querySelector('.ore-popup-remaining').textContent = fmtNum(Math.floor(patch.remaining));
+  popup.querySelector('.ore-popup-mined').textContent    = fmtNum(Math.floor(consumed));
+  popup.querySelector('.ore-popup-manifest').textContent = fmtNum(Math.round(manifested));
+
+  const btn = popup.querySelector('.ore-popup-mine-btn');
+  btn.disabled = !canMine;
+  btn.textContent = !inPerim ? 'Outside perimeter' : depleted ? 'Depleted' : cooling ? 'Mining…' : 'Mine';
+
+  // Position relative to the ore tile within the canvas wrapper
+  if (pos) {
+    const canvas = document.getElementById('base-map');
+    const wrap   = document.getElementById('base-map-wrap');
+    if (canvas && wrap) {
+      const tileSize = canvas.offsetWidth / MAP_GRID;
+      let left = (pos.col + 1) * tileSize;  // one tile right of center
+      let top  = (pos.row + 0.5) * tileSize - 20;
+      // Clamp so popup stays inside the wrapper
+      const maxLeft = wrap.offsetWidth - popup.offsetWidth - 4;
+      if (left > maxLeft) left = (pos.col - 0.5) * tileSize - (popup.offsetWidth || 220);
+      popup.style.left = left + 'px';
+      popup.style.top  = Math.max(0, top) + 'px';
+    }
+  }
+
+  popup.classList.remove('hidden');
+}
+
+function closeOrePatchPopup() {
+  const popup = document.getElementById('ore-patch-popup');
+  if (popup) popup.classList.add('hidden');
+}
+
+// ── Building popup ────────────────────────────────────────────────────────────
+
+function openBuildingPopup(catKey) {
+  _bldPopupCat = catKey;
+  _bldPopupRecipeIdx = 0;
+  _refreshBuildingPopup();
+}
+
+function _refreshBuildingPopup() {
+  const cat   = BUILDING_MAP_CATEGORIES[_bldPopupCat];
+  const popup = document.getElementById('building-popup');
+  if (!cat || !popup) return;
+
+  const recipes = cat.getRecipes();
+  if (!recipes.length) return;
+  _bldPopupRecipeIdx = Math.max(0, Math.min(_bldPopupRecipeIdx, recipes.length - 1));
+  const recipe = recipes[_bldPopupRecipeIdx];
+
+  popup.querySelector('.bld-popup-title').textContent  = cat.label;
+  popup.querySelector('.bld-popup-recipe').textContent = recipe.name;
+  popup.querySelector('.bld-popup-arrow-prev').disabled = _bldPopupRecipeIdx === 0;
+  popup.querySelector('.bld-popup-arrow-next').disabled = _bldPopupRecipeIdx === recipes.length - 1;
+
+  const statsEl = popup.querySelector('.bld-popup-stats');
+  statsEl.innerHTML = '';
+  for (const outKey of Object.keys(recipe.outputs ?? {})) {
+    const itemName = ITEMS[outKey]?.name ?? outKey;
+    const produced  = Math.floor(state?.itemsProduced?.[outKey] ?? 0);
+    const base      = Math.floor(state?.baseProduced?.[outKey]  ?? 0);
+    const manifest  = Math.max(0, produced - base);
+    statsEl.innerHTML += `
+      <div class="bld-popup-row"><span>${itemName} produced</span><strong>${fmtNum(produced)}</strong></div>
+      <div class="bld-popup-row"><span>Manifested</span><strong>${fmtNum(manifest)}</strong></div>`;
+  }
+
+  const canvas = document.getElementById('base-map');
+  const wrap   = document.getElementById('base-map-wrap');
+  if (canvas && wrap) {
+    const pos = _getOrAutoplaceTile(_bldPopupCat, 0);
+    if (pos) {
+      const tileSize = canvas.offsetWidth / MAP_GRID;
+      let left = (pos.col + 1) * tileSize;
+      let top  = (pos.row + 0.5) * tileSize - 20;
+      const maxLeft = wrap.offsetWidth - (popup.offsetWidth || 220) - 4;
+      if (left > maxLeft) left = pos.col * tileSize - (popup.offsetWidth || 220);
+      popup.style.left = left + 'px';
+      popup.style.top  = Math.max(0, top) + 'px';
+    }
+  }
+
+  popup.classList.remove('hidden');
+}
+
+function closeBuildingPopup() {
+  document.getElementById('building-popup')?.classList.add('hidden');
+  _bldPopupCat = null;
+}
+
+function _bldPopupPrev() { _bldPopupRecipeIdx--; _refreshBuildingPopup(); }
+function _bldPopupNext() { _bldPopupRecipeIdx++; _refreshBuildingPopup(); }
+
+// ── Tile background picker ────────────────────────────────────────────────────
+
+function openTileBgPicker(col, row, canvasX, canvasY, canvas) {
+  closeTileBgPicker();
+  _tilePicker = { col, row, selectedKey: state?.tileBg?.[`${col},${row}`] ?? null };
+
+  const popup = document.getElementById('tile-bg-picker');
+  if (!popup) return;
+
+  // Build option grid — grass (clear) first, then concrete variants
+  const grid = popup.querySelector('.tile-picker-grid');
+  grid.innerHTML = '';
+  const allOptions = [{ key: '', label: 'Grass' }, ...CONCRETE_TILES];
+  for (const ct of allOptions) {
+    const btn = document.createElement('button');
+    btn.className = 'tile-picker-option' + (_tilePicker.selectedKey === ct.key ? ' selected' : '');
+    btn.title = ct.label;
+    btn.dataset.tileKey = ct.key;
+    if (ct.key === '') {
+      const el = document.createElement('img');
+      el.src = 'data/map_imgs/grass_flower.png'; el.alt = 'Grass';
+      btn.appendChild(el);
+    } else {
+      const img = _concreteImgs[ct.key];
+      if (img?.complete && img.naturalWidth > 0) {
+        const el = document.createElement('img');
+        el.src = ct.src; el.alt = ct.label;
+        btn.appendChild(el);
+      } else {
+        btn.textContent = ct.label;
+      }
+    }
+    btn.addEventListener('click', () => _selectTileBgOption(ct.key));
+    grid.appendChild(btn);
+  }
+
+  // Position popup near clicked tile, clamped inside wrapper
+  const wrap = document.getElementById('base-map-wrap');
+  if (canvas && wrap) {
+    const tileSize = canvas.offsetWidth / MAP_GRID;
+    let left = (col + 1) * tileSize;
+    let top  = row * tileSize;
+    const maxLeft = wrap.offsetWidth - (popup.offsetWidth || 260) - 4;
+    if (left > maxLeft) left = col * tileSize - (popup.offsetWidth || 260);
+    popup.style.left = left + 'px';
+    popup.style.top  = Math.max(0, top) + 'px';
+  }
+
+  popup.classList.remove('hidden');
+}
+
+function _selectTileBgOption(key) {
+  if (!_tilePicker) return;
+  _tilePicker.selectedKey = key;
+  document.querySelectorAll('.tile-picker-option').forEach(btn =>
+    btn.classList.toggle('selected', btn.dataset.tileKey === key)
+  );
+}
+
+function _applyTileBg(mode) {
+  if (!_tilePicker || !state?.tileBg) return;
+  const { col, row, selectedKey } = _tilePicker;
+
+  if (mode === 'tile') {
+    if (selectedKey) state.tileBg[`${col},${row}`] = selectedKey;
+    else delete state.tileBg[`${col},${row}`];
+  } else if (mode === 'row') {
+    for (let c = 0; c < MAP_GRID; c++) {
+      if (selectedKey) state.tileBg[`${c},${row}`] = selectedKey;
+      else delete state.tileBg[`${c},${row}`];
+    }
+  } else if (mode === 'col') {
+    for (let r = 0; r < MAP_GRID; r++) {
+      if (selectedKey) state.tileBg[`${col},${r}`] = selectedKey;
+      else delete state.tileBg[`${col},${r}`];
+    }
+  }
+  closeTileBgPicker();
+}
+
+function closeTileBgPicker() {
+  document.getElementById('tile-bg-picker')?.classList.add('hidden');
+  _tilePicker = null;
+}
+
+function _orePopupMine() {
+  const popup = document.getElementById('ore-patch-popup');
+  if (!popup) return;
+  const key = popup.dataset.oreKey;
+  if (key) {
+    manualMine(key);
+    // Refresh displayed numbers
+    setTimeout(() => { if (!popup.classList.contains('hidden')) openOrePatchPopup(key); }, 520);
+  }
+}
+
+function _drawWalls(ctx, S) {
+  const p = state?.perimeter;
+  if (!p) return;
+  const maxWalls = perimeterMaxWalls();
+  if (maxWalls <= 0) return;
+
+  const frac = p.walls / maxWalls;
+  if (frac < 0.20) return;
+
+  let tier;
+  if      (frac < 0.40) tier = 20;
+  else if (frac < 0.60) tier = 40;
+  else if (frac < 0.80) tier = 60;
+  else                  tier = 80;
+
+  const tileSize = S / MAP_GRID;
+  const m   = WALL_RING;           // = 1
+  const far = MAP_GRID - 1 - m;   // = 13
+
+  function drawTile(key, col, row) {
+    const img = _wallImgs[key];
+    if (!img?.complete || img.naturalWidth === 0) return;
+    ctx.drawImage(img, col * tileSize, row * tileSize, tileSize, tileSize);
+  }
+
+  for (let col = m + 1; col < far; col++) {
+    drawTile(`top_${tier}`,    col, m);
+    drawTile(`bottom_${tier}`, col, far);
+  }
+  for (let row = m + 1; row < far; row++) {
+    drawTile(`left_${tier}`,  m,   row);
+    drawTile(`right_${tier}`, far, row);
+  }
+  drawTile(`tl_${tier}`, m,   m);
+  drawTile(`tr_${tier}`, far, m);
+  drawTile(`bl_${tier}`, m,   far);
+  drawTile(`br_${tier}`, far, far);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 document.addEventListener('DOMContentLoaded', async () => {
   await loadMetaState();
+  _grassImg = new Image();
+  _grassImg.src = 'data/map_imgs/grass_map_composed.png';
+  const _wallSides   = ['top', 'bottom', 'left', 'right'];
+  const _wallCorners = ['tl', 'tr', 'bl', 'br'];
+  const _wallTiers   = [20, 40, 60, 80];
+  for (const side of _wallSides)
+    for (const t of _wallTiers) {
+      const img = new Image(); img.src = `data/map_imgs/wall_${side}_${t}.png`;
+      _wallImgs[`${side}_${t}`] = img;
+    }
+  for (const corner of _wallCorners)
+    for (const t of _wallTiers) {
+      const img = new Image(); img.src = `data/map_imgs/wall_corner_${corner}_${t}.png`;
+      _wallImgs[`${corner}_${t}`] = img;
+    }
+  // Preload concrete tile images
+  _concreteImgs = {};
+  for (const ct of CONCRETE_TILES) {
+    const img = new Image(); img.src = ct.src; _concreteImgs[ct.key] = img;
+  }
+  // Preload building images
+  _bldImgs = {};
+  const _bldSrcs = new Set();
+  for (const cat of Object.values(BUILDING_MAP_CATEGORIES))
+    cat.slotImgs.forEach(s => { if (s) _bldSrcs.add(s); });
+  for (const src of _bldSrcs) {
+    const img = new Image(); img.src = src; _bldImgs[src] = img;
+  }
+  let _resizeTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(_resizeTimer);
+    _resizeTimer = setTimeout(() => {
+      if (!document.getElementById('tab-mining')?.classList.contains('hidden')) initBaseMap();
+    }, 200);
+  });
   document.querySelectorAll('.density-btn').forEach(btn =>
     btn.addEventListener('click', () => {
       document.querySelectorAll('.density-btn').forEach(b => b.classList.remove('active'));
@@ -6013,8 +6710,39 @@ document.addEventListener('DOMContentLoaded', async () => {
       selectedDensity = btn.dataset.density;
     })
   );
+  document.querySelectorAll('.difficulty-btn').forEach(btn =>
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.difficulty-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      selectedDifficulty = btn.dataset.diff;
+      const customField = document.getElementById('biter-custom-mult-field');
+      if (customField) customField.classList.toggle('hidden', selectedDifficulty !== 'custom');
+    })
+  );
   document.getElementById('biters-toggle').addEventListener('change', e => {
     document.getElementById('biters-status').textContent = e.target.checked ? 'Enabled' : 'Disabled';
   });
+
+  // Base map canvas events
+  document.getElementById('base-map')?.addEventListener('click',     _handleMapClick);
+  document.getElementById('base-map')?.addEventListener('dblclick',  _handleMapDblClick);
+  document.getElementById('base-map')?.addEventListener('mousemove', _handleMapMouseMove);
+
+  // Close popups on outside click or Escape
+  document.addEventListener('click', e => {
+    const orep = document.getElementById('ore-patch-popup');
+    if (orep && !orep.classList.contains('hidden') && !orep.contains(e.target) && e.target.id !== 'base-map')
+      closeOrePatchPopup();
+    const bldp = document.getElementById('building-popup');
+    if (bldp && !bldp.classList.contains('hidden') && !bldp.contains(e.target) && e.target.id !== 'base-map')
+      closeBuildingPopup();
+    const tilep = document.getElementById('tile-bg-picker');
+    if (tilep && !tilep.classList.contains('hidden') && !tilep.contains(e.target) && e.target.id !== 'base-map')
+      closeTileBgPicker();
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { closeOrePatchPopup(); closeBuildingPopup(); closeTileBgPicker(); }
+  });
+
   refreshSaveList();
 });
