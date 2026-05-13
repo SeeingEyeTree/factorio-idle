@@ -136,10 +136,10 @@
   <div id="dev-panel" class="dev-panel hidden"></div>
 
   <nav class="tab-nav">
-    <button class="tab-btn"        onclick="switchTab('mining', this)"    data-tab="mining">🏠 Base</button>
+    <button class="tab-btn active"  onclick="switchTab('mining', this)"    data-tab="mining">🏠 Base</button>
     <button class="tab-btn"        onclick="switchTab('inventory', this)"  data-tab="inventory">🎒 Inventory</button>
     <button class="tab-btn"        onclick="switchTab('crafting', this)"   data-tab="crafting">🔧 Crafting</button>
-    <button class="tab-btn active" onclick="switchTab('buildings', this)"  data-tab="buildings">🏭 Buildings</button>
+    <button class="tab-btn"        onclick="switchTab('buildings', this)"  data-tab="buildings">🏭 Buildings</button>
     <button class="tab-btn" id="tab-btn-research" onclick="switchTab('research', this)" data-tab="research">🔬 Research</button>
     <button class="tab-btn"        onclick="switchTab('defense', this)"    data-tab="defense">🛡️ Defense</button>
     <button class="tab-btn"        onclick="switchTab('recipes', this)"    data-tab="recipes">📖 Recipes</button>
@@ -152,7 +152,8 @@
   <main class="tab-content">
 
     <!-- Base Tab -->
-    <section id="tab-mining" class="tab-panel hidden">
+    <section id="tab-mining" class="tab-panel">
+      <div id="base-top-row">
       <div id="base-map-wrap">
         <canvas id="base-map"></canvas>
         <div id="ore-patch-popup" class="hidden ore-popup" data-ore-key="">
@@ -192,6 +193,8 @@
           </div>
         </div>
       </div>
+      <div id="tutorial-goal-panel"></div>
+      </div>
       <h3 class="section-label">Resource Patches</h3>
       <p id="chunk-info"></p>
       <div id="resource-patches" class="patch-grid"></div>
@@ -200,6 +203,7 @@
     <!-- Inventory Tab -->
     <section id="tab-inventory" class="tab-panel hidden">
       <h3 class="section-label">Inventory</h3>
+      <p style="font-size:.8rem;color:var(--text2);margin:.1rem 0 .6rem">★ Star an item to pin it to the quick bar at the top of every page and plot it on the Graph tab.</p>
       <input type="text" id="inventory-search" class="recipe-search-input" placeholder="Search items…" oninput="renderInventory()">
       <div id="inventory-list" class="inventory-tab-grid"></div>
     </section>
@@ -212,7 +216,7 @@
     </section>
 
     <!-- Buildings Tab -->
-    <section id="tab-buildings" class="tab-panel">
+    <section id="tab-buildings" class="tab-panel hidden">
       <div class="buildings-layout">
 
         <div class="placement-col">

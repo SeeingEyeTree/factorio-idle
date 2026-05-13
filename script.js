@@ -874,13 +874,15 @@ function buildScriptContext() {
       heavy_oil: 'heavyOil', light_oil: 'lightOil', petroleum_gas: 'petroleumGas',
       water: 'water', steam: 'steam',
     };
-    const raw   = String(item ?? '');
-    const key   = GIVE_MAP[raw] ?? raw;
-    const count = typeof n === 'number' ? Math.max(1, Math.floor(n)) : 1;
+    const raw    = String(item ?? '');
+    const camel  = raw.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+    const key    = GIVE_MAP[raw] ?? (ITEMS[camel] ? camel : raw);
+    const count  = typeof n === 'number' ? Math.max(1, Math.floor(n)) : 1;
     if (!key) { scriptOutput.push({ type: 'warn', text: 'give: item name required' }); return; }
+    if (!ITEMS[key]) { scriptOutput.push({ type: 'warn', text: `give: unknown item "${key}"` }); return; }
     state.inventory[key] = (state.inventory[key] ?? 0) + count;
     if (count > 0) state.seen[key] = true;
-    scriptOutput.push({ type: 'info', text: `Gave ${count.toLocaleString()}× ${key}` });
+    scriptOutput.push({ type: 'info', text: `Gave ${count.toLocaleString()}× ${ITEMS[key].name}` });
   };
 
   // ── place(type, arg, n=1, module=null)

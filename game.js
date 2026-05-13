@@ -357,6 +357,7 @@ let _tutGlowOn = false;
 let _tutGlowIntervalId = null;
 
 const TUTORIAL_GOALS = [
+  // 0
   {
     text: 'Place 10 burner miners on iron ore and 8 stone furnaces smelting iron. Don\'t forget coal and stone',
     check: s => {
@@ -366,6 +367,7 @@ const TUTORIAL_GOALS = [
     },
     glowCraft: ['burnerMinerItem','stoneFurnaceItem'],
   },
+  // 1
   {
     text: 'Place 5 miners on copper ore and 4 furnaces smelting copper',
     check: s => {
@@ -375,6 +377,7 @@ const TUTORIAL_GOALS = [
     },
     glowCraft: ['burnerMinerItem','stoneFurnaceItem'],
   },
+  // 2
   {
     text: 'Build 1 offshore pump, 1 boiler and 2 steam engines for power',
     check: s => {
@@ -385,6 +388,7 @@ const TUTORIAL_GOALS = [
     },
     glowCraft: ['offshorePumpItem','boilerItem','steamEngineItem'],
   },
+  // 3
   {
     text: 'Build a unpaid intern and craft a total of 10 red monster',
     check: s => {
@@ -395,41 +399,133 @@ const TUTORIAL_GOALS = [
     glowCraft: ['labItem','redScience'],
     unlockTab:  'research',
   },
+  // 4
   {
     text: 'Research Automation technology',
     check: s => !!s.research.done['automation'],
     glowTab: 'research',
     unlockTab: 'recipes',
   },
+  // 5 — research defense techs
+  {
+    text: 'Research Gun Turret and Stone Wall technologies in the Research tab',
+    check: s => !!s.research.done['gunTurret'] && !!s.research.done['stoneWallTech'],
+    glowTab: 'research',
+  },
+  // 6 — build defenses
+  {
+    text: 'Place 240 stone walls and 60 gun turrets on your perimeter (Defense tab). Tip: you can upgrade ammo type later for more damage!',
+    check: s => (s.perimeter?.walls ?? 0) >= 240 && (s.perimeter?.gunTurrets ?? 0) >= 60,
+    progress: s => {
+      const w = Math.min(s.perimeter?.walls ?? 0, 240);
+      const t = Math.min(s.perimeter?.gunTurrets ?? 0, 60);
+      return `${w}/240 walls · ${t}/60 turrets`;
+    },
+    glowTab: 'defense',
+  },
+  // 7 — radar
+  {
+    text: 'Place a Radar — it discovers new ore patches to mine and adds to the number of resources you can extract',
+    check: s => (s.buildings['radar']?.count ?? 0) >= 1,
+    glowCraft: ['radarItem'],
+  },
+  // 8 — logistics research
+  {
+    text: 'Research Logistics — reduces building placement time by 0.5 seconds',
+    check: s => !!s.research.done['logistics'],
+    glowTab: 'research',
+  },
+  // 9 — green science (was goal 5)
   {
     text: 'Research the Logistic Science Pack (green science)',
     check: s => !!s.research.done['logisticSciencePack'],
     glowTab: 'research',
     unlockTab: 'graph',
   },
+  // 10 — concrete + expand
+  {
+    text: 'Research Concrete, craft 1000 concrete, then expand your perimeter in the Defense tab',
+    check: s => (s.itemsProduced?.concrete ?? 0) >= 1000 && (s.perimeter?.sideLength ?? 14) > 14,
+    progress: s => {
+      const c       = Math.min(Math.floor(s.itemsProduced?.concrete ?? 0), 1000);
+      const expanded = (s.perimeter?.sideLength ?? 14) > 14;
+      if (!expanded) return `${c}/1000 concrete · then expand in Defense tab`;
+      return `✓ 1000 concrete · ✓ perimeter expanded`;
+    },
+    glowTab: 'research',
+  },
+  // 11 — military science (was goal 6)
   {
     text: 'Research the Military Science Pack',
     check: s => !!s.research.done['militarySciencePack'],
     glowTab: 'research',
   },
+  // 12 — blue science with sub-goals
   {
-    text: 'Research the Chemical Science Pack',
-    check: s => !!s.research.done['chemicalSciencePack'],
+    text: 'Craft 200 blue science packs (Chemical Science Pack)',
+    check: s => (s.itemsProduced?.blueScience ?? 0) >= 200,
+    progress: s => `${Math.min(Math.floor(s.itemsProduced?.blueScience ?? 0), 200)}/200 blue science`,
+    subGoals: [
+      { text: 'Craft engine units',      check: s => (s.itemsProduced?.engineUnit ?? 0) > 0 },
+      { text: 'Process sulfur',          check: s => (s.itemsProduced?.sulfur ?? 0) > 0 },
+      { text: 'Craft advanced circuits', check: s => (s.itemsProduced?.advancedCircuit ?? 0) > 0 },
+    ],
     glowTab: 'research',
   },
+  // 13 — laser turrets
   {
-    text: 'Research the Production Science Pack',
-    check: s => !!s.research.done['productionSciencePack'],
+    text: 'Research Laser Turrets and place 20 on your perimeter — they draw power but fire a continuous beam with no ammo cost',
+    check: s => !!s.research.done['laserTurretTech'] && (s.perimeter?.laserTurrets ?? 0) >= 20,
+    progress: s => `${Math.min(s.perimeter?.laserTurrets ?? 0, 20)}/20 laser turrets`,
     glowTab: 'research',
   },
+  // 14 — construction robots
   {
-    text: 'Research the Utility Science Pack',
-    check: s => !!s.research.done['utilitySciencePack'],
+    text: 'Craft 100 construction robots — they speed up building placement dramatically',
+    check: s => (s.itemsProduced?.constructionRobotItem ?? 0) >= 100,
+    progress: s => `${Math.min(Math.floor(s.itemsProduced?.constructionRobotItem ?? 0), 100)}/100 construction robots`,
+    glowCraft: ['constructionRobotItem'],
+  },
+  // 15 — purple science with sub-goals
+  {
+    text: 'Craft 200 purple science packs (Production Science Pack)',
+    check: s => (s.itemsProduced?.purpleScience ?? 0) >= 200,
+    progress: s => `${Math.min(Math.floor(s.itemsProduced?.purpleScience ?? 0), 200)}/200 purple science`,
+    subGoals: [
+      { text: 'Craft productivity modules', check: s => (s.itemsProduced?.productivityModule ?? 0) > 0 },
+      { text: 'Craft rails',               check: s => (s.itemsProduced?.rail ?? 0) > 0 },
+      { text: 'Craft electric furnaces',   check: s => (s.itemsProduced?.electricFurnaceItem ?? 0) > 0 },
+    ],
     glowTab: 'research',
   },
+  // 16 — yellow science with sub-goals
+  {
+    text: 'Craft 200 yellow science packs (Utility Science Pack)',
+    check: s => (s.itemsProduced?.yellowScience ?? 0) >= 200,
+    progress: s => `${Math.min(Math.floor(s.itemsProduced?.yellowScience ?? 0), 200)}/200 yellow science`,
+    subGoals: [
+      { text: 'Craft low density structures',       check: s => (s.itemsProduced?.lowDensityStructure ?? 0) > 0 },
+      { text: 'Craft flying robot frames',          check: s => (s.itemsProduced?.flyingRobotFrame ?? 0) > 0 },
+      { text: 'Craft processing units (blue chips)', check: s => (s.itemsProduced?.processingUnit ?? 0) > 0 },
+    ],
+    glowTab: 'research',
+  },
+  // 17 — artillery
+  {
+    text: 'Research Artillery and add it to your perimeter — it bombards biter nests beyond your walls before waves even start',
+    check: s => !!s.research.done['artillery'] && (s.perimeter?.artillery ?? 0) >= 1,
+    glowTab: 'research',
+  },
+  // 18 — space + rainbow (was goal 10)
   {
     text: 'Research Space Science and Rainbow Science to complete the tech tree',
     check: s => !!s.research.done['spaceSciencePack'] && !!s.research.done['rainbowSciencePack'],
+    glowTab: 'research',
+  },
+  // 19 — endgame weapons
+  {
+    text: 'Research Spidertrons or Nuclear Weapons for the ultimate offense — the apex of your factory',
+    check: s => !!s.research.done['spidertron'] || !!s.research.done['atomicBombTech'],
     glowTab: 'research',
   },
 ];
@@ -652,7 +748,7 @@ function createState(settings) {
     biterWaveNumber: 0,
     lastBiterWave:   null,
     perimeter: {
-      sideLength: 10,
+      sideLength: 14,
       walls: 0,
       gunTurrets: 0,
       laserTurrets: 0,
@@ -2831,9 +2927,9 @@ function updateTabVisibility() {
     const panel = document.getElementById('tab-' + dataTab);
     if (panel && !visible && !panel.classList.contains('hidden')) {
       panel.classList.add('hidden');
-      document.getElementById('tab-buildings')?.classList.remove('hidden');
+      document.getElementById('tab-mining')?.classList.remove('hidden');
       btn.classList.remove('active');
-      document.querySelector('.tab-btn[onclick*="buildings"]')?.classList.add('active');
+      document.querySelector('.tab-btn[onclick*="mining"]')?.classList.add('active');
     }
   };
 
@@ -2848,7 +2944,7 @@ function updateTabVisibility() {
   // Tutorial-gated tabs
   const researchVisible = !tut || idx >= 3 || (state.buildings['lab']?.count ?? 0) > 0;
   const recipesVisible  = !tut || idx >= 5 || !!state.research.done['automation'];
-  const graphVisible    = !tut || idx >= 6 || !!state.research.done['logisticSciencePack'];
+  const graphVisible    = !tut || idx >= 10 || !!state.research.done['logisticSciencePack'];
   showTab('research', researchVisible);
   showTab('recipes',  recipesVisible);
   showTab('graph',    graphVisible);
@@ -2861,13 +2957,55 @@ function updateTabVisibility() {
 }
 
 function renderTutorialGoal() {
-  const bar = document.getElementById('tutorial-goal-bar');
-  if (!bar) return;
-  if (!state?.settings?.tutorialEnabled) { bar.style.display = 'none'; return; }
+  const bar   = document.getElementById('tutorial-goal-bar');
+  const panel = document.getElementById('tutorial-goal-panel');
+
+  if (!state?.settings?.tutorialEnabled) {
+    if (bar)   bar.style.display = 'none';
+    if (panel) panel.style.display = 'none';
+    return;
+  }
+
   const idx  = state.tutorial?.goalIndex ?? 0;
   const goal = TUTORIAL_GOALS[idx];
-  bar.style.display = '';
-  bar.textContent   = goal ? `🎯 Goal: ${goal.text}` : '🏆 All goals complete!';
+
+  if (bar) {
+    bar.style.display = '';
+    bar.textContent = goal
+      ? `🎯 Goal ${idx + 1}/${TUTORIAL_GOALS.length}: ${goal.text}`
+      : '🏆 All goals complete!';
+  }
+
+  if (!panel) return;
+  panel.style.display = '';
+
+  if (!goal) {
+    panel.innerHTML = '<div class="goal-complete">🏆 All goals complete!</div>';
+    return;
+  }
+
+  const progressText = goal.progress ? goal.progress(state) : null;
+
+  const subGoalsHtml = (goal.subGoals ?? []).map(sg => {
+    const done = sg.check(state);
+    return `<div class="goal-sub${done ? ' done' : ''}">${done ? '✅' : '☐'} ${sg.text}</div>`;
+  }).join('');
+
+  const upcoming = TUTORIAL_GOALS.slice(idx + 1, idx + 4);
+  const upcomingHtml = upcoming.length
+    ? `<div class="goal-upcoming-label">Up next:</div>` +
+      upcoming.map((g, i) => `<div class="goal-upcoming-item" style="opacity:${1 - i * 0.25}">${g.text}</div>`).join('')
+    : '';
+
+  panel.innerHTML = `
+    <div class="goal-panel-header">🎯 Goals <span class="goal-panel-count">${idx + 1} / ${TUTORIAL_GOALS.length}</span></div>
+    <div class="goal-current-box">
+      <div class="goal-current-text">${goal.text}</div>
+      ${progressText ? `<div class="goal-progress-text">${progressText}</div>` : ''}
+      ${subGoalsHtml}
+    </div>
+    <div class="goal-upcoming-section">${upcomingHtml}</div>
+  `;
 }
 
 function renderUI() {
@@ -2898,8 +3036,9 @@ function renderInventory() {
   if (!container) return;
   const q = (document.getElementById('inventory-search')?.value ?? '').trim().toLowerCase();
   const entries = Object.entries(state.inventory).filter(([k, v]) => {
+    if (!ITEMS[k]) return false;
     if (!ALWAYS_SHOW.has(k) && !state.seen?.[k]) return false;
-    if (q && !(ITEMS[k]?.name ?? k).toLowerCase().includes(q)) return false;
+    if (q && !ITEMS[k].name.toLowerCase().includes(q)) return false;
     return true;
   });
   const starred = state.starredItems ?? [];
@@ -4356,7 +4495,7 @@ function biterInterval() {
 }
 
 function perimeterTiles() {
-  return 4 * (state.perimeter?.sideLength ?? 10);
+  return 4 * (state.perimeter?.sideLength ?? 14);
 }
 
 function perimeterMaxWalls() {
@@ -4368,7 +4507,7 @@ function perimeterMaxTurrets() {
 }
 
 function perimeterMaxArtillery() {
-  const sl = state.perimeter?.sideLength ?? 10;
+  const sl = state.perimeter?.sideLength ?? 14;
   const rangeLevel = state.perimeter?.artilleryRangeLevel ?? 0;
   let total = 0;
   for (let k = 1; k <= rangeLevel + 1; k++) {
@@ -4952,7 +5091,7 @@ function renderPerimeter() {
     </div>
   </div>
 
-  <div class="perimeter-card">
+  ${!!state.research?.done?.laserTurretTech ? `<div class="perimeter-card">
     <div class="perimeter-card-title">⚡ Laser Turrets</div>
     <div class="perimeter-stat-row">
       <span>Placed</span><strong>${p.laserTurrets} (${maxTurrets - p.gunTurrets - p.laserTurrets} remaining in shared pool)</strong>
@@ -4973,9 +5112,9 @@ function renderPerimeter() {
       <button class="btn-sm btn-danger-sm" onclick="removePerimeterDefense('laserTurrets',1)">−1</button>
       <button class="btn-sm btn-danger-sm" onclick="removePerimeterDefense('laserTurrets',5)">−5</button>
     </div>
-  </div>
+  </div>` : ''}
 
-  <div class="perimeter-card">
+  ${!!state.research?.done?.artillery ? `<div class="perimeter-card">
     <div class="perimeter-card-title">💣 Artillery Turrets</div>
     <div class="perimeter-stat-row">
       <span>Placed / Max</span><strong>${p.artillery ?? 0} / ${maxArtillery}</strong>
@@ -5014,9 +5153,9 @@ function renderPerimeter() {
     <div style="margin-top:.5rem;font-size:.8rem;color:var(--text-muted)">
       Research: Artillery Range Lvl ${artRangeLevel + 1} · Artillery Damage Lvl ${artDmgLevel + 1}
     </div>
-  </div>
+  </div>` : ''}
 
-  <div class="perimeter-card">
+  ${!!state.research?.done?.spidertron ? `<div class="perimeter-card">
     <div class="perimeter-card-title">🕷️ Spidertrons</div>
     <div class="perimeter-stat-row">
       <span>Deployed</span><strong>${p.spidertrons ?? 0}</strong>
@@ -5041,7 +5180,7 @@ function renderPerimeter() {
       <button class="btn-sm btn-danger-sm" onclick="removePerimeterDefense('spidertrons',5)">−5</button>
     </div>
     ${lastWave?.bombsUsed > 0 ? `<div class="perimeter-stat-row" style="margin-top:.5rem"><span>Last wave bombs used</span><strong>${lastWave.bombsUsed}</strong></div>` : ''}
-  </div>
+  </div>` : ''}
 
   ${(function() {
     const wph = [
@@ -6173,6 +6312,7 @@ const ORE_PATCH_TILES = {
 
 let _grassImg       = null;
 let _wallImgs       = {};
+let _turretImgs     = {};
 let _mapAnimFrame   = null;
 let _dragState      = null;   // null | {slotKey, catKey, slotIdx}
 let _mouseCanvasPos = { x: 0, y: 0 };
@@ -6242,6 +6382,7 @@ function _drawTileBgLayer(ctx, S) {
 
 function _drawBuildingsLayer(ctx, S, ts) {
   _drawWalls(ctx, S);
+  _drawTurrets(ctx, S);
   _drawOrePatchIndicators(ctx, S);
   _drawBuildingIcons(ctx, S);
 }
@@ -6751,6 +6892,47 @@ function _drawWalls(ctx, S) {
   drawTile(`br_${tier}`, far, far);
 }
 
+function _drawTurrets(ctx, S) {
+  const p = state?.perimeter;
+  if (!p) return;
+  const maxTurrets = perimeterMaxTurrets();
+  if (maxTurrets <= 0) return;
+
+  const combined = (p.gunTurrets ?? 0) + (p.laserTurrets ?? 0);
+  const frac = combined / maxTurrets;
+  if (frac < 0.20) return;
+
+  let tier;
+  if      (frac < 0.40) tier = 20;
+  else if (frac < 0.60) tier = 40;
+  else if (frac < 0.80) tier = 60;
+  else if (frac < 1.00) tier = 80;
+  else                  tier = 100;
+
+  const tileSize = S / MAP_GRID;
+  const m   = WALL_RING;
+  const far = MAP_GRID - 1 - m;
+
+  function drawTile(key, col, row) {
+    const img = _turretImgs[key];
+    if (!img?.complete || img.naturalWidth === 0) return;
+    ctx.drawImage(img, col * tileSize, row * tileSize, tileSize, tileSize);
+  }
+
+  for (let col = m + 1; col < far; col++) {
+    drawTile(`top_${tier}`,    col, m);
+    drawTile(`bottom_${tier}`, col, far);
+  }
+  for (let row = m + 1; row < far; row++) {
+    drawTile(`left_${tier}`,  m,   row);
+    drawTile(`right_${tier}`, far, row);
+  }
+  drawTile(`tl_${tier}`, m,   m);
+  drawTile(`tr_${tier}`, far, m);
+  drawTile(`bl_${tier}`, m,   far);
+  drawTile(`br_${tier}`, far, far);
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -6769,6 +6951,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     for (const t of _wallTiers) {
       const img = new Image(); img.src = `data/map_imgs/wall_corner_${corner}_${t}.png`;
       _wallImgs[`${corner}_${t}`] = img;
+    }
+  const _turretSides   = ['top', 'bottom', 'left', 'right'];
+  const _turretCorners = ['tl', 'tr', 'bl', 'br'];
+  const _turretTiers   = [20, 40, 60, 80, 100];
+  for (const side of _turretSides)
+    for (const t of _turretTiers) {
+      const img = new Image(); img.src = `data/map_imgs/turret_${side}_${t}.png`;
+      _turretImgs[`${side}_${t}`] = img;
+    }
+  for (const corner of _turretCorners)
+    for (const t of _turretTiers) {
+      const img = new Image(); img.src = `data/map_imgs/turret_corner_${corner}_${t}.png`;
+      _turretImgs[`${corner}_${t}`] = img;
     }
   // Preload concrete tile images
   _concreteImgs = {};
