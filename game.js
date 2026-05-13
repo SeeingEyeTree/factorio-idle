@@ -782,7 +782,7 @@ function applyStateFromEnvelope(envelope) {
   if (state.accumulatorCharge == null) state.accumulatorCharge = 0;
   if (state.biterWaveNumber == null) state.biterWaveNumber = 0;
   if (state.lastBiterWave  == null) state.lastBiterWave  = null;
-  if (!state.perimeter) state.perimeter = { sideLength: 10, walls: 0, gunTurrets: 0, laserTurrets: 0, ammoType: 'firearmMagazine' };
+  if (!state.perimeter) state.perimeter = { sideLength: 14, walls: 0, gunTurrets: 0, laserTurrets: 0, ammoType: 'firearmMagazine' };
   if (state.perimeter.ammoType          == null) state.perimeter.ammoType          = 'firearmMagazine';
   if (state.perimeter.artillery         == null) state.perimeter.artillery         = 0;
   if (state.perimeter.artilleryRangeLevel  == null) state.perimeter.artilleryRangeLevel  = 0;
@@ -2422,9 +2422,8 @@ function tick() {
   if (state.settings.biters) {
     state.savePlayTime = (state.savePlayTime ?? 0) + dt;
     if (!state.biterActivated) {
-      const redMade  = (state.itemsProduced?.redScience ?? 0) > 0;
-      const timeMade = state.savePlayTime >= 1800;
-      if (redMade || timeMade) { state.biterActivated = true; state.biterTimer = 0; }
+      const redMade = (state.itemsProduced?.redScience ?? 0) > 0;
+      if (redMade) { state.biterActivated = true; state.biterTimer = 0; }
     } else {
       state.biterTimer += dt;
       const interval = biterInterval();
@@ -2434,7 +2433,7 @@ function tick() {
         fightBiterWave();
       } else if (!biterWaveWarned && interval - state.biterTimer <= 30) {
         biterWaveWarned = true;
-        const tierName = getBiterTierData(state.biterThreatPoints ?? 0)?.name ?? 'Biters';
+        const tierName = getBiterEnemyTier()?.name ?? 'Biters';
         notify(`⚠️ ${tierName} wave incoming in ~${Math.ceil(interval - state.biterTimer)}s!`, 'warning');
       }
     }
@@ -4410,6 +4409,16 @@ function getBiterTierData(points) {
   return tier;
 }
 
+function getBiterEnemyTier() {
+  if (hasRainbowScience()) return BITER_TIERS[BITER_TIERS.length - 1];
+  const nonRainbow = SCIENCE_PACKS.filter(p => p !== 'rainbowScience');
+  for (let i = nonRainbow.length - 1; i >= 0; i--) {
+    if ((state.inventory?.[nonRainbow[i]] ?? 0) > 0 || (state.itemsProduced?.[nonRainbow[i]] ?? 0) > 0)
+      return BITER_TIERS[Math.min(i, BITER_TIERS.length - 1)];
+  }
+  return BITER_TIERS[0];
+}
+
 function getBiterWaveStats() {
   const pts = state.biterThreatPoints ?? 0;
   return {
@@ -4459,7 +4468,7 @@ function fightBiterWave() {
   }
 
   // ── Tier popup (fires when entering a new tier for the first time) ──
-  const newTierData = getBiterTierData(state.biterThreatPoints ?? 0);
+  const newTierData = getBiterEnemyTier();
   if (newTierData && !(state.biterSeenTiers ?? {})[newTierData.name]) {
     if (!state.biterSeenTiers) state.biterSeenTiers = {};
     state.biterSeenTiers[newTierData.name] = true;
@@ -4646,7 +4655,7 @@ function fightBiterWave() {
   };
 
   lastPerimeterHtml = ''; lastWavePreviewHash = '';
-  const _waveNotifName = getBiterTierData(state.biterThreatPoints ?? 0)?.name ?? 'Biters';
+  const _waveNotifName = getBiterEnemyTier()?.name ?? 'Biters';
   if (waveKilledByArtillery)
     notify(`✓ ${_waveNotifName} wave ${waveNum} destroyed by artillery!`, 'info');
   else if (buildingsLost > 0)
@@ -5045,52 +5054,62 @@ function renderPerimeter() {
     ].join('|');
     if (wph !== lastWavePreviewHash) {
       lastWavePreviewHash = wph;
-      const _previewTierName = getBiterTierData(state.biterThreatPoints ?? 0)?.name ?? 'Biters';
+      const _previewTierData = getBiterEnemyTier();
+      const _previewTierName = _previewTierData?.name ?? 'Biters';
+      const _previewTierImg  = _previewTierData?.img ?? '';
       lastWavePreviewHtml = `<div class="perimeter-card perimeter-card-wide">
     <div class="perimeter-card-title">📊 Next Wave — Wave ${nextWave} · ${_previewTierName}</div>
-    <div class="perimeter-wave-row">
-      <div class="perimeter-wave-col">
-        <div class="perimeter-label">Biters</div>
-        <div class="perimeter-range">${base.count}</div>
+    <div class="wave-preview-layout">
+      <div class="wave-preview-stats">
+        <div class="perimeter-wave-row">
+          <div class="perimeter-wave-col">
+            <div class="perimeter-label">Biters</div>
+            <div class="perimeter-range">${base.count}</div>
+          </div>
+          <div class="perimeter-wave-col">
+            <div class="perimeter-label">HP / biter</div>
+            <div class="perimeter-range">${base.hp}</div>
+          </div>
+          <div class="perimeter-wave-col">
+            <div class="perimeter-label">Armor</div>
+            <div class="perimeter-range">${base.armor}</div>
+          </div>
+          <div class="perimeter-wave-col">
+            <div class="perimeter-label">DPS / biter</div>
+            <div class="perimeter-range">${base.dps.toFixed(1)}</div>
+          </div>
+        </div>
+        <div class="wave-stat-compact" style="margin-top:.4rem">
+          <span>Threat level</span><strong>${(state.biterThreatPoints ?? 0).toFixed(1)} pts${rainbowActive ? ' (exponential)' : ''}</strong>
+        </div>
+        <div class="wave-stat-compact">
+          <span>Sections attacked</span><strong>${previewSectionsAttacked} / ${numSections}${rainbowActive ? ' (all)' : ''}</strong>
+        </div>
+        <div class="wave-stat-compact">
+          <span>HP / section</span><strong>~${Math.round(previewSectionBiterHP).toLocaleString()}</strong>
+        </div>
+        <div class="wave-stat-compact">
+          <span>Def DPS / section</span><strong>${previewSectionDefDPS.toFixed(1)}</strong>
+        </div>
+        <div class="wave-stat-compact">
+          <span>Biter HP pool</span><strong>~${nextBiterHP.toLocaleString()}</strong>
+        </div>
+        <div class="wave-stat-compact">
+          <span>Est. kill time</span><strong>${previewKillTime}s</strong>
+        </div>
+        <div class="wave-stat-compact">
+          <span>Est. biter dmg</span><strong>~${parseFloat(previewDamage).toLocaleString()} · Wall: ${totalWallHP.toLocaleString()}</strong>
+        </div>
+        ${previewAmmoEst != null ? `<div class="wave-stat-compact"><span>Est. ammo used</span><strong>${previewAmmoEst.toLocaleString()} × ${ITEMS[ammoType]?.name ?? ammoType}</strong></div>` : ''}
+        ${laserEnergyPerWave != null ? `<div class="wave-stat-compact"><span>Est. laser energy</span><strong>${(laserEnergyPerWave / 1000).toFixed(1)} MJ</strong></div>` : ''}
+        ${artPreviewDmg > 0 ? `<div class="wave-stat-compact"><span>Artillery pre-dmg</span><strong>~${artPreviewDmg.toLocaleString()} (${artShellsPerWave} shells) · ${artPreviewDmg >= nextBiterHP ? '✅ kills wave' : Math.round(artPreviewDmg / nextBiterHP * 100) + '%'}</strong></div>` : ''}
+        <div class="perimeter-outcome ${previewOverflow > 0 && totalDPS <= 0 ? 'perimeter-outcome-danger' : previewOverflow > 0 ? 'perimeter-outcome-warn' : 'perimeter-outcome-ok'}">${previewSurvive}</div>
       </div>
-      <div class="perimeter-wave-col">
-        <div class="perimeter-label">HP per biter</div>
-        <div class="perimeter-range">${base.hp}</div>
-      </div>
-      <div class="perimeter-wave-col">
-        <div class="perimeter-label">Armor</div>
-        <div class="perimeter-range">${base.armor}</div>
-      </div>
-      <div class="perimeter-wave-col">
-        <div class="perimeter-label">DPS per biter</div>
-        <div class="perimeter-range">${base.dps.toFixed(1)}</div>
+      <div class="wave-preview-enemy">
+        <div class="wanted-dead-label">Wanted Dead</div>
+        ${_previewTierImg ? `<img src="${_previewTierImg}" class="wave-enemy-img" alt="${_previewTierName}">` : `<div class="wave-enemy-img" style="display:flex;align-items:center;justify-content:center;font-size:.7rem;color:var(--dim)">${_previewTierName}</div>`}
       </div>
     </div>
-    <div class="perimeter-stat-row" style="margin-top:.5rem">
-      <span>Threat level</span><strong>${(state.biterThreatPoints ?? 0).toFixed(1)} pts${rainbowActive ? ' (exponential — rainbow active)' : ''}</strong>
-    </div>
-    <div class="perimeter-stat-row">
-      <span>Sections attacked</span><strong>${previewSectionsAttacked} / ${numSections} wall sections${rainbowActive ? ' (all — rainbow)' : ''}</strong>
-    </div>
-    <div class="perimeter-stat-row">
-      <span>HP per attacked section</span><strong>~${Math.round(previewSectionBiterHP).toLocaleString()}</strong>
-    </div>
-    <div class="perimeter-stat-row">
-      <span>Defense DPS per section</span><strong>${previewSectionDefDPS.toFixed(1)}</strong>
-    </div>
-    <div class="perimeter-stat-row">
-      <span>Est. biter HP pool</span><strong>~${nextBiterHP.toLocaleString()}</strong>
-    </div>
-    <div class="perimeter-stat-row">
-      <span>Est. kill time (per section)</span><strong>${previewKillTime}s</strong>
-    </div>
-    <div class="perimeter-stat-row">
-      <span>Est. total biter damage</span><strong>~${parseFloat(previewDamage).toLocaleString()} · Wall HP: ${totalWallHP.toLocaleString()}</strong>
-    </div>
-    ${previewAmmoEst != null ? `<div class="perimeter-stat-row"><span>Est. ammo used</span><strong>${previewAmmoEst.toLocaleString()} × ${ITEMS[ammoType]?.name ?? ammoType} (${Math.floor(state.inventory[ammoType] ?? 0).toLocaleString()} in inv)</strong></div>` : ''}
-    ${laserEnergyPerWave != null ? `<div class="perimeter-stat-row"><span>Est. laser energy/wave</span><strong>${(laserEnergyPerWave / 1000).toFixed(1)} MJ from accumulators</strong></div>` : ''}
-    ${artPreviewDmg > 0 ? `<div class="perimeter-stat-row"><span>Artillery pre-damage</span><strong>~${artPreviewDmg.toLocaleString()} (${artShellsPerWave} shells) · ${artPreviewDmg >= nextBiterHP ? '✅ kills wave' : Math.round(artPreviewDmg / nextBiterHP * 100) + '% of wave HP'}</strong></div>` : ''}
-    <div class="perimeter-outcome ${previewOverflow > 0 && totalDPS <= 0 ? 'perimeter-outcome-danger' : previewOverflow > 0 ? 'perimeter-outcome-warn' : 'perimeter-outcome-ok'}">${previewSurvive}</div>
   </div>`;
     }
     return lastWavePreviewHtml;
@@ -5162,12 +5181,11 @@ function renderBiterIndicator() {
   if (!state.settings.biters) { el.classList.add('hidden'); return; }
   el.classList.remove('hidden');
   if (!state.biterActivated) {
-    const remaining = Math.max(0, Math.ceil(1800 - (state.savePlayTime ?? 0)));
-    el.textContent = `⏳ Biters: red science or ${remaining}s`;
+    el.textContent = `⏳ Biters: make red science to activate`;
     el.classList.remove('biter-warning');
   } else {
     const secs     = Math.ceil(biterInterval() - (state.biterTimer ?? 0));
-    const tierName = getBiterTierData(state.biterThreatPoints ?? 0)?.name ?? 'Biters';
+    const tierName = getBiterEnemyTier()?.name ?? 'Biters';
     el.textContent = `⚠ ${tierName}: ${secs}s`;
     el.classList.toggle('biter-warning', secs <= 30);
   }
@@ -6228,8 +6246,77 @@ function _drawBuildingsLayer(ctx, S, ts) {
   _drawBuildingIcons(ctx, S);
 }
 
+function _seededRand(seed) {
+  let s = seed | 0;
+  return () => {
+    s = Math.imul(s, 1664525) + 1013904223 | 0;
+    return (s >>> 0) / 0x100000000;
+  };
+}
+
+function _drawAttackOverlay(ctx, S) {
+  if (!state?.biterActivated) return;
+  const tileSize = S / MAP_GRID;
+
+  const outerTiles = [];
+  for (let c = 0; c < MAP_GRID; c++) {
+    outerTiles.push({col: c, row: 0});
+    outerTiles.push({col: c, row: MAP_GRID - 1});
+  }
+  for (let r = 1; r < MAP_GRID - 1; r++) {
+    outerTiles.push({col: 0, row: r});
+    outerTiles.push({col: MAP_GRID - 1, row: r});
+  }
+
+  const numSections   = perimeterTiles();
+  const rainbowActive = hasRainbowScience();
+  const sciTier       = getPlayerScienceTier();
+  let sectionsAttacked;
+  if (rainbowActive) {
+    sectionsAttacked = numSections;
+  } else {
+    const pct = sciTier <= 1 ? 0.05 : sciTier === 2 ? 0.10 : 0.15;
+    sectionsAttacked = Math.max(1, Math.round(numSections * pct));
+  }
+  const pctAttacked     = sectionsAttacked / numSections;
+  const numGridsColored = Math.max(1, Math.floor(56 * pctAttacked));
+
+  const base          = getBiterWaveStats();
+  const bitersPerSec  = base.count / Math.max(1, sectionsAttacked);
+  const pixelsPerTile = Math.max(1, Math.floor(bitersPerSec / 5));
+  const pixSize       = Math.max(1, Math.round(tileSize / 10));
+
+  const attackColor = rainbowActive ? null :
+                      sciTier <= 1 ? 'rgba(255,60,60,0.9)' :
+                      sciTier === 2 ? 'rgba(60,220,60,0.9)' :
+                      'rgba(60,120,255,0.9)';
+
+  const rng      = _seededRand(state.biterWaveNumber ?? 0);
+  const shuffled = [...outerTiles];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  const attackedTiles = shuffled.slice(0, numGridsColored);
+
+  ctx.save();
+  for (const {col, row} of attackedTiles) {
+    const x0 = col * tileSize;
+    const y0 = row * tileSize;
+    for (let i = 0; i < pixelsPerTile; i++) {
+      const px = x0 + rng() * tileSize;
+      const py = y0 + rng() * tileSize;
+      ctx.fillStyle = rainbowActive
+        ? `hsla(${Math.floor(rng() * 360)},100%,60%,0.9)`
+        : attackColor;
+      ctx.fillRect(px, py, pixSize, pixSize);
+    }
+  }
+  ctx.restore();
+}
+
 function _drawEffectsLayer(ctx, S, ts) {
-  // future: particles, biter animations
+  _drawAttackOverlay(ctx, S);
 }
 
 function _drawOrePatchIndicators(ctx, S) {
