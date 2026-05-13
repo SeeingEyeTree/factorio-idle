@@ -2050,7 +2050,8 @@ button {
 .tutorial-glow { box-shadow: 0 0 14px 4px rgba(244,168,58,.75); }
 
 #base-top-row        { display: flex; gap: 16px; align-items: flex-start; }
-#tutorial-goal-panel { flex: 1; min-width: 220px; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 14px; box-sizing: border-box; }
+#base-right-col      { flex: 1; min-width: 220px; display: flex; flex-direction: column; gap: 12px; }
+#tutorial-goal-panel { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 14px; box-sizing: border-box; }
 .goal-panel-header   { font-weight: 700; font-size: .88rem; color: var(--accent); margin-bottom: 10px; display: flex; justify-content: space-between; }
 .goal-panel-count    { font-weight: 400; color: var(--text2); }
 .goal-current-box    { background: var(--bg3); border-radius: 6px; padding: 10px 12px; margin-bottom: 12px; border-left: 3px solid var(--accent); }
@@ -2061,3 +2062,29 @@ button {
 .goal-upcoming-label { font-size: .72rem; color: var(--text3); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 5px; }
 .goal-upcoming-item  { font-size: .78rem; color: var(--text3); margin: 4px 0; line-height: 1.3; }
 .goal-complete       { font-size: 1rem; font-weight: 700; color: var(--accent); text-align: center; padding: 24px 8px; }
+
+/* ── Chest System ──────────────────────────────────── */
+.chest-controls        { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; max-width: 480px; }
+.chest-tier-row        { display: flex; align-items: center; gap: 8px; }
+.chest-tier-label      { width: 110px; font-weight: 600; font-size: .85rem; }
+.chest-count           { width: 36px; text-align: right; font-weight: 700; color: var(--accent); }
+.chest-priority-row    { display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: .82rem; }
+.chest-priority-input  { flex: 1; max-width: 200px; background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; color: var(--text1); padding: 3px 6px; font-size: .82rem; }
+.chest-rewards-header  { font-weight: 700; font-size: .85rem; color: var(--accent); margin: 10px 0 6px; }
+.chest-rewards-grid    { display: flex; flex-wrap: wrap; gap: 8px; }
+.chest-reward-card     { background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; min-width: 140px; }
+.chest-reward-card.maxed { border-color: var(--accent); }
+.chest-reward-name     { font-size: .78rem; font-weight: 600; color: var(--text1); }
+.chest-reward-level    { font-size: .75rem; color: var(--accent); margin: 2px 0; }
+.chest-reward-effect   { font-size: .73rem; color: var(--text2); }
+.chest-modal-overlay   { position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 1000; display: flex; align-items: center; justify-content: center; }
+.chest-modal-overlay.hidden { display: none; }
+.chest-modal           { background: var(--bg1); border: 1px solid var(--border); border-radius: 10px; padding: 24px; max-width: 520px; width: 90vw; }
+.chest-modal-tier      { font-size: 1.1rem; font-weight: 700; color: var(--accent); margin-bottom: 6px; }
+.chest-modal-prompt    { font-size: .85rem; color: var(--text2); margin-bottom: 14px; }
+.chest-modal-choices   { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+.chest-choice-card     { flex: 1; min-width: 130px; background: var(--bg2); border: 2px solid var(--border); border-radius: 8px; padding: 12px; cursor: pointer; text-align: left; transition: border-color .15s; }
+.chest-choice-card:hover { border-color: var(--accent); }
+.chest-choice-name     { font-size: .88rem; font-weight: 700; color: var(--text1); margin-bottom: 4px; }
+.chest-choice-level    { font-size: .78rem; color: var(--text2); margin-bottom: 3px; }
+.chest-choice-effect   { font-size: .8rem; color: var(--accent); font-weight: 600; }

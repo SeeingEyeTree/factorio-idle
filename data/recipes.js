@@ -225,7 +225,7 @@ const PLAYER_RECIPES = {
   heatExchangerItem:    { name: 'Heat Exchanger',           inputs: { steel: 10, copperPlate: 100, pipe: 10 },               outputs: { heatExchangerItem: 1 },    time: 3.0  },
   steamTurbineItem:     { name: 'Steam Turbine',            inputs: { ironGear: 50, copperPlate: 50, pipe: 20 },             outputs: { steamTurbineItem: 1 },     time: 3.0  },
   radarItem:            { name: 'Radar',                    inputs: { ironPlate: 10, ironGear: 5, electronicCircuit: 5 },    outputs: { radarItem: 1 },            time: 0.5  },
-  labItem:              { name: 'Lab',                      inputs: { ironPlate: 10, electronicCircuit: 6, transportBelt: 4 },                 outputs: { labItem: 1 },              time: 2.0  },
+  labItem:              { name: 'Unpaid Intern',             inputs: { ironPlate: 10, electronicCircuit: 6, transportBelt: 4 },                 outputs: { labItem: 1 },              time: 2.0  },
   pumpjackItem:         { name: 'Pumpjack',                 inputs: { steel: 5, ironGear: 10, electronicCircuit: 5, pipe: 10 }, outputs: { pumpjackItem: 1 },     time: 5.0  },
   oilRefineryItem:      { name: 'Oil Refinery',             inputs: { steel: 15, ironGear: 10, electronicCircuit: 10, pipe: 10, stoneBrick: 10 }, outputs: { oilRefineryItem: 1 }, time: 8.0 },
   chemicalPlantItem:    { name: 'Chemical Plant',           inputs: { steel: 5, ironGear: 5, electronicCircuit: 5, pipe: 5 }, outputs: { chemicalPlantItem: 1 }, time: 5.0  },

@@ -36,33 +36,33 @@
     <h2>World Settings</h2>
 
     <div class="field">
-      <label>Resource Density</label>
-      <div class="btn-group">
-        <button class="density-btn" data-density="low">Low</button>
-        <button class="density-btn active" data-density="medium">Medium</button>
-        <button class="density-btn" data-density="high">High</button>
-      </div>
-    </div>
-
-    <div class="field">
       <label>Biters</label>
       <div class="toggle-row">
-        <input type="checkbox" id="biters-toggle" class="sr-only" onchange="toggleBitersField(this.checked); document.getElementById('biters-status').textContent = this.checked ? 'Enabled' : 'Disabled'">
+        <input type="checkbox" id="biters-toggle" class="sr-only" checked onchange="toggleBitersField(this.checked); document.getElementById('biters-status').textContent = this.checked ? 'Enabled' : 'Disabled'">
         <label for="biters-toggle" class="toggle"></label>
-        <span id="biters-status">Disabled</span>
+        <span id="biters-status">Enabled</span>
       </div>
     </div>
 
     <div class="field">
       <label>Meta Progression</label>
       <div class="toggle-row">
-        <input type="checkbox" id="meta-prog-toggle" class="sr-only" onchange="document.getElementById('meta-prog-status').textContent = this.checked ? 'Enabled' : 'Disabled'">
+        <input type="checkbox" id="meta-prog-toggle" class="sr-only" checked onchange="document.getElementById('meta-prog-status').textContent = this.checked ? 'Enabled' : 'Disabled'">
         <label for="meta-prog-toggle" class="toggle"></label>
-        <span id="meta-prog-status">Disabled</span>
+        <span id="meta-prog-status">Enabled</span>
       </div>
     </div>
 
-    <div class="field hidden biters-option-field">
+    <div class="field">
+      <label>Tutorial</label>
+      <div class="toggle-row">
+        <input type="checkbox" id="tutorial-toggle" class="sr-only" checked onchange="document.getElementById('tutorial-status').textContent = this.checked ? 'Enabled' : 'Disabled'">
+        <label for="tutorial-toggle" class="toggle"></label>
+        <span id="tutorial-status">Enabled</span>
+      </div>
+    </div>
+
+    <div class="field biters-option-field">
       <label>Wave Frequency</label>
       <select id="wave-interval-select" class="modal-number-input" style="width:auto">
         <option value="240">Rare (every 4 min)</option>
@@ -72,7 +72,7 @@
       </select>
     </div>
 
-    <div class="field hidden biters-option-field">
+    <div class="field biters-option-field">
       <label>Difficulty</label>
       <div class="btn-group">
         <button class="difficulty-btn" data-diff="easy">Easy</button>
@@ -193,7 +193,10 @@
           </div>
         </div>
       </div>
-      <div id="tutorial-goal-panel"></div>
+      <div id="base-right-col">
+        <div id="tutorial-goal-panel"></div>
+        <div id="chest-section"></div>
+      </div>
       </div>
       <h3 class="section-label">Resource Patches</h3>
       <p id="chunk-info"></p>
@@ -776,6 +779,14 @@
       </div>
     </section>
 
+    <div id="chest-open-modal" class="hidden chest-modal-overlay">
+      <div class="chest-modal">
+        <div class="chest-modal-tier"></div>
+        <div class="chest-modal-prompt">Choose an upgrade:</div>
+        <div class="chest-modal-choices"></div>
+        <button class="btn-sm" onclick="document.getElementById('chest-open-modal').classList.add('hidden')">Cancel</button>
+      </div>
+    </div>
   </main>
 </div>
 
