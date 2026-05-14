@@ -11,7 +11,6 @@ const ASSEMBLY_KW          = 75;    // kW each
 const PLACE_TIME           = 2; // seconds to place one building (base)
 const ROBOT_BONUS_PER_UNIT   = 0.008;  // placement speed contribution per robot×effectiveness
 const WORKER_SPEED_PER_LEVEL = 0.25;   // robot effectiveness gain per speed research level
-const WORKER_CARGO_PER_LEVEL = 0.25;   // robot effectiveness gain per cargo size level
 const PLACE_TIME_MIN         = 0.1;    // minimum raw time before batch mode kicks in
 const PLACE_TIME_LOOP        = 0.1;    // effective time used in batch mode
 const BITER_INTERVAL       = 120;
@@ -146,6 +145,9 @@ const CHEST_REWARDS = {
     { id: 'turretDamage',     name: 'Turret Damage',               maxLevel: 5, perLevel: 0.01,
       desc: lvl => `+${lvl}% turret damage`,
       eligible: s => !!s.settings?.biters },
+    { id: 'turretsPerTile',  name: 'Turret Capacity',             maxLevel: 5, perLevel: 1,
+      desc: lvl => `+${lvl} turrets per perimeter tile`,
+      eligible: s => !!s.settings?.biters },
   ],
   legendary: [],
 };
@@ -154,7 +156,7 @@ const WALL_HP              = 350;      // HP per stone wall in perimeter
 // Gun turret: shotsPerSec × max(0, dmgPerShot×gMult − armor×armorMult) = effective DPS
 const GUN_TURRET_STATS = {
   firearmMagazine:   { shotsPerSec: 5, dmgPerShot: 5, armorMult: 1.0 },
-  piercingRoundsMag: { shotsPerSec: 5, dmgPerShot: 8, armorMult: 0.5 },
+  piercingRoundsMag: { shotsPerSec: 5, dmgPerShot: 8, armorMult: 0.6 },
   uraniumRoundsMag:  { shotsPerSec: 5, dmgPerShot: 24, armorMult: 0.1 },
 };
 // DPS values for tooltip labels (computed from stats at armor=0)
@@ -162,18 +164,19 @@ const GUN_DPS_BASIC        = 60;       // 5×12
 const GUN_DPS_PIERCING     = 100;      // 5×20
 const GUN_DPS_URANIUM      = 250;      // 5×50
 const LASER_SHOTS_PER_SEC  = 1.5;      // shots per second per laser turret
-const LASER_DMG_PER_SHOT   = 20;       // damage per shot (ignores armor)
-const LASER_DPS_PER_TURRET = LASER_SHOTS_PER_SEC * LASER_DMG_PER_SHOT; // 30 DPS
+const LASER_DMG_PER_SHOT   = 20;       // base damage per shot (before armor reduction)
+const LASER_ARMOR_MULT     = 0.2;      // armor reduction factor for laser (0.2 × armor subtracted)
+const LASER_DPS_PER_TURRET = LASER_SHOTS_PER_SEC * LASER_DMG_PER_SHOT; // 30 base DPS
 const LASER_KW_PER_TURRET  = LASER_SHOTS_PER_SEC * 800; // 1200 kW (800kJ/shot)
 const BUILDING_TOUGHNESS   = 2000;     // overflow damage to destroy 1 building
 const WALLS_PER_TILE       = 20;  // max stone walls per perimeter tile  → total = 20 * 4 * sideLength
-const TURRETS_PER_TILE     = 5;   // max turrets per perimeter tile       → total = 5 * 4 * sideLength
-const ARTILLERY_BASE_DAMAGE     = 500;    // damage per artillery shell
+const TURRETS_PER_TILE     = 5;  // max turrets per perimeter tile
+const ARTILLERY_BASE_DAMAGE     = 30000;    // damage per artillery shell
 const ARTILLERY_FIRE_RATE       = 10;     // seconds between shots per artillery turret
 const ATOMIC_BOMB_DAMAGE        = 1e9;    // damage dealt by one atomic bomb to one section
 const ATOMIC_BOMBS_PER_SPIDER   = 5;      // bombs available per spidertron per wave
 const IRRADIATION_SCALING_RATE  = 0.001;  // how much each bomb use increases biter threat scaling
-const MAGAZINE_SIZE      = 10;  // bullets per magazine, all ammo types
+const MAGAZINE_SIZE      = 50;  // bullets per magazine, all ammo types
 const WAVE_GRACE_PERIOD  =  2;  // seconds biters don't damage walls at wave start
 
 // ── Biter Scaling Constants (0→1 linear scale; >1 = rainbow exponential) ──
@@ -612,7 +615,7 @@ const TUTORIAL_GOALS = [
   },
   // 17 — artillery
   {
-    text: 'Research Artillery and add it to your perimeter — it bombards biter nests beyond your walls before waves even start',
+    text: 'Research Artillery and add it to your perimeter — it kills the enemy before a waves even starts',
     check: s => !!s.research.done['artillery'] && (s.perimeter?.artillery ?? 0) >= 1,
     glowTab: 'research',
   },
@@ -624,7 +627,7 @@ const TUTORIAL_GOALS = [
   },
   // 19 — endgame weapons
   {
-    text: 'Research Spidertrons or Nuclear Weapons for the ultimate offense — the apex of your factory',
+    text: 'Research Spidertrons and Nuclear Weapons for the ultimate offense',
     check: s => !!s.research.done['spidertron'] || !!s.research.done['atomicBombTech'],
     glowTab: 'research',
   },
@@ -640,12 +643,6 @@ function itemIcon(key) {
 
 // ── Robot Tech Data ───────────────────────────────────────────
 
-const ROBOT_CARGO_TECH_DATA = [
-  null,
-  { cost: { redScience:1, greenScience:1, blueScience:1 },                                           timePerPack: 30, totalNeeded: 200 },
-  { cost: { redScience:1, greenScience:1, blueScience:1, purpleScience:1 },                           timePerPack: 60, totalNeeded: 300 },
-  { cost: { redScience:1, greenScience:1, blueScience:1, purpleScience:1, yellowScience:1 },          timePerPack: 60, totalNeeded: 450 },
-];
 
 function getRobotSpeedTechData(level) {
   let totalNeeded, packs, timePerPack;
@@ -756,12 +753,6 @@ const INFINITE_TECHS = {
     prereq:      'robotics',
     getData:     (level) => getRobotSpeedTechData(level),
   }),
-  'robot:cargo': new InfiniteTech({
-    displayName: 'Robot Cargo Capacity',
-    stateField:  'robotCargoLevel',
-    prereq:      'robotics',
-    getData:     (level) => ROBOT_CARGO_TECH_DATA[level] ?? null,
-  }),
   'mining:productivity': new InfiniteTech({
     displayName: 'Mining Productivity',
     stateField:  'miningProdLevel',
@@ -775,7 +766,7 @@ const INFINITE_TECHS = {
     getData:     (level) => getGunDamageData(level),
   }),
   'laser:damage': new InfiniteTech({
-    displayName: 'Laser Shooting Speed',
+    displayName: 'Laser Damage',
     stateField:  'laserDamageLevel',
     prereq:      'laserTurretTech',
     getData:     (level) => getLaserDamageData(level),
@@ -809,8 +800,7 @@ function computePlaceTimeSec() {
   const robotCount = Math.floor(state?.inventory?.constructionRobotItem ?? 0);
   if (robotCount === 0) return { time: baseTime, batch: 1 };
   const speedLevel = state.research?.robotSpeedLevel ?? 0;
-  const cargoLevel = state.research?.robotCargoLevel ?? 0;
-  const effectiveness = 1 + speedLevel * WORKER_SPEED_PER_LEVEL + cargoLevel * WORKER_CARGO_PER_LEVEL;
+  const effectiveness = 1 + speedLevel * WORKER_SPEED_PER_LEVEL;
   const robotBonus = robotCount * effectiveness * ROBOT_BONUS_PER_UNIT;
   let rawTime = baseTime / (1 + robotBonus);
   let batch = 1;
@@ -1076,6 +1066,18 @@ function applyStateFromEnvelope(envelope) {
   if (!state.chests)        state.chests        = { common: 0, rare: 0, legendary: 0 };
   if (!state.chestUpgrades) state.chestUpgrades = {};
   if (!Array.isArray(state.chestHighPriority)) state.chestHighPriority = [];
+  if (state.settings?.autoOpenCommon == null) state.settings.autoOpenCommon = false;
+  if (state.settings?.autoOpenRare   == null) state.settings.autoOpenRare   = false;
+  if (!state.chestFinds) {
+    state.chestFinds = {
+      common:    Array(state.chests?.common    ?? 0).fill(0),
+      rare:      Array(state.chests?.rare      ?? 0).fill(0),
+      legendary: Array(state.chests?.legendary ?? 0).fill(0),
+    };
+  }
+  if (state.settings?.artilleryPaused      == null) state.settings.artilleryPaused      = false;
+  if (state.settings?.autoSendArtilleryKill == null) state.settings.autoSendArtilleryKill = false;
+  if (state.settings?.autoSendInstant       == null) state.settings.autoSendInstant       = false;
   if (!state.productionHistory) state.productionHistory = { samples: [], prodSamples: [], consSamples: [] };
   if (!state.productionHistory.prodSamples) state.productionHistory.prodSamples = [];
   if (!state.productionHistory.consSamples) state.productionHistory.consSamples = [];
@@ -1094,7 +1096,7 @@ function applyStateFromEnvelope(envelope) {
   if (!state.itemsProduced) state.itemsProduced = {};
   if (!state.itemsConsumed) state.itemsConsumed = {};
   if (!state.patchConsumed)  state.patchConsumed  = {};
-  if (!state.baseProduced)   state.baseProduced   = {};
+  if (!state.baseProduced)   state.baseProduced   = { ...state.itemsProduced }; // existing production is all base, no bonus
   if (!state.mapTiles)       state.mapTiles       = {};
   if (!state.tileBg)         state.tileBg         = {};
   if (!state.rateSnapshot) state.rateSnapshot = { time: 0, produced: {}, consumed: {} };
@@ -1628,9 +1630,6 @@ function startInfiniteTech(type) {
   if (prereq && !state.research.done?.[prereq]) {
     notify(`Requires ${TECHNOLOGIES[prereq]?.name ?? prereq} research.`, 'warning'); return;
   }
-  if (type === 'robot:cargo' && (state.research.robotCargoLevel ?? 0) >= 3) {
-    notify('Worker Robot Cargo Size is already maxed out.', 'warning'); return;
-  }
   const queue = state.research.queue ?? (state.research.queue = []);
   // Toggle off if already active
   if (state.research.current === type) { cancelResearch(); return; }
@@ -1644,7 +1643,9 @@ function startInfiniteTech(type) {
   // Start immediately if nothing active, else queue
   if (!state.research.current) {
     state.research.current = type;
-    state.research.totalConsumed = 0;
+    state.research.totalConsumed = (state.research.savedKey === type ? state.research.savedProgress : 0) ?? 0;
+    state.research.savedKey = null;
+    state.research.savedProgress = 0;
     const gs = getGS('lab');
     gs.packAcc = 0;
     gs.starved = false;
@@ -1734,14 +1735,16 @@ function revealChunk() {
   state.chunksRevealed = (state.chunksRevealed ?? 0) + 1;
 
   // Chest drops: guaranteed common on 10th chunk, random thereafter
-  if (state.chunksRevealed === 10) {
-    state.chests.common++;
+  if (!state.chestFinds) state.chestFinds = { common: [], rare: [], legendary: [] };
+  const _ci = state.chunksRevealed;
+  if (_ci === 10) {
+    state.chestFinds.common.push(_ci);
     notify('📦 Found a Common Chest! (guaranteed first chest)', 'info');
   } else {
     const chestRoll = Math.random();
-    if      (chestRoll < 1/1000) { state.chests.legendary++; notify('🟡 Found a Legendary Chest!', 'success'); }
-    else if (chestRoll < 1/500)  { state.chests.rare++;      notify('🟣 Found a Rare Chest!', 'info'); }
-    else if (chestRoll < 1/100)  { state.chests.common++;    notify('📦 Found a Common Chest!', 'info'); }
+    if      (chestRoll < 1/1000) { state.chestFinds.legendary.push(_ci); notify('🟡 Found a Legendary Chest!', 'success'); }
+    else if (chestRoll < 1/500)  { state.chestFinds.rare.push(_ci);      notify('🟣 Found a Rare Chest!', 'info'); }
+    else if (chestRoll < 1/100)  { state.chestFinds.common.push(_ci);    notify('📦 Found a Common Chest!', 'info'); }
   }
 
   const mult = DENSITY_MULT[state.settings.density] ?? 1.0;
@@ -2692,22 +2695,43 @@ function tick() {
       // Artillery fires continuously between waves (not during active wave resolution)
       const artCount = state.perimeter?.artillery ?? 0;
       if (artCount > 0 && !state.activeWave) {
-        state.artilleryShellAcc = (state.artilleryShellAcc ?? 0) + artCount * dt / ARTILLERY_FIRE_RATE;
-        const shellsFired = Math.floor(state.artilleryShellAcc);
-        if (shellsFired > 0) {
-          state.artilleryShellAcc -= shellsFired;
-          const artDmgPerShell = ARTILLERY_BASE_DAMAGE * artilleryDamageMult(state.perimeter.artilleryDamageLevel ?? 0);
-          const shellsAvail = state.inventory.artilleryShell ?? 0;
-          const shellsUsed  = Math.min(shellsFired, shellsAvail);
-          if (shellsUsed > 0) {
-            recordConsumed('artilleryShell', shellsUsed);
-            state.artilleryAccumDamage = (state.artilleryAccumDamage ?? 0) + shellsUsed * artDmgPerShell;
+        const waveStats = getBiterWaveStats();
+        const waveHP    = waveStats.count * waveStats.hp;
+        const waveDead  = (state.artilleryAccumDamage ?? 0) >= waveHP;
+        if (!waveDead && !state.settings?.artilleryPaused) {
+          state.artilleryShellAcc = (state.artilleryShellAcc ?? 0) + artCount * dt / ARTILLERY_FIRE_RATE;
+          const shellsFired = Math.floor(state.artilleryShellAcc);
+          if (shellsFired > 0) {
+            state.artilleryShellAcc -= shellsFired;
+            const artDmgPerShell = ARTILLERY_BASE_DAMAGE * artilleryDamageMult(state.perimeter.artilleryDamageLevel ?? 0);
+            const shellsAvail = state.inventory.artilleryShell ?? 0;
+            const shellsUsed  = Math.min(shellsFired, shellsAvail);
+            if (shellsUsed > 0) {
+              recordConsumed('artilleryShell', shellsUsed);
+              state.artilleryAccumDamage = (state.artilleryAccumDamage ?? 0) + shellsUsed * artDmgPerShell;
+            }
           }
+        }
+        // Detect when accumulated damage first crosses the kill threshold
+        if ((state.artilleryAccumDamage ?? 0) >= waveHP && !state.waveKilledByArtillery) {
+          state.waveKilledByArtillery = true;
+          if (state.settings?.autoSendArtilleryKill) {
+            skipToNextBiterWave();
+          }
+          lastPerimeterHtml = '';
         }
       }
 
       // Tick any in-progress wave simulation
       if (state.activeWave) tickActiveWave(dt);
+
+      // Refresh wave outcome preview every 20s (pure sim, no side effects)
+      _waveSimAge += dt;
+      if (_waveSimAge >= 20) {
+        _waveSimCache = simulateNextWaveOutcome();
+        _waveSimAge   = 0;
+        lastPerimeterHtml = '';  // force re-render with new sim result
+      }
 
       state.biterTimer += dt;
       const interval = biterInterval();
@@ -2731,16 +2755,48 @@ function tick() {
     return; // stop further processing this tick
   }
 
-  // Tutorial goal advancement
+  // Tutorial goal advancement — advance all at once if player completed multiple goals
   if (state.settings.tutorialEnabled && state.tutorial) {
-    const goal = TUTORIAL_GOALS[state.tutorial.goalIndex];
-    if (goal?.check(state)) {
-      state.tutorial.goalIndex = Math.min(state.tutorial.goalIndex + 1, TUTORIAL_GOALS.length);
+    while (state.tutorial.goalIndex < TUTORIAL_GOALS.length) {
+      const goal = TUTORIAL_GOALS[state.tutorial.goalIndex];
+      if (!goal?.check(state)) break;
+      state.tutorial.goalIndex++;
+      notify(`🎯 Goal complete! Next: ${TUTORIAL_GOALS[state.tutorial.goalIndex]?.text ?? 'All goals done!'}`, 'info');
     }
   }
 
+  // Auto-open chests if setting is on
+  tickAutoOpenChests();
+
   _lastTickTime = Date.now();
   _p1('tick_total', _tTick);
+}
+
+// Opens all chests of a tier automatically (silently drains; notifications already fire per-chest)
+function tickAutoOpenChests() {
+  const s = state.settings;
+  if (!s) return;
+  const tiers = [];
+  if (s.autoOpenCommon && chestAvailCount('common') > 0) tiers.push('common');
+  if (s.autoOpenRare   && chestAvailCount('rare')   > 0) tiers.push('rare');
+  for (const tier of tiers) {
+    while (chestAvailCount(tier) > 0) {
+      const eligible = getEligibleRewards(tier);
+      if (eligible.length === 0) break;
+      const shuffled = eligible.slice().sort(() => Math.random() - 0.5);
+      const choices  = shuffled.slice(0, Math.min(3, shuffled.length));
+      const highPrio = state.chestHighPriority ?? [];
+      const hiMatches = choices.filter(r => highPrio.includes(r.id));
+      const pick = hiMatches.length > 0
+        ? hiMatches[Math.floor(Math.random() * hiMatches.length)]
+        : choices[0];
+      const tierLabel = tier === 'rare' ? '🟣 Rare' : '📦 Common';
+      notify(`${tierLabel} chest auto-opened: ${pick.name} (Level ${(state.chestUpgrades?.[pick.id] ?? 0) + 1})`, 'info');
+      popAvailChest(tier);
+      state.chestUpgrades[pick.id] = (state.chestUpgrades[pick.id] ?? 0) + 1;
+      _chestSectionHtml = '';
+    }
+  }
 }
 
 // ── Render Loop (decoupled from simulation tick) ──────────────
@@ -3307,6 +3363,36 @@ let _chestSectionHtml      = '';
 let _chestSectionWired     = false;
 let _chestModalWired       = false;
 
+let _waveSimCache    = null;  // cached result of simulateNextWaveOutcome()
+let _waveSimAge      = 999;   // seconds since last sim; force immediate run on first tick
+
+function _maxChestChunk() {
+  return Math.pow(state.perimeter?.sideLength ?? 14, 2);
+}
+function chestAvailCount(tier) {
+  const max = _maxChestChunk();
+  return (state.chestFinds?.[tier] ?? []).filter(ci => ci < max).length;
+}
+function chestLockedCount(tier) {
+  const max = _maxChestChunk();
+  return (state.chestFinds?.[tier] ?? []).filter(ci => ci >= max).length;
+}
+function chestNextUnlockSideLen(tier) {
+  const max = _maxChestChunk();
+  const locked = (state.chestFinds?.[tier] ?? []).filter(ci => ci >= max);
+  if (!locked.length) return null;
+  return Math.floor(Math.sqrt(Math.min(...locked))) + 1;
+}
+function popAvailChest(tier) {
+  const max = _maxChestChunk();
+  const finds = state.chestFinds?.[tier];
+  if (!finds) return false;
+  const idx = finds.findIndex(ci => ci < max);
+  if (idx === -1) return false;
+  finds.splice(idx, 1);
+  return true;
+}
+
 function getEligibleRewards(tier) {
   const pool = CHEST_REWARDS[tier] ?? [];
   const upgrades = state.chestUpgrades ?? {};
@@ -3314,11 +3400,10 @@ function getEligibleRewards(tier) {
 }
 
 function openChest(tier, autoMode = false) {
-  const count = state.chests?.[tier] ?? 0;
-  if (count <= 0) return;
+  if (chestAvailCount(tier) <= 0) return;
 
   if (tier === 'legendary') {
-    state.chests.legendary--;
+    popAvailChest('legendary');
     notify("No legendary rewards in the demo :(", 'info');
     _chestSectionHtml = '';
     renderChestSection();
@@ -3341,6 +3426,8 @@ function openChest(tier, autoMode = false) {
     const pick      = hiMatches.length > 0
       ? hiMatches[Math.floor(Math.random() * hiMatches.length)]
       : _chestChoices[0];
+    const tierLabel = tier === 'rare' ? '🟣 Rare' : '📦 Common';
+    notify(`${tierLabel} chest auto-opened: ${pick.name} (Level ${(state.chestUpgrades?.[pick.id] ?? 0) + 1})`, 'info');
     pickChestReward(_chestChoices.indexOf(pick));
     return;
   }
@@ -3375,7 +3462,7 @@ function openChest(tier, autoMode = false) {
 function pickChestReward(idx) {
   const reward = _chestChoices[idx];
   if (!reward) return;
-  state.chests[_chestTierOpen]--;
+  popAvailChest(_chestTierOpen);
   state.chestUpgrades[reward.id] = (state.chestUpgrades[reward.id] ?? 0) + 1;
   _chestChoices  = [];
   _chestTierOpen = null;
@@ -3384,60 +3471,81 @@ function pickChestReward(idx) {
   renderChestSection();
 }
 
+
 function renderChestSection() {
   if (mouseHeld) return;
   const el = document.getElementById('chest-section');
   if (!el) return;
 
-  const chests   = state.chests   ?? { common: 0, rare: 0, legendary: 0 };
   const upgrades = state.chestUpgrades ?? {};
   const highPrio = state.chestHighPriority ?? [];
 
-  const totalChests   = chests.common + chests.rare + chests.legendary;
+  const cAvail = chestAvailCount('common');
+  const rAvail = chestAvailCount('rare');
+  const lAvail = chestAvailCount('legendary');
+  const cLocked = chestLockedCount('common');
+  const rLocked = chestLockedCount('rare');
+  const lLocked = chestLockedCount('legendary');
+  const totalChests   = cAvail + rAvail + lAvail + cLocked + rLocked + lLocked;
   const totalUpgrades = Object.values(upgrades).reduce((s, v) => s + v, 0);
   if (totalChests === 0 && totalUpgrades === 0) {
     if (_chestSectionHtml !== '') { _chestSectionHtml = ''; el.innerHTML = ''; }
     return;
   }
 
+  const autoCommon = state.settings?.autoOpenCommon ?? false;
+  const autoRare   = state.settings?.autoOpenRare   ?? false;
+  const mkLockedNote = (tier, locked) => {
+    if (locked <= 0) return '';
+    const need = chestNextUnlockSideLen(tier);
+    return `<div class="chest-locked-note">${locked} locked — next unlocks at side length ${need}</div>`;
+  };
   const chestControls = `
     <div class="chest-controls">
       <div class="chest-tier-row">
         <span class="chest-tier-label">📦 Common</span>
-        <span class="chest-count">${chests.common}</span>
-        <button class="btn-sm" data-action="open-chest" data-tier="common" ${chests.common <= 0 ? 'disabled' : ''}>Open</button>
-        <button class="btn-sm" data-action="open-chest" data-tier="common" data-auto="1" ${chests.common <= 0 ? 'disabled' : ''}>Auto Open</button>
+        <span class="chest-count">${cAvail}</span>
+        <button class="btn-sm" data-action="open-chest" data-tier="common" ${cAvail <= 0 ? 'disabled' : ''}>Open</button>
+        <button class="btn-sm${autoCommon ? ' btn-primary' : ''}" data-action="toggle-auto" data-tier="common">Auto: ${autoCommon ? 'ON' : 'OFF'}</button>
       </div>
+      ${mkLockedNote('common', cLocked)}
       <div class="chest-tier-row">
         <span class="chest-tier-label">🟣 Rare</span>
-        <span class="chest-count">${chests.rare}</span>
-        <button class="btn-sm" data-action="open-chest" data-tier="rare" ${chests.rare <= 0 ? 'disabled' : ''}>Open</button>
-        <button class="btn-sm" data-action="open-chest" data-tier="rare" data-auto="1" ${chests.rare <= 0 ? 'disabled' : ''}>Auto Open</button>
+        <span class="chest-count">${rAvail}</span>
+        <button class="btn-sm" data-action="open-chest" data-tier="rare" ${rAvail <= 0 ? 'disabled' : ''}>Open</button>
+        <button class="btn-sm${autoRare ? ' btn-primary' : ''}" data-action="toggle-auto" data-tier="rare">Auto: ${autoRare ? 'ON' : 'OFF'}</button>
       </div>
+      ${mkLockedNote('rare', rLocked)}
       <div class="chest-tier-row">
         <span class="chest-tier-label">🟡 Legendary</span>
-        <span class="chest-count">${chests.legendary}</span>
-        <button class="btn-sm" data-action="open-chest" data-tier="legendary" ${chests.legendary <= 0 ? 'disabled' : ''}>Open</button>
+        <span class="chest-count">${lAvail}</span>
+        <button class="btn-sm" data-action="open-chest" data-tier="legendary" ${lAvail <= 0 ? 'disabled' : ''}>Open</button>
       </div>
+      ${mkLockedNote('legendary', lLocked)}
     </div>`;
 
-  const allRewards = [...CHEST_REWARDS.common, ...CHEST_REWARDS.rare];
-  const visibleRewards = allRewards.filter(r => (upgrades[r.id] ?? 0) > 0 || r.eligible(state));
-  const rewardCards = visibleRewards.length === 0 ? '' : `
+  const mkRewardTierHtml = (tierRewards, tierClass) => {
+    const visible = tierRewards.filter(r => (upgrades[r.id] ?? 0) > 0 || r.eligible(state));
+    if (visible.length === 0) return '';
+    return visible.map(r => {
+      const lvl    = upgrades[r.id] ?? 0;
+      const maxed  = lvl >= r.maxLevel;
+      const isPrio = highPrio.includes(r.id);
+      return `<div class="chest-reward-card ${tierClass}${maxed ? ' maxed' : ''}">
+        <div class="chest-reward-name">${r.name}</div>
+        <div class="chest-reward-level">${lvl} / ${r.maxLevel}</div>
+        <div class="chest-reward-effect">${lvl > 0 ? r.desc(lvl) : '—'}</div>
+        ${!maxed ? `<button class="btn-sm${isPrio ? ' btn-primary' : ''}" data-action="toggle-priority" data-id="${r.id}">${isPrio ? '⭐ High Priority' : '☆ Set Priority'}</button>` : ''}
+      </div>`;
+    }).join('');
+  };
+  const commonCards = mkRewardTierHtml(CHEST_REWARDS.common, '');
+  const rareCards   = mkRewardTierHtml(CHEST_REWARDS.rare,   'rare-tier');
+  const rewardCards = (commonCards || rareCards) ? `
     <div class="chest-rewards-header">Upgrades</div>
-    <div class="chest-rewards-grid">
-      ${visibleRewards.map(r => {
-        const lvl    = upgrades[r.id] ?? 0;
-        const maxed  = lvl >= r.maxLevel;
-        const isPrio = highPrio.includes(r.id);
-        return `<div class="chest-reward-card ${maxed ? 'maxed' : ''}">
-          <div class="chest-reward-name">${r.name}</div>
-          <div class="chest-reward-level">${lvl} / ${r.maxLevel}</div>
-          <div class="chest-reward-effect">${lvl > 0 ? r.desc(lvl) : '—'}</div>
-          ${!maxed ? `<button class="btn-sm${isPrio ? ' btn-primary' : ''}" data-action="toggle-priority" data-id="${r.id}">${isPrio ? '⭐ High Priority' : '☆ Set Priority'}</button>` : ''}
-        </div>`;
-      }).join('')}
-    </div>`;
+    ${commonCards ? `<div class="chest-rewards-tier-label">📦 Common</div><div class="chest-rewards-grid">${commonCards}</div>` : ''}
+    ${rareCards   ? `<div class="chest-rewards-tier-label rare">🟣 Rare</div><div class="chest-rewards-grid">${rareCards}</div>` : ''}
+  ` : '';
 
   const newHtml = `
     <h3 class="section-label">🎁 Chests</h3>
@@ -3458,6 +3566,12 @@ function renderChestSection() {
       const action = btn.dataset.action;
       if (action === 'open-chest') {
         openChest(btn.dataset.tier, !!btn.dataset.auto);
+      } else if (action === 'toggle-auto') {
+        const tier = btn.dataset.tier;
+        if (tier === 'common') state.settings.autoOpenCommon = !state.settings.autoOpenCommon;
+        if (tier === 'rare')   state.settings.autoOpenRare   = !state.settings.autoOpenRare;
+        _chestSectionHtml = '';
+        renderChestSection();
       } else if (action === 'toggle-priority') {
         const id  = btn.dataset.id;
         const arr = state.chestHighPriority ?? [];
@@ -4709,10 +4823,9 @@ function renderRobotTechs() {
   // ── Robot Upgrades (gated behind Robotics tech) ──
   if (state.research.done?.robotics) {
     const speedLevel    = state.research.robotSpeedLevel ?? 0;
-    const cargoLevel    = state.research.robotCargoLevel ?? 0;
     const robotCount    = Math.floor(state.inventory?.constructionRobotItem ?? 0);
     const { time: placeTime, batch } = computePlaceTimeSec();
-    const effectiveness = 1 + speedLevel * WORKER_SPEED_PER_LEVEL + cargoLevel * WORKER_CARGO_PER_LEVEL;
+    const effectiveness = 1 + speedLevel * WORKER_SPEED_PER_LEVEL;
     html += `<div class="robot-tech-wrap">
     <h3 class="section-label" style="margin-top:2rem;margin-bottom:.5rem">Robot Upgrades</h3>
     <div class="robot-tech-summary">🤖 ${robotCount.toLocaleString()} construction robots · effectiveness ×${effectiveness.toFixed(2)} · place time ${placeTime.toFixed(3)}s${batch > 1 ? ` (×${batch} per cycle)` : ''}</div>`;
@@ -4754,44 +4867,6 @@ function renderRobotTechs() {
   }
   html += `</div></div>`;
 
-  // ── Worker Robot Cargo Size (3 levels) ──
-  html += `<div class="robot-tech-group">
-    <div class="robot-tech-header">
-      <span>Worker Robot Cargo Size</span>
-      <span class="robot-tech-badge">Level ${cargoLevel}/3${cargoLevel > 0 ? ` · +${(cargoLevel * WORKER_CARGO_PER_LEVEL * 100).toFixed(0)}% robot effectiveness` : ''}</span>
-    </div>`;
-
-  const cargoIsQueued = (state.research.queue ?? []).includes('robot:cargo');
-  for (let lvl = 1; lvl <= 3; lvl++) {
-    const cd = ROBOT_CARGO_TECH_DATA[lvl];
-    const done   = cargoLevel >= lvl;
-    const isNext = cargoLevel === lvl - 1;
-    const isCur  = cur === 'robot:cargo' && isNext;
-    const isQ    = cargoIsQueued && isNext;
-
-    html += `<div class="robot-tech-card ${done ? 'rcard-done' : isCur ? 'rcard-current' : isQ ? 'rcard-queued' : ''}">
-      <div class="rcard-name">Level ${lvl}</div>
-      <div class="rcard-cost">${Object.keys(cd.cost).map(pk => itemIcon(pk)).join('')} × ${cd.totalNeeded} · ${cd.timePerPack}s/pack</div>`;
-
-    if (done) {
-      html += `<div class="rcard-done-badge">✓ Done</div>`;
-    } else if (isCur) {
-      const pct = (state.research.totalConsumed / cd.totalNeeded * 100).toFixed(1);
-      html += `<div class="mini-bar" style="margin:.35rem 0"><div class="mini-fill fill-active" style="width:${pct}%"></div></div>
-        <div class="rcard-progress">${state.research.totalConsumed} / ${cd.totalNeeded} packs</div>
-        <button class="btn-secondary rcard-btn" onclick="startRobotResearch('robot:cargo')">Cancel</button>`;
-    } else if (isQ) {
-      html += `<div class="rcard-hint">Queued</div><button class="btn-secondary rcard-btn" onclick="startRobotResearch('robot:cargo')">Dequeue</button>`;
-    } else if (isNext) {
-      const cargoBtnLabel = cur ? 'Queue' : 'Research';
-      html += `<button class="btn-primary rcard-btn${labCount ? '' : ' cant-afford'}" ${labCount ? '' : 'disabled'} onclick="startRobotResearch('robot:cargo')">${cargoBtnLabel}</button>`;
-      if (!labCount) html += `<div class="rcard-hint">Requires a Lab</div>`;
-    } else if (!done) {
-      html += `<button class="btn-secondary rcard-btn" disabled>Locked</button>`;
-    }
-    html += `</div>`;
-  }
-  html += '</div>';  // close cargo robot-tech-group
   html += '</div>';  // close robot-tech-wrap
   } // end if robotics done
 
@@ -4872,7 +4947,7 @@ function perimeterMaxWalls() {
 }
 
 function perimeterMaxTurrets() {
-  return perimeterTiles() * TURRETS_PER_TILE; // 5 * 4 * sideLength
+  return perimeterTiles() * (TURRETS_PER_TILE + (state?.chestUpgrades?.turretsPerTile ?? 0));
 }
 
 function perimeterMaxArtillery() {
@@ -4955,8 +5030,75 @@ function calcDefenseDPS(waveArmor, laserRatio = 1) {
   const ammoAvail     = state.inventory[ammoType] ?? 0;
   const effectiveGuns = ammoAvail > 0 ? p.gunTurrets : 0;
   const gunDPS        = effectiveGuns * gunDpsPerTurret;
-  const laserDPS      = p.laserTurrets * LASER_DPS_PER_TURRET * laserRatio * lMult * fireRateMult * dmgMult;
-  return { gunDPS, laserDPS, totalDPS: gunDPS + laserDPS, gunDpsPerTurret, stats, effectiveDmg };
+  const laserEffectiveDmg = Math.max(0, LASER_DMG_PER_SHOT * lMult * dmgMult - waveArmor * LASER_ARMOR_MULT);
+  const laserDPS          = p.laserTurrets * LASER_SHOTS_PER_SEC * laserRatio * fireRateMult * laserEffectiveDmg;
+  return { gunDPS, laserDPS, totalDPS: gunDPS + laserDPS, gunDpsPerTurret, stats, effectiveDmg, laserEffectiveDmg };
+}
+
+// Runs the next-wave scenario as a sim (no resource use, no side effects).
+// Returns { buildingsAtRisk, wallDestroyed, survived, killTime, overflow }.
+function simulateNextWaveOutcome() {
+  if (!state?.settings?.biters) return null;
+
+  const base        = getBiterWaveStats();
+  const { totalDPS } = calcDefenseDPS(base.armor, state.powerRatio ?? 1);
+  const wallHpMult  = hasMetaPerk('perk_wall_hp') ? 1.5 : 1;
+  const totalWallHP = (state.perimeter.walls ?? 0) * WALL_HP * wallHpMult;
+  const numSections = perimeterTiles();
+  const rainbow     = hasRainbowScience();
+  let sectionsAttacked;
+  if (rainbow) {
+    sectionsAttacked = numSections;
+  } else {
+    const tier = getPlayerScienceTier();
+    const pct  = tier <= 1 ? 0.05 : tier === 2 ? 0.20 : 0.40;
+    sectionsAttacked = Math.max(1, Math.round(numSections * pct));
+  }
+
+  const totalBiterHP  = base.count * base.hp;
+  const biterTotalDPS = base.count * base.dps;
+  const wallHP        = numSections > 0 ? (totalWallHP / numSections) * sectionsAttacked : 0;
+
+  // Step the simulation forward in small increments (no resource consumption)
+  const DT = 0.1;
+  let biterHP   = totalBiterHP;
+  let wallHPrem = wallHP;
+  let overflow  = 0;
+  let time      = 0;
+  let phase     = 'grace';
+  let graceTimer = 0;
+  const maxTime = biterInterval() * 3;
+
+  while (biterHP > 0 && time < maxTime) {
+    const hpFrac = totalBiterHP > 0 ? biterHP / totalBiterHP : 0;
+    biterHP = Math.max(0, biterHP - totalDPS * DT);
+    if (phase === 'grace') {
+      graceTimer += DT;
+      if (graceTimer >= WAVE_GRACE_PERIOD) phase = 'combat';
+    } else if (phase === 'combat') {
+      const biterDPS = biterTotalDPS * hpFrac;
+      wallHPrem -= biterDPS * DT;
+      if (wallHPrem <= 0) { wallHPrem = 0; phase = 'overflow'; }
+    } else {
+      const biterDPS = biterTotalDPS * hpFrac;
+      overflow += biterDPS * DT;
+    }
+    time += DT;
+  }
+  // If biters never died (totalDPS=0), compute overflow from remaining biter DPS × time
+  if (biterHP > 0 && totalDPS <= 0 && phase === 'combat') {
+    overflow += biterTotalDPS * (maxTime - graceTimer - (wallHP / Math.max(1, biterTotalDPS)));
+    overflow = Math.max(0, overflow);
+  }
+
+  const buildingsAtRisk = overflow > 0 ? Math.max(1, Math.floor(overflow / BUILDING_TOUGHNESS)) : 0;
+  return {
+    survived: overflow <= 0,
+    buildingsAtRisk,
+    wallDestroyed: wallHPrem <= 0 && overflow >= 0,
+    overflow: Math.round(overflow),
+    killTime: biterHP <= 0 ? time.toFixed(1) : null,
+  };
 }
 
 function fightBiterWave() {
@@ -5116,6 +5258,9 @@ function tickActiveWave(dt) {
 
 function finalizeWave(w, forced) {
   state.activeWave = null;
+  if (state.settings?.autoSendInstant) {
+    state.biterTimer = biterInterval(); // triggers wave on next tick
+  }
   const p = state.perimeter;
 
   // If forced while biters still alive, estimate overflow from remaining DPS
@@ -5209,6 +5354,19 @@ function skipToNextBiterWave() {
   if (state.activeWave) finalizeWave(state.activeWave, true);
   state.waveKilledByArtillery = false;
   state.biterTimer = state.settings?.biterIntervalSecs ?? BITER_INTERVAL;
+  lastPerimeterHtml = '';
+  renderPerimeter();
+}
+
+function toggleArtilleryPause() {
+  state.settings.artilleryPaused = !state.settings.artilleryPaused;
+  lastPerimeterHtml = '';
+  renderPerimeter();
+}
+
+function toggleAutoSend(mode) {
+  if (mode === 'artilleryKill') state.settings.autoSendArtilleryKill = !state.settings.autoSendArtilleryKill;
+  if (mode === 'instant')       state.settings.autoSendInstant       = !state.settings.autoSendInstant;
   lastPerimeterHtml = '';
   renderPerimeter();
 }
@@ -5335,53 +5493,25 @@ function renderPerimeter() {
   const ammoType  = p.ammoType ?? 'firearmMagazine';
 
   // Preview defense DPS with a mid-range armor estimate for next wave
-  const { gunDPS, laserDPS, totalDPS, stats: gunStats, effectiveDmg } = calcDefenseDPS(base.armor);
+  const { gunDPS, laserDPS, totalDPS, stats: gunStats, effectiveDmg, laserEffectiveDmg } = calcDefenseDPS(base.armor);
   const totalWallHP = p.walls * WALL_HP * (hasMetaPerk('perk_wall_hp') ? 1.5 : 1);
   const nextBiterHP = base.count * base.hp;
-  const nextBiterDPS= base.count * base.dps;
 
-  // Section-based preview
-  const numSections = perimeterTiles();
+  let previewKillTime = totalDPS > 0 ? (nextBiterHP / totalDPS).toFixed(1) : '∞';
+  const numSections   = perimeterTiles();
   const rainbowActive = hasRainbowScience();
-  let previewSectionsAttacked;
-  if (rainbowActive) {
-    previewSectionsAttacked = numSections;
-  } else {
-    const tier = getPlayerScienceTier();
-    const pct  = tier <= 1 ? 0.05 : tier === 2 ? 0.10 : 0.15;
-    previewSectionsAttacked = Math.max(1, Math.round(numSections * pct));
-  }
-  const previewSectionWallHP  = numSections > 0 ? totalWallHP  / numSections : 0;
-  const previewSectionDefDPS  = numSections > 0 ? totalDPS     / numSections : 0;
-  const previewSectionBiterHP = nextBiterHP / previewSectionsAttacked;
-  const previewSectionBiterDPS= nextBiterDPS / previewSectionsAttacked;
 
-  let previewKillTime  = previewSectionDefDPS > 0 ? (previewSectionBiterHP / previewSectionDefDPS).toFixed(1) : '∞';
-
-  // Turrets fire for the full kill time, but biters only attack walls after grace period.
-  // Biter DPS also scales down proportionally as biters die, so total wall damage per section
-  // = biterDPS × R² / (2 × defDPS × maxHP), where R = HP remaining after grace.
-  const previewHPAfterGrace = previewSectionDefDPS > 0
-    ? Math.max(0, previewSectionBiterHP - previewSectionDefDPS * WAVE_GRACE_PERIOD)
-    : previewSectionBiterHP;
-  const previewWallDmgPerSection = previewSectionDefDPS > 0 && previewHPAfterGrace > 0 && previewSectionBiterHP > 0
-    ? previewSectionBiterDPS * previewHPAfterGrace * previewHPAfterGrace / (2 * previewSectionDefDPS * previewSectionBiterHP)
-    : previewSectionDefDPS <= 0
-      ? previewSectionBiterDPS * interval
-      : 0;
-  let previewDamage = (previewWallDmgPerSection * previewSectionsAttacked).toFixed(0);
-
-  // Compute total overflow for outcome
-  let previewOverflow = 0;
-  for (let s = 0; s < previewSectionsAttacked; s++) {
-    if (previewWallDmgPerSection > previewSectionWallHP) previewOverflow += previewWallDmgPerSection - previewSectionWallHP;
-  }
-  const previewBuildingsAtRisk = previewOverflow > 0 ? Math.max(1, Math.floor(previewOverflow / BUILDING_TOUGHNESS)) : 0;
-  const previewSurvive = previewOverflow <= 0
-    ? '✅ Walls hold'
-    : (totalDPS <= 0
-      ? `❌ ${previewBuildingsAtRisk} building(s) at risk`
-      : `⚠ ${previewBuildingsAtRisk} building(s) at risk`);
+  // Use cached wave simulation result for outcome prediction (updated every 20s by game tick)
+  const sim = _waveSimCache;
+  const previewBuildingsAtRisk = sim?.buildingsAtRisk ?? 0;
+  const previewDamage          = sim?.overflow ?? 0;
+  const previewSurvive         = !sim
+    ? '⏳ Calculating…'
+    : sim.survived
+      ? '✅ Walls hold'
+      : (totalDPS <= 0
+          ? `❌ ${previewBuildingsAtRisk} building(s) at risk`
+          : `⚠ ${previewBuildingsAtRisk} building(s) at risk`);
 
   const ammoOptions = [
     { key: 'firearmMagazine',   label: 'Firearm Magazine',          dps: GUN_DPS_BASIC    },
@@ -5401,25 +5531,35 @@ function renderPerimeter() {
   const artRangeLevel    = p.artilleryRangeLevel ?? 0;
   const artDmgLevel      = p.artilleryDamageLevel ?? 0;
   const artDmgPerPiece   = ARTILLERY_BASE_DAMAGE * artilleryDamageMult(artDmgLevel);
+  const artAccumDmg      = state.artilleryAccumDamage ?? 0;
+  const timeUntilWave    = Math.max(0, interval - (state.biterTimer ?? 0));
+  const artFutureShells  = (p.artillery ?? 0) > 0
+    ? Math.min(
+        Math.floor(timeUntilWave / ARTILLERY_FIRE_RATE) * (p.artillery ?? 0),
+        state.inventory.artilleryShell ?? 0
+      )
+    : 0;
+  const artFutureDmg     = artFutureShells * artDmgPerPiece;
+  const artTotalDmg      = artAccumDmg + artFutureDmg;
+  const hpAfterArt       = Math.max(0, nextBiterHP - artTotalDmg);
   const artShellsPerTurret = Math.floor(biterInterval() / ARTILLERY_FIRE_RATE);
   const artShellsPerWave   = (p.artillery ?? 0) * artShellsPerTurret;
-  const artPreviewDmg      = artShellsPerWave * artDmgPerPiece;
 
   // Spidertron computed values
   const availBombs       = (p.spidertrons ?? 0) * ATOMIC_BOMBS_PER_SPIDER;
 
-  // Ammo/power estimates for wave prediction.
-  // Kill time for display (per-section) vs. actual sim kill time (all turrets vs. all HP lumped together).
-  const previewKillTimeSec    = previewSectionDefDPS > 0 ? previewSectionBiterHP / previewSectionDefDPS : null;
-  const actualKillTimeSec     = totalDPS > 0 ? nextBiterHP / totalDPS : null;  // matches tickActiveWave
+  // Ammo/power estimates for wave prediction using simulated kill time
+  const actualKillTimeSec     = totalDPS > 0 ? nextBiterHP / totalDPS : null;
+  const simKillTimeSec        = sim?.killTime != null ? parseFloat(sim.killTime) : actualKillTimeSec;
   const fireRateMult          = 1 + (state.chestUpgrades?.turretFireRate ?? 0) * 0.01;
+  const dmgMult               = 1 + (state.chestUpgrades?.turretDamage   ?? 0) * 0.01;
   const previewAmmoEst        = actualKillTimeSec != null ? Math.ceil(p.gunTurrets * (gunStats?.shotsPerSec ?? 5) * fireRateMult * actualKillTimeSec / MAGAZINE_SIZE) : null;
-  const laserTotalKj       = p.laserTurrets > 0 && previewKillTimeSec != null
-    ? p.laserTurrets * LASER_KW_PER_TURRET * previewKillTimeSec
+  const laserTotalKj       = p.laserTurrets > 0 && simKillTimeSec != null
+    ? p.laserTurrets * LASER_KW_PER_TURRET * simKillTimeSec
     : null;
   const previewGridSurplus = Math.max(0, (state.powerKw ?? 0) - (state.powerDemandKw ?? 0));
   const laserEnergyPerWave = laserTotalKj != null
-    ? Math.max(0, Math.round(laserTotalKj - previewGridSurplus * previewKillTimeSec))
+    ? Math.max(0, Math.round(laserTotalKj - previewGridSurplus * simKillTimeSec))
     : null;
 
   const concreteCost = (2 * p.sideLength + 1) * 10;
@@ -5475,11 +5615,12 @@ function renderPerimeter() {
       <span>Placed</span><strong>${p.gunTurrets} (${maxTurrets - p.gunTurrets - p.laserTurrets} remaining in shared pool)</strong>
     </div>
     <div class="perimeter-stat-row">
-      <span>Shots/sec</span><strong>${sps}</strong>
+      <span>Shots/sec</span><strong>${(sps * fireRateMult).toFixed(2)}</strong>
     </div>
     <div class="perimeter-stat-row">
       <span>Dmg/shot</span><strong>${baseDmg.toFixed(1)}${armMult > 0 ? ` − ${base.armor} armor = ${effectiveDmg.toFixed(1)}` : ' (ignores armor)'}</strong>
     </div>
+    ${rainbowActive && (state.research?.gunDamageLevel ?? 0) > 6 ? `<div class="perimeter-stat-row"><span>Dmg upgrade bonus</span><strong>+70% per level (rainbow)</strong></div>` : ''}
     <div class="perimeter-stat-row">
       <span>Total DPS</span><strong>${gunDPS.toFixed(1)}</strong>
     </div>
@@ -5496,7 +5637,7 @@ function renderPerimeter() {
     <div style="margin-top:.5rem">
       <label class="perimeter-label">Ammo type:</label>
       <select class="perimeter-select" onchange="setPerimeterAmmo(this.value)">
-        ${ammoOptions.map(o => `<option value="${o.key}" ${ammoType === o.key ? 'selected' : ''}>${o.label} (${o.dps} base dps)</option>`).join('')}
+        ${ammoOptions.map(o => `<option value="${o.key}" ${ammoType === o.key ? 'selected' : ''}>${o.label}</option>`).join('')}
       </select>
       <div class="perimeter-stat-row" style="margin-top:.25rem">
         <span>Ammo in inv</span><strong>${Math.floor(state.inventory[ammoType] ?? 0)}</strong>
@@ -5504,14 +5645,23 @@ function renderPerimeter() {
     </div>
   </div>
 
-  ${!!state.research?.done?.laserTurretTech ? `<div class="perimeter-card">
+  ${!!state.research?.done?.laserTurretTech ? (() => {
+    const laserDamageLevel = state.research?.laserDamageLevel ?? 0;
+    return `<div class="perimeter-card">
     <div class="perimeter-card-title">⚡ Laser Turrets</div>
     <div class="perimeter-stat-row">
       <span>Placed</span><strong>${p.laserTurrets} (${maxTurrets - p.gunTurrets - p.laserTurrets} remaining in shared pool)</strong>
     </div>
     <div class="perimeter-stat-row">
-      <span>Damage type</span><strong>Continuous beam (ignores armor)</strong>
+      <span>Base dmg/shot</span><strong>${(LASER_DMG_PER_SHOT * lMult * dmgMult).toFixed(1)} − ${base.armor}×${LASER_ARMOR_MULT} = ${laserEffectiveDmg.toFixed(1)}</strong>
     </div>
+    <div class="perimeter-stat-row">
+      <span>Shots/sec</span><strong>${(LASER_SHOTS_PER_SEC * fireRateMult).toFixed(2)}</strong>
+    </div>
+    <div class="perimeter-stat-row">
+      <span>DPS/turret</span><strong>${(laserEffectiveDmg * LASER_SHOTS_PER_SEC * fireRateMult).toFixed(1)}</strong>
+    </div>
+    ${rainbowActive && laserDamageLevel > 6 ? `<div class="perimeter-stat-row"><span>Dmg upgrade bonus</span><strong>+70% per level (rainbow)</strong></div>` : ''}
     <div class="perimeter-stat-row">
       <span>Total DPS</span><strong>${laserDPS.toFixed(1)} (${Math.round((state.powerRatio ?? 1) * 100)}% power)</strong>
     </div>
@@ -5525,9 +5675,14 @@ function renderPerimeter() {
       <button class="btn-sm btn-danger-sm" onclick="removePerimeterDefense('laserTurrets',1)">−1</button>
       <button class="btn-sm btn-danger-sm" onclick="removePerimeterDefense('laserTurrets',5)">−5</button>
     </div>
-  </div>` : ''}
+  </div>`;
+  })() : ''}
 
-  ${!!state.research?.done?.artillery ? `<div class="perimeter-card">
+  ${!!state.research?.done?.artillery ? (() => {
+    const artPaused   = state.settings?.artilleryPaused      ?? false;
+    const autoArtKill = state.settings?.autoSendArtilleryKill ?? false;
+    const autoInstant = state.settings?.autoSendInstant       ?? false;
+    return `<div class="perimeter-card">
     <div class="perimeter-card-title">💣 Artillery Turrets</div>
     <div class="perimeter-stat-row">
       <span>Placed / Max</span><strong>${p.artillery ?? 0} / ${maxArtillery}</strong>
@@ -5539,10 +5694,16 @@ function renderPerimeter() {
       <span>Fire rate</span><strong>1 shell / ${ARTILLERY_FIRE_RATE}s per turret</strong>
     </div>
     <div class="perimeter-stat-row">
-      <span>Shells per wave</span><strong>${artShellsPerWave} (${artShellsPerTurret}/turret)</strong>
+      <span>Shells per wave (max)</span><strong>${artShellsPerWave} (${artShellsPerTurret}/turret)</strong>
     </div>
     <div class="perimeter-stat-row">
-      <span>Pre-wave damage</span><strong>~${artPreviewDmg.toLocaleString()} vs ${nextBiterHP.toLocaleString()} HP${artPreviewDmg >= nextBiterHP ? ' ✅ kills wave' : ''}</strong>
+      <span>Art. accumulated</span><strong>${artAccumDmg.toLocaleString()} dmg${artAccumDmg >= nextBiterHP ? ' ✅ wave dead' : ''}</strong>
+    </div>
+    <div class="perimeter-stat-row">
+      <span>Art. projected add</span><strong>~${artFutureDmg.toLocaleString()} (${artFutureShells} more shells)</strong>
+    </div>
+    <div class="perimeter-stat-row">
+      <span>HP when wave arrives</span><strong>${hpAfterArt.toLocaleString()}${hpAfterArt === 0 ? ' ✅ kills wave' : ` (${Math.round(hpAfterArt / nextBiterHP * 100)}% remaining)`}</strong>
     </div>
     <div class="perimeter-stat-row">
       <span>Range level</span><strong>${artRangeLevel}</strong>
@@ -5562,11 +5723,18 @@ function renderPerimeter() {
       <button class="btn-sm" onclick="addPerimeterDefense('artillery',999999)">Max</button>
       <button class="btn-sm btn-danger-sm" onclick="removePerimeterDefense('artillery',1)">−1</button>
       <button class="btn-sm btn-danger-sm" onclick="removePerimeterDefense('artillery',5)">−5</button>
+      <button class="btn-sm${artPaused ? ' btn-danger-sm' : ''}" onclick="toggleArtilleryPause()">${artPaused ? '⏸ Paused' : '▶ Firing'}</button>
+    </div>
+    <div class="perimeter-btn-row" style="margin-top:.35rem">
+      <button class="btn-sm${autoArtKill ? ' btn-primary' : ''}" onclick="toggleAutoSend('artilleryKill')">Auto: Art. Kill</button>
+      <button class="btn-sm${autoInstant ? ' btn-primary' : ''}" onclick="toggleAutoSend('instant')">Auto: After Combat</button>
+      ${!state.activeWave && state.biterActivated ? `<button class="btn-sm" style="color:var(--green)" onclick="skipToNextBiterWave()">▶ Send Wave Now</button>` : ''}
     </div>
     <div style="margin-top:.5rem;font-size:.8rem;color:var(--text-muted)">
       Research: Artillery Range Lvl ${artRangeLevel + 1} · Artillery Damage Lvl ${artDmgLevel + 1}
     </div>
-  </div>` : ''}
+  </div>`;
+  })() : ''}
 
   ${!!state.research?.done?.spidertron ? `<div class="perimeter-card">
     <div class="perimeter-card-title">🕷️ Spidertrons</div>
@@ -5627,6 +5795,7 @@ function renderPerimeter() {
       p.ammoType ?? 'firearmMagazine',
       p.walls,
       Math.round((state.powerRatio ?? 1) * 20),
+      Math.floor(artAccumDmg),
     ].join('|');
     if (wph !== lastWavePreviewHash) {
       lastWavePreviewHash = wph;
@@ -5659,27 +5828,20 @@ function renderPerimeter() {
           <span>Threat level</span><strong>${(state.biterThreatPoints ?? 0).toFixed(1)} pts${rainbowActive ? ' (exponential)' : ''}</strong>
         </div>
         <div class="wave-stat-compact">
-          <span>Sections attacked</span><strong>${previewSectionsAttacked} / ${numSections}${rainbowActive ? ' (all)' : ''}</strong>
+          <span>Biter HP pool</span><strong>~${Math.max(0, nextBiterHP - artAccumDmg).toLocaleString()}${artAccumDmg > 0 ? ` (of ${nextBiterHP.toLocaleString()})` : ''}</strong>
         </div>
         <div class="wave-stat-compact">
-          <span>HP / section</span><strong>~${Math.round(previewSectionBiterHP).toLocaleString()}</strong>
+          <span>Total DPS</span><strong>${totalDPS.toFixed(1)}</strong>
         </div>
         <div class="wave-stat-compact">
-          <span>Def DPS / section</span><strong>${previewSectionDefDPS.toFixed(1)}</strong>
-        </div>
-        <div class="wave-stat-compact">
-          <span>Biter HP pool</span><strong>~${nextBiterHP.toLocaleString()}</strong>
-        </div>
-        <div class="wave-stat-compact">
-          <span>Est. kill time</span><strong>${previewKillTime}s</strong>
+          <span>Est. kill time</span><strong>${sim?.killTime != null ? sim.killTime + 's (sim)' : previewKillTime + 's'}</strong>
         </div>
         <div class="wave-stat-compact">
           <span>Est. biter dmg</span><strong>~${parseFloat(previewDamage).toLocaleString()} · Wall: ${totalWallHP.toLocaleString()}</strong>
         </div>
         ${previewAmmoEst != null ? `<div class="wave-stat-compact"><span>Est. ammo used</span><strong>${previewAmmoEst.toLocaleString()} × ${ITEMS[ammoType]?.name ?? ammoType}</strong></div>` : ''}
         ${laserEnergyPerWave != null ? `<div class="wave-stat-compact"><span>Est. laser energy</span><strong>${(laserEnergyPerWave / 1000).toFixed(1)} MJ</strong></div>` : ''}
-        ${artPreviewDmg > 0 ? `<div class="wave-stat-compact"><span>Artillery pre-dmg</span><strong>~${artPreviewDmg.toLocaleString()} (${artShellsPerWave} shells) · ${artPreviewDmg >= nextBiterHP ? '✅ kills wave' : Math.round(artPreviewDmg / nextBiterHP * 100) + '%'}</strong></div>` : ''}
-        <div class="perimeter-outcome ${previewOverflow > 0 && totalDPS <= 0 ? 'perimeter-outcome-danger' : previewOverflow > 0 ? 'perimeter-outcome-warn' : 'perimeter-outcome-ok'}">${previewSurvive}</div>
+        <div class="perimeter-outcome ${sim && !sim.survived && totalDPS <= 0 ? 'perimeter-outcome-danger' : sim && !sim.survived ? 'perimeter-outcome-warn' : 'perimeter-outcome-ok'}">${previewSurvive}</div>
       </div>
       <div class="wave-preview-enemy">
         <div class="wanted-dead-label">Wanted Dead</div>
@@ -5730,6 +5892,7 @@ function renderPerimeter() {
     ${(lastWave.artShellsUsed ?? 0) > 0 ? `<div class="perimeter-stat-row"><span>Artillery shells used</span><strong>${lastWave.artShellsUsed} (${Math.round(lastWave.artPreDamage ?? 0).toLocaleString()} dmg${lastWave.artKilled ? ' — killed wave' : ''})</strong></div>` : ''}
     ${(lastWave.bombsUsed ?? 0) > 0 ? `<div class="perimeter-stat-row"><span>Atomic bombs used</span><strong>${lastWave.bombsUsed}</strong></div>` : ''}
   </div>` : ''}
+
 
 </div>`;
   if (html === lastPerimeterHtml) return;
@@ -6151,6 +6314,82 @@ function updatePlaceButtonStates() {
     const tech = card.dataset.requiresTech;
     card.classList.toggle('hidden', !(state.research.done[tech] ?? false));
   });
+  // Show Electric tab on drill combo card when research done
+  const elecTab = document.getElementById('drill-tab-electric');
+  if (elecTab) elecTab.style.display = state.research?.done?.electricMiningDrill ? '' : 'none';
+  // Show Mk2/Mk3 tabs on assembler combo card when research done
+  const mk2Tab = document.getElementById('asm-tab-assembly2');
+  const mk3Tab = document.getElementById('asm-tab-assembly3');
+  if (mk2Tab) mk2Tab.style.display = state.research?.done?.automation2 ? '' : 'none';
+  if (mk3Tab) mk3Tab.style.display = state.research?.done?.automation3 ? '' : 'none';
+}
+
+// ── Place Tab: collapsible sections, combined drill/assembler cards ──────
+
+const _collapsedSections = {};
+let _drillTab    = 'miner';
+let _assemblyTab = 'assembly';
+
+function toggleBuildSection(id) {
+  _collapsedSections[id] = !_collapsedSections[id];
+  const body  = document.getElementById('build-section-' + id);
+  const arrow = document.getElementById('build-arrow-' + id);
+  if (body)  body.style.display  = _collapsedSections[id] ? 'none' : '';
+  if (arrow) arrow.textContent   = _collapsedSections[id] ? '▶' : '▼';
+}
+
+function setDrillTab(type) {
+  _drillTab = type;
+  renderDrillCard();
+  document.querySelectorAll('.drill-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.type === type));
+}
+
+function setAssemblyTab(type) {
+  _assemblyTab = type;
+  renderAssemblyCard();
+  document.querySelectorAll('.asm-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.type === type));
+}
+
+function renderDrillCard() {
+  const el = document.getElementById('drill-card-content');
+  if (!el) return;
+  const type = _drillTab;
+  const stats = type === 'miner'
+    ? `<p>Mines at 0.25/sec · requires coal to operate</p><p class="card-cost">Cost: 1 × Burner Mining Drill</p>`
+    : `<p>Mines at 0.5/sec · 90 kW · no coal needed</p><p class="card-cost">Cost: 1 × Electric Mining Drill</p>`;
+  const ptype = type === 'miner' ? 'miner' : 'electricMiner';
+  el.innerHTML = `${stats}
+    <div class="recipe-picker-host" data-ptype="${ptype}"></div>
+    <div class="place-row">
+      <input type="number" class="place-count" min="1" value="1">
+      <button class="btn-place" data-type="${type}" onclick="placeBuilding('${type}',this,event)">Place</button>
+    </div>`;
+  renderAllPlacementPickers();
+  updatePlaceButtonStates();
+}
+
+function renderAssemblyCard() {
+  const el = document.getElementById('asm-card-content');
+  if (!el) return;
+  // Fall back to highest unlocked type if current tab not researched
+  const done = state.research?.done ?? {};
+  if (_assemblyTab === 'assembly3' && !done.automation3) _assemblyTab = done.automation2 ? 'assembly2' : 'assembly';
+  if (_assemblyTab === 'assembly2' && !done.automation2) _assemblyTab = 'assembly';
+  const type = _assemblyTab;
+  const statsMap = {
+    assembly:  `<p>Auto-crafts intermediate and building items · 75 kW · speed ×0.5</p><p class="card-cost">Cost: 1 × Assembly Machine Mk1</p>`,
+    assembly2: `<p>Auto-crafts items · 150 kW · speed ×0.75</p><p class="card-cost">Cost: 1 × Assembly Machine Mk2</p>`,
+    assembly3: `<p>Auto-crafts items · 375 kW · speed ×1.25</p><p class="card-cost">Cost: 1 × Assembly Machine Mk3</p>`,
+  };
+  el.innerHTML = `${statsMap[type]}
+    <input class="picker-search" type="text" placeholder="Search recipes…" oninput="onPickerSearch('${type}', this.value)">
+    <div class="recipe-picker-host" data-ptype="${type}"></div>
+    <div class="place-row">
+      <input type="number" class="place-count" min="1" value="1">
+      <button class="btn-place" data-type="${type}" onclick="placeBuilding('${type}',this,event)">Place</button>
+    </div>`;
+  renderAllPlacementPickers();
+  updatePlaceButtonStates();
 }
 
 // ── Scripting Engine — see script.js ─────────────────────────
@@ -6170,10 +6409,10 @@ function closeNewGameModal() { document.getElementById('new-game-modal').classLi
 function startNewGame() {
   const biters = document.getElementById('biters-toggle').checked;
   const biterIntervalSecs = parseInt(document.getElementById('wave-interval-select')?.value ?? '120', 10) || 120;
-  let biterDifficultyMult = 1;
-  if      (selectedDifficulty === 'easy')   biterDifficultyMult = 0.5;
-  else if (selectedDifficulty === 'hard')   biterDifficultyMult = 2;
-  else if (selectedDifficulty === 'custom') biterDifficultyMult = parseFloat(document.getElementById('biter-custom-mult-input')?.value) || 1;
+  let biterDifficultyMult = 0.5;  // normal
+  if      (selectedDifficulty === 'easy')   biterDifficultyMult = 0.25;
+  else if (selectedDifficulty === 'hard')   biterDifficultyMult = 1.0;
+  else if (selectedDifficulty === 'custom') biterDifficultyMult = parseFloat(document.getElementById('biter-custom-mult-input')?.value) || 0.5;
   const metaProgEnabled  = document.getElementById('meta-prog-toggle')?.checked ?? true;
   const tutorialEnabled  = document.getElementById('tutorial-toggle')?.checked ?? true;
   state = createState({ density: 'medium', biters, biterIntervalSecs, biterDifficultyMult, metaProgEnabled, tutorialEnabled });
@@ -6729,6 +6968,16 @@ const BUILDING_MAP_CATEGORIES = {
     slotImgs: Array(4).fill('data/icon_imgs/rocket_silo.jpg'),
     defaults: [{ col: 6, row: 11 }, { col: 7, row: 11 }, { col: 8, row: 11 }, { col: 9, row: 11 }],
   },
+  hub: {
+    label: '🏗️ Construction Hub',
+    types: [],
+    isHub: true,
+    color: '#3a5a3a',
+    slotImgs: ['data/icon_imgs/construction_robot.png'],
+    defaults: [{ col: 3, row: 4 }],
+    getSlotCount: () => (state?.research?.done?.logistics ? 1 : 0),
+    getRecipes: () => [],
+  },
 };
 
 const CONCRETE_TILES = [
@@ -6875,7 +7124,9 @@ function _drawAttackOverlay(ctx, S) {
   const attackColor = rainbowActive ? null :
                       sciTier <= 1 ? 'rgba(255,60,60,0.9)' :
                       sciTier === 2 ? 'rgba(60,220,60,0.9)' :
-                      'rgba(60,120,255,0.9)';
+                      sciTier === 3 ? 'rgba(60,120,255,0.9)' :
+                      sciTier === 4 ? 'rgba(180,60,220,0.9)' :
+                      'rgba(220,180,40,0.9)';  // tier 5: yellow science
 
   const rng      = _seededRand(state.biterWaveNumber ?? 0);
   const shuffled = [...outerTiles];
@@ -6920,6 +7171,8 @@ function _totalOfCategory(catKey) {
 }
 
 function _slotCount(catKey) {
+  const cat = BUILDING_MAP_CATEGORIES[catKey];
+  if (cat?.getSlotCount) return cat.getSlotCount();
   const n = _totalOfCategory(catKey);
   for (let i = BUILDING_MAP_MILESTONES.length - 1; i >= 0; i--)
     if (n >= BUILDING_MAP_MILESTONES[i]) return i + 1;
@@ -7143,16 +7396,115 @@ function closeOrePatchPopup() {
 
 // ── Building popup ────────────────────────────────────────────────────────────
 
+let _hubViewMode = 'aggregate'; // 'aggregate' | 'full'
+let _hubPopupWired = false;
+
 function openBuildingPopup(catKey) {
   _bldPopupCat = catKey;
   _bldPopupRecipeIdx = 0;
+  if (BUILDING_MAP_CATEGORIES[catKey]?.isHub) { _refreshHubPopup(); return; }
   _refreshBuildingPopup();
 }
+
+function _queueItemLabel(item) {
+  const BLDG_NAMES = {
+    miner: 'Burner Drill', electricMiner: 'Electric Drill',
+    furnace: 'Furnace', steelFurnace: 'Steel Furnace', electricFurnace: 'Electric Furnace',
+    assembly: 'Assembler Mk1', assembly2: 'Assembler Mk2', assembly3: 'Assembler Mk3',
+    chemicalPlant: 'Chem Plant', oilRefinery: 'Oil Refinery',
+    centrifuge: 'Centrifuge', rocketSilo: 'Rocket Silo',
+    lab: 'Lab', radar: 'Radar',
+    boiler: 'Boiler', steamEngine: 'Steam Engine', offshore: 'Offshore Pump',
+    solar: 'Solar Panel', accumulator: 'Accumulator',
+    nuclearReactor: 'Nuclear Reactor', heatExchanger: 'Heat Exchanger', steamTurbine: 'Steam Turbine',
+  };
+  const typeName = BLDG_NAMES[item.type] ?? item.type;
+  const recipeObj = item.recipe
+    ? (PLAYER_RECIPES?.[item.recipe] ?? FURNACE_RECIPES?.[item.recipe])
+    : null;
+  const detail = item.recipe   ? (recipeObj?.name ?? ITEMS[item.recipe]?.name ?? item.recipe)
+               : item.resource ? (ITEMS[item.resource]?.name ?? item.resource)
+               : '';
+  return detail ? `${typeName} – ${detail}` : typeName;
+}
+
+function _refreshHubPopup() {
+  const popup = document.getElementById('building-popup');
+  if (!popup) return;
+
+  popup.querySelector('.bld-popup-title').textContent = '🏗️ Construction Hub';
+  const nav = popup.querySelector('.bld-popup-nav');
+  if (nav) nav.style.display = 'none';
+
+  const { time: hubTime, batch: hubBatch } = computePlaceTimeSec();
+  const live = placeQueue.slice(_placeHead);
+
+  let queueHtml;
+  if (_hubViewMode === 'aggregate') {
+    const groups = {};
+    for (const it of live) {
+      const k = it.type + ':' + (it.recipe ?? it.resource ?? '');
+      if (!groups[k]) groups[k] = { label: _queueItemLabel(it), count: 0 };
+      groups[k].count += it.count;
+    }
+    const rows = Object.values(groups).map(g => `<div class="bld-popup-row"><span>${g.label}</span><strong>×${g.count}</strong></div>`).join('');
+    queueHtml = rows || '<div class="bld-popup-row" style="color:var(--dim)">Queue empty</div>';
+  } else {
+    queueHtml = live.length
+      ? live.map(it => `<div class="bld-popup-row"><span>${_queueItemLabel(it)}</span><strong>×${it.count}</strong></div>`).join('')
+      : '<div class="bld-popup-row" style="color:var(--dim)">Queue empty</div>';
+  }
+
+  const statsEl = popup.querySelector('.bld-popup-stats');
+  statsEl.innerHTML = `
+    <div class="bld-popup-row"><span>Place time</span><strong>${hubTime.toFixed(2)}s</strong></div>
+    <div class="bld-popup-row"><span>Batch size</span><strong>${hubBatch}×</strong></div>
+    <div class="bld-popup-row"><span>Queue total</span><strong>${live.reduce((s, it) => s + it.count, 0)} buildings</strong></div>
+    <div class="hub-view-toggle">
+      <button class="btn-sm${_hubViewMode === 'aggregate' ? ' btn-primary' : ''}" data-hub-view="aggregate">Aggregate</button>
+      <button class="btn-sm${_hubViewMode === 'full' ? ' btn-primary' : ''}" data-hub-view="full">Full List</button>
+    </div>
+    <div class="hub-queue-list">${queueHtml}</div>`;
+
+  if (!_hubPopupWired) {
+    _hubPopupWired = true;
+    popup.addEventListener('click', e => {
+      const btn = e.target.closest('[data-hub-view]');
+      if (btn && _bldPopupCat === 'hub') {
+        e.stopPropagation(); // prevent document handler from seeing a detached node and closing popup
+        _hubViewMode = btn.dataset.hubView;
+        _refreshHubPopup();
+      }
+    });
+  }
+
+  // Position popup near hub tile
+  const canvas = document.getElementById('base-map');
+  const wrap   = document.getElementById('base-map-wrap');
+  if (canvas && wrap) {
+    const pos = _getOrAutoplaceTile('hub', 0);
+    if (pos) {
+      const tileSize = canvas.offsetWidth / MAP_GRID;
+      let left = (pos.col + 1) * tileSize;
+      let top  = (pos.row + 0.5) * tileSize - 20;
+      const maxLeft = wrap.offsetWidth - (popup.offsetWidth || 240) - 4;
+      if (left > maxLeft) left = pos.col * tileSize - (popup.offsetWidth || 240);
+      popup.style.left = left + 'px';
+      popup.style.top  = Math.max(0, top) + 'px';
+    }
+  }
+  popup.classList.remove('hidden');
+}
+
 
 function _refreshBuildingPopup() {
   const cat   = BUILDING_MAP_CATEGORIES[_bldPopupCat];
   const popup = document.getElementById('building-popup');
   if (!cat || !popup) return;
+
+  // Restore nav visibility in case hub popup hid it
+  const nav = popup.querySelector('.bld-popup-nav');
+  if (nav) nav.style.display = '';
 
   const recipes = cat.getRecipes();
   if (!recipes.length) return;

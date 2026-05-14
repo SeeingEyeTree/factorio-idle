@@ -619,6 +619,44 @@ button {
 .card-cost          { font-size: .7rem; color: var(--accent); margin-bottom: .65rem !important; }
 .btn-place.cant-afford { background: var(--surf2); color: var(--dim); cursor: not-allowed; box-shadow: none; }
 
+/* ── Collapsible build sections ──────────────────────────────── */
+.build-section { display: flex; flex-direction: column; gap: 0; }
+
+.build-section-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: .45rem .75rem;
+  background: var(--surf3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: .78rem; font-weight: 700; color: var(--dim2);
+  cursor: pointer; user-select: none;
+  transition: background .12s, color .12s;
+}
+.build-section-header:hover { background: var(--surf4, var(--surf3)); color: var(--text2); }
+
+.build-section-arrow { font-size: .7rem; color: var(--dim); margin-left: .4rem; }
+
+.build-section-body {
+  display: flex; flex-direction: column; gap: .6rem;
+  padding-top: .5rem;
+}
+
+/* ── Build tab buttons (drill/assembler type selector) ────────── */
+.build-tab-row { display: flex; gap: .35rem; margin-bottom: .45rem; }
+
+.build-tab-btn {
+  padding: .22rem .65rem;
+  font-size: .72rem; font-weight: 600;
+  background: var(--surf3);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--dim2);
+  cursor: pointer;
+  transition: background .12s, color .12s, border-color .12s;
+}
+.build-tab-btn:hover  { background: var(--surf4, var(--surf2)); color: var(--text2); }
+.build-tab-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
 .place-row { display: flex; gap: .5rem; align-items: center; }
 .place-row select, .recipe-select {
   flex: 1;
@@ -1031,6 +1069,9 @@ button {
 .bld-popup-row    { display: flex; justify-content: space-between; gap: 16px; font-size: .85rem; }
 .bld-popup-row span { color: var(--dim); }
 .bld-popup-row strong { color: #fff; }
+
+.hub-view-toggle { display: flex; gap: 6px; margin: 8px 0 4px; }
+.hub-queue-list  { display: flex; flex-direction: column; gap: 4px; max-height: 180px; overflow-y: auto; }
 
 /* ── Biter Encounter Popup ───────────────────────────────────── */
 .biter-popup {
@@ -2052,6 +2093,10 @@ button {
 #base-top-row        { display: flex; gap: 16px; align-items: flex-start; }
 #base-right-col      { flex: 1; min-width: 220px; display: flex; flex-direction: column; gap: 12px; }
 #tutorial-goal-panel { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 14px; box-sizing: border-box; }
+.hub-card            { background: linear-gradient(180deg, var(--surf2) 0%, var(--surf) 100%); border: 1px solid var(--border); border-radius: 8px; padding: .75rem 1rem; }
+.hub-card-title      { font-size: .82rem; font-weight: 700; color: var(--accent); margin-bottom: .45rem; text-transform: uppercase; letter-spacing: .04em; }
+.hub-stat-row        { display: flex; justify-content: space-between; font-size: .78rem; color: var(--dim2); margin: .18rem 0; }
+.hub-stat-row strong { color: var(--text2); font-weight: 600; }
 .goal-panel-header   { font-weight: 700; font-size: .88rem; color: var(--accent); margin-bottom: 10px; display: flex; justify-content: space-between; }
 .goal-panel-count    { font-weight: 400; color: var(--text2); }
 .goal-current-box    { background: var(--bg3); border-radius: 6px; padding: 10px 12px; margin-bottom: 12px; border-left: 3px solid var(--accent); }
@@ -2068,23 +2113,27 @@ button {
 .chest-tier-row        { display: flex; align-items: center; gap: 8px; }
 .chest-tier-label      { width: 110px; font-weight: 600; font-size: .85rem; }
 .chest-count           { width: 36px; text-align: right; font-weight: 700; color: var(--accent); }
+.chest-locked-note     { font-size: .78rem; color: var(--dim2); padding: 1px 0 1px 118px; font-style: italic; }
 .chest-priority-row    { display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: .82rem; }
 .chest-priority-input  { flex: 1; max-width: 200px; background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; color: var(--text1); padding: 3px 6px; font-size: .82rem; }
-.chest-rewards-header  { font-weight: 700; font-size: .85rem; color: var(--accent); margin: 10px 0 6px; }
-.chest-rewards-grid    { display: flex; flex-wrap: wrap; gap: 8px; }
-.chest-reward-card     { background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; min-width: 140px; }
-.chest-reward-card.maxed { border-color: var(--accent); }
-.chest-reward-name     { font-size: .78rem; font-weight: 600; color: var(--text1); }
-.chest-reward-level    { font-size: .75rem; color: var(--accent); margin: 2px 0; }
-.chest-reward-effect   { font-size: .73rem; color: var(--text2); }
+.chest-rewards-header      { font-weight: 700; font-size: .85rem; color: var(--accent); margin: 10px 0 6px; }
+.chest-rewards-tier-label  { font-size: .75rem; font-weight: 700; color: var(--dim2); text-transform: uppercase; letter-spacing: .05em; margin: 8px 0 4px; }
+.chest-rewards-tier-label.rare { color: #7aaddf; }
+.chest-rewards-grid        { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 6px; }
+.chest-reward-card         { background: var(--surf2); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; min-width: 140px; }
+.chest-reward-card.rare-tier { background: rgba(30, 60, 130, 0.90); border-color: #4a7fc1; }
+.chest-reward-card.maxed   { border-color: var(--accent); }
+.chest-reward-name         { font-size: .78rem; font-weight: 600; color: var(--text2); }
+.chest-reward-level        { font-size: .75rem; color: var(--accent); margin: 2px 0; }
+.chest-reward-effect       { font-size: .73rem; color: var(--text2); }
 .chest-modal-overlay   { position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 1000; display: flex; align-items: center; justify-content: center; }
 .chest-modal-overlay.hidden { display: none; }
 .chest-modal           { background: var(--bg0, #1a1e26); border: 1px solid var(--border); border-radius: 12px; padding: 28px; max-width: 680px; width: 92vw; box-shadow: 0 8px 32px rgba(0,0,0,.7); }
 .chest-modal-tier      { font-size: 1.2rem; font-weight: 700; color: var(--accent); margin-bottom: 6px; }
 .chest-modal-prompt    { font-size: .9rem; color: var(--text2); margin-bottom: 18px; }
 .chest-modal-choices   { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 18px; }
-.chest-choice-card     { flex: 1; min-width: 170px; background: var(--bg1); border: 2px solid var(--border); border-radius: 10px; padding: 18px 16px; cursor: pointer; text-align: left; transition: border-color .15s, background .15s; }
-.chest-choice-card:hover { border-color: var(--accent); background: var(--bg2); }
-.chest-choice-name     { font-size: 1rem; font-weight: 700; color: var(--text1); margin-bottom: 6px; }
+.chest-choice-card     { flex: 1; min-width: 170px; background: var(--surf2); border: 2px solid var(--border); border-radius: 10px; padding: 18px 16px; cursor: pointer; text-align: left; transition: border-color .15s, background .15s; }
+.chest-choice-card:hover { border-color: var(--accent); background: var(--surf3); }
+.chest-choice-name     { font-size: 1rem; font-weight: 700; color: var(--text2); margin-bottom: 6px; }
 .chest-choice-level    { font-size: .82rem; color: var(--text2); margin-bottom: 5px; }
 .chest-choice-effect   { font-size: .88rem; color: var(--accent); font-weight: 600; }

@@ -490,7 +490,7 @@ const TECHNOLOGIES = {
     cost: { redScience: 100, greenScience: 100 }, timePerPack: 15,
     prereqs: ['sulfurProcessing'],
     description: 'Unlocks Explosives crafting',
-    unlockRecipes: ['explosives'], unlockBuildings: [],
+    unlockRecipes: ['explosives', 'explosiveCannonShell'], unlockBuildings: [],
   }),
   gamerModule: new Technology({
     name: 'Gamer Module', icon: '⚛️',

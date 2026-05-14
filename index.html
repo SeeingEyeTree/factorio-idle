@@ -238,300 +238,306 @@
             </div>
           </div>
 
-          <div class="buildable-card">
-            <span class="card-icon">⛏️</span>
-            <div class="card-body">
-              <h4>Burner Mining Drill</h4>
-              <p>Mines at 0.25/sec · requires coal to operate</p>
-              <p class="card-cost">Cost: 1 × Burner Mining Drill</p>
-              <div class="recipe-picker-host" data-ptype="miner"></div>
-              <div class="place-row">
-                <input type="number" class="place-count" min="1" value="1">
-                <button class="btn-place" data-type="miner" onclick="placeBuilding('miner',this,event)">Place</button>
+          <!-- ⛏️ Mining -->
+          <div class="build-section">
+            <div class="build-section-header" onclick="toggleBuildSection('mining')">
+              ⛏️ Mining <span class="build-section-arrow" id="build-arrow-mining">▼</span>
+            </div>
+            <div class="build-section-body" id="build-section-mining">
+              <!-- Combined drill card -->
+              <div class="buildable-card">
+                <span class="card-icon">⛏️</span>
+                <div class="card-body">
+                  <h4>Mining Drill</h4>
+                  <div class="build-tab-row">
+                    <button class="build-tab-btn drill-tab-btn active" id="drill-tab-miner" data-type="miner" onclick="setDrillTab('miner')">Burner</button>
+                    <button class="build-tab-btn drill-tab-btn" id="drill-tab-electric" data-type="electricMiner" onclick="setDrillTab('electricMiner')" style="display:none">Electric</button>
+                  </div>
+                  <div id="drill-card-content">
+                    <p>Mines at 0.25/sec · requires coal to operate</p>
+                    <p class="card-cost">Cost: 1 × Burner Mining Drill</p>
+                    <div class="recipe-picker-host" data-ptype="miner"></div>
+                    <div class="place-row">
+                      <input type="number" class="place-count" min="1" value="1">
+                      <button class="btn-place" data-type="miner" onclick="placeBuilding('miner',this,event)">Place</button>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
-          <div class="buildable-card">
-            <span class="card-icon">🔥</span>
-            <div class="card-body">
-              <h4>Stone Furnace</h4>
-              <p>Smelts ores into plates at 3.2 sec/item · requires coal to operate</p>
-              <p class="card-cost">Cost: 1 × Stone Furnace</p>
-              <div class="recipe-picker-host" data-ptype="furnace"></div>
-              <div class="place-row">
-                <input type="number" class="place-count" min="1" value="1">
-                <button class="btn-place" data-type="furnace" onclick="placeBuilding('furnace',this,event)">Place</button>
+          <!-- 🔥 Furnaces -->
+          <div class="build-section">
+            <div class="build-section-header" onclick="toggleBuildSection('furnaces')">
+              🔥 Furnaces <span class="build-section-arrow" id="build-arrow-furnaces">▼</span>
+            </div>
+            <div class="build-section-body" id="build-section-furnaces">
+              <div class="buildable-card">
+                <span class="card-icon">🔥</span>
+                <div class="card-body">
+                  <h4>Stone Furnace</h4>
+                  <p>Smelts ores into plates at 3.2 sec/item · requires coal to operate</p>
+                  <p class="card-cost">Cost: 1 × Stone Furnace</p>
+                  <div class="recipe-picker-host" data-ptype="furnace"></div>
+                  <div class="place-row">
+                    <input type="number" class="place-count" min="1" value="1">
+                    <button class="btn-place" data-type="furnace" onclick="placeBuilding('furnace',this,event)">Place</button>
+                  </div>
+                </div>
+              </div>
+              <div class="buildable-card" data-requires-tech="advancedMaterialProcessing">
+                <span class="card-icon">🟧</span>
+                <div class="card-body">
+                  <h4>Steel Furnace</h4>
+                  <p>Smelts at 2× speed · requires coal to operate</p>
+                  <p class="card-cost">Cost: 1 × Steel Furnace</p>
+                  <div class="recipe-picker-host" data-ptype="steelFurnace"></div>
+                  <div class="place-row">
+                    <input type="number" class="place-count" min="1" value="1">
+                    <button class="btn-place" data-type="steelFurnace" onclick="placeBuilding('steelFurnace',this,event)">Place</button>
+                  </div>
+                </div>
+              </div>
+              <div class="buildable-card" data-requires-tech="electricFurnaceTech">
+                <span class="card-icon">⚡</span>
+                <div class="card-body">
+                  <h4>Electric Furnace</h4>
+                  <p>Smelts at 2× speed · 180 kW · no coal</p>
+                  <p class="card-cost">Cost: 1 × Electric Furnace</p>
+                  <div class="recipe-picker-host" data-ptype="electricFurnace"></div>
+                  <div class="place-row">
+                    <input type="number" class="place-count" min="1" value="1">
+                    <button class="btn-place" data-type="electricFurnace" onclick="placeBuilding('electricFurnace',this,event)">Place</button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
-          <div class="buildable-card" data-requires-tech="advancedMaterialProcessing">
-            <span class="card-icon">🟧</span>
-            <div class="card-body">
-              <h4>Steel Furnace</h4>
-              <p>Smelts at 2× speed · requires coal to operate</p>
-              <p class="card-cost">Cost: 1 × Steel Furnace</p>
-              <div class="recipe-picker-host" data-ptype="steelFurnace"></div>
-              <div class="place-row">
-                <input type="number" class="place-count" min="1" value="1">
-                <button class="btn-place" data-type="steelFurnace" onclick="placeBuilding('steelFurnace',this,event)">Place</button>
+          <!-- ⚡ Power Generation -->
+          <div class="build-section">
+            <div class="build-section-header" onclick="toggleBuildSection('power')">
+              ⚡ Power Generation <span class="build-section-arrow" id="build-arrow-power">▼</span>
+            </div>
+            <div class="build-section-body" id="build-section-power">
+              <div class="buildable-card">
+                <span class="card-icon">💧</span>
+                <div class="card-body">
+                  <h4>Offshore Pump</h4>
+                  <p>Pumps 1,200 water/sec into storage · no fuel cost</p>
+                  <p class="card-cost">Cost: 1 × Offshore Pump</p>
+                  <div class="place-row">
+                    <input type="number" class="place-count" min="1" value="1">
+                    <button class="btn-place" data-type="offshoreP" onclick="placeBuilding('offshoreP',this,event)">Place</button>
+                  </div>
+                </div>
+              </div>
+              <div class="buildable-card">
+                <span class="card-icon">♨️</span>
+                <div class="card-body">
+                  <h4>Boiler</h4>
+                  <p>Burns coal to heat water → steam 165°C · 60 steam/sec · 6 water/sec</p>
+                  <p class="card-cost">Cost: 1 × Boiler</p>
+                  <div class="place-row">
+                    <input type="number" class="place-count" min="1" value="1">
+                    <button class="btn-place" data-type="boiler" onclick="placeBuilding('boiler',this,event)">Place</button>
+                  </div>
+                </div>
+              </div>
+              <div class="buildable-card">
+                <span class="card-icon">⚡</span>
+                <div class="card-body">
+                  <h4>Steam Engine</h4>
+                  <p>Converts steam → 900 kW of electricity · 30 steam/sec</p>
+                  <p class="card-cost">Cost: 1 × Steam Engine</p>
+                  <div class="place-row">
+                    <input type="number" class="place-count" min="1" value="1">
+                    <button class="btn-place" data-type="steamEngine" onclick="placeBuilding('steamEngine',this,event)">Place</button>
+                  </div>
+                </div>
+              </div>
+              <div class="buildable-card" data-requires-tech="solarEnergy">
+                <span class="card-icon">☀️</span>
+                <div class="card-body">
+                  <h4>Solar Panel</h4>
+                  <p>Generates 60 kW · no fuel required</p>
+                  <p class="card-cost">Cost: 1 × Solar Panel</p>
+                  <div class="place-row">
+                    <input type="number" class="place-count" min="1" value="1">
+                    <button class="btn-place" data-type="solarPanel" onclick="placeBuilding('solarPanel',this,event)">Place</button>
+                  </div>
+                </div>
+              </div>
+              <div class="buildable-card" data-requires-tech="accumulators">
+                <span class="card-icon">🔋</span>
+                <div class="card-body">
+                  <h4>Accumulator</h4>
+                  <p>Stores 5 MJ · charges from surplus power · discharges when demand exceeds supply</p>
+                  <p class="card-cost">Cost: 1 × Accumulator</p>
+                  <div class="place-row">
+                    <input type="number" class="place-count" min="1" value="1">
+                    <button class="btn-place" data-type="accumulator" onclick="placeBuilding('accumulator',this,event)">Place</button>
+                  </div>
+                </div>
+              </div>
+              <div class="buildable-card" data-requires-tech="nuclearPowerTech">
+                <span class="card-icon">⚛️</span>
+                <div class="card-body">
+                  <h4>Nuclear Reactor</h4>
+                  <p>Burns uranium fuel cells to generate 488.88 MW · 1 fuel cell per 50s per reactor</p>
+                  <p class="card-cost">Cost: 4 × Nuclear Reactor + 4 × Offshore Pump + 180 × Pipe + 68 × Heat Pipe + 48 × Heat Exchanger + 84 × Steam Turbine</p>
+                  <div class="place-row">
+                    <input type="number" class="place-count" min="1" value="1">
+                    <button class="btn-place" data-type="nuclearReactor" onclick="placeBuilding('nuclearReactor',this,event)">Place</button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
-          <div class="buildable-card" data-requires-tech="automation2">
-            <span class="card-icon">🏗️</span>
-            <div class="card-body">
-              <h4>Assembly Machine Mk2</h4>
-              <p>Auto-crafts items · 150 kW · speed ×0.75</p>
-              <p class="card-cost">Cost: 1 × Assembly Machine Mk2</p>
-              <input class="picker-search" type="text" placeholder="Search recipes…" oninput="onPickerSearch('assembly2', this.value)">
-              <div class="recipe-picker-host" data-ptype="assembly2"></div>
-              <div class="place-row">
-                <input type="number" class="place-count" min="1" value="1">
-                <button class="btn-place" data-type="assembly2" onclick="placeBuilding('assembly2',this,event)">Place</button>
+          <!-- 🏭 Production (Assemblers) -->
+          <div class="build-section">
+            <div class="build-section-header" onclick="toggleBuildSection('production')">
+              🏭 Production <span class="build-section-arrow" id="build-arrow-production">▼</span>
+            </div>
+            <div class="build-section-body" id="build-section-production">
+              <!-- Combined assembler card -->
+              <div class="buildable-card" data-requires-tech="automation">
+                <span class="card-icon">🏭</span>
+                <div class="card-body">
+                  <h4>Assembly Machine</h4>
+                  <div class="build-tab-row">
+                    <button class="build-tab-btn asm-tab-btn active" id="asm-tab-assembly" data-type="assembly" onclick="setAssemblyTab('assembly')">Mk1</button>
+                    <button class="build-tab-btn asm-tab-btn" id="asm-tab-assembly2" data-type="assembly2" onclick="setAssemblyTab('assembly2')" style="display:none">Mk2</button>
+                    <button class="build-tab-btn asm-tab-btn" id="asm-tab-assembly3" data-type="assembly3" onclick="setAssemblyTab('assembly3')" style="display:none">Mk3</button>
+                  </div>
+                  <div id="asm-card-content">
+                    <p>Auto-crafts intermediate and building items · 75 kW · speed ×0.5</p>
+                    <p class="card-cost">Cost: 1 × Assembly Machine Mk1</p>
+                    <input class="picker-search" type="text" placeholder="Search recipes…" oninput="onPickerSearch('assembly', this.value)">
+                    <div class="recipe-picker-host" data-ptype="assembly"></div>
+                    <div class="place-row">
+                      <input type="number" class="place-count" min="1" value="1">
+                      <button class="btn-place" data-type="assembly" onclick="placeBuilding('assembly',this,event)">Place</button>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
-          <div class="buildable-card" data-requires-tech="automation3">
-            <span class="card-icon">🏗️</span>
-            <div class="card-body">
-              <h4>Assembly Machine Mk3</h4>
-              <p>Auto-crafts items · 375 kW · speed ×1.25</p>
-              <p class="card-cost">Cost: 1 × Assembly Machine Mk3</p>
-              <input class="picker-search" type="text" placeholder="Search recipes…" oninput="onPickerSearch('assembly3', this.value)">
-              <div class="recipe-picker-host" data-ptype="assembly3"></div>
-              <div class="place-row">
-                <input type="number" class="place-count" min="1" value="1">
-                <button class="btn-place" data-type="assembly3" onclick="placeBuilding('assembly3',this,event)">Place</button>
+          <!-- 🛢️ Oil & Chemicals -->
+          <div class="build-section">
+            <div class="build-section-header" onclick="toggleBuildSection('oil')">
+              🛢️ Oil &amp; Chemicals <span class="build-section-arrow" id="build-arrow-oil">▼</span>
+            </div>
+            <div class="build-section-body" id="build-section-oil">
+              <div class="buildable-card" data-requires-tech="oilGathering">
+                <span class="card-icon">🛢️</span>
+                <div class="card-body">
+                  <h4>Pumpjack</h4>
+                  <p>Extracts crude oil from oil patches · 90 kW</p>
+                  <p class="card-cost">Cost: 1 × Pumpjack</p>
+                  <div class="place-row">
+                    <input type="number" class="place-count" min="1" value="1">
+                    <button class="btn-place" data-type="pumpjack" onclick="placeBuilding('pumpjack',this,event)">Place</button>
+                  </div>
+                </div>
+              </div>
+              <div class="buildable-card" data-requires-tech="oilProcessingTech">
+                <span class="card-icon">🏭</span>
+                <div class="card-body">
+                  <h4>Oil Refinery</h4>
+                  <p>Processes crude oil into fuel products · 420 kW</p>
+                  <p class="card-cost">Cost: 1 × Oil Refinery</p>
+                  <div class="recipe-picker-host" data-ptype="oilRefinery"></div>
+                  <div class="place-row">
+                    <input type="number" class="place-count" min="1" value="1">
+                    <button class="btn-place" data-type="oilRefinery" onclick="placeBuilding('oilRefinery',this,event)">Place</button>
+                  </div>
+                </div>
+              </div>
+              <div class="buildable-card" data-requires-tech="oilProcessingTech">
+                <span class="card-icon">🧫</span>
+                <div class="card-body">
+                  <h4>Chemical Plant</h4>
+                  <p>Produces chemicals from oil products · 210 kW</p>
+                  <p class="card-cost">Cost: 1 × Chemical Plant</p>
+                  <div class="recipe-picker-host" data-ptype="chemicalPlant"></div>
+                  <div class="place-row">
+                    <input type="number" class="place-count" min="1" value="1">
+                    <button class="btn-place" data-type="chemicalPlant" onclick="placeBuilding('chemicalPlant',this,event)">Place</button>
+                  </div>
+                </div>
+              </div>
+              <div class="buildable-card" data-requires-tech="uraniumProcessing">
+                <span class="card-icon">⭕</span>
+                <div class="card-body">
+                  <h4>Centrifuge</h4>
+                  <p>Processes uranium ore · 350 kW</p>
+                  <p class="card-cost">Cost: 1 × Centrifuge</p>
+                  <div class="recipe-picker-host" data-ptype="centrifuge"></div>
+                  <div class="place-row">
+                    <input type="number" class="place-count" min="1" value="1">
+                    <button class="btn-place" data-type="centrifuge" onclick="placeBuilding('centrifuge',this,event)">Place</button>
+                  </div>
+                </div>
+              </div>
+              <div class="buildable-card" data-requires-tech="rocketSiloTech">
+                <span class="card-icon">🚀</span>
+                <div class="card-body">
+                  <h4>Rocket Silo</h4>
+                  <p>Assembles rocket parts and launches satellites · 4000 kW</p>
+                  <p class="card-cost">Cost: 1 × Rocket Silo</p>
+                  <div class="recipe-picker-host" data-ptype="rocketSilo"></div>
+                  <div class="place-row">
+                    <input type="number" class="place-count" min="1" value="1">
+                    <button class="btn-place" data-type="rocketSilo" onclick="placeBuilding('rocketSilo',this,event)">Place</button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
-          <div class="buildable-card" data-requires-tech="electricFurnaceTech">
-            <span class="card-icon">⚡</span>
-            <div class="card-body">
-              <h4>Electric Furnace</h4>
-              <p>Smelts at 2× speed · 180 kW · no coal</p>
-              <p class="card-cost">Cost: 1 × Electric Furnace</p>
-              <div class="recipe-picker-host" data-ptype="electricFurnace"></div>
-              <div class="place-row">
-                <input type="number" class="place-count" min="1" value="1">
-                <button class="btn-place" data-type="electricFurnace" onclick="placeBuilding('electricFurnace',this,event)">Place</button>
+          <!-- 📡 Exploration -->
+          <div class="build-section">
+            <div class="build-section-header" onclick="toggleBuildSection('exploration')">
+              📡 Exploration <span class="build-section-arrow" id="build-arrow-exploration">▼</span>
+            </div>
+            <div class="build-section-body" id="build-section-exploration">
+              <div class="buildable-card" data-requires-tech="radarTech">
+                <span class="card-icon">📡</span>
+                <div class="card-body">
+                  <h4>Radar</h4>
+                  <p>Explores the map · uncovers 1 chunk/min · richer patches as you explore more</p>
+                  <p class="card-cost">Cost: 1 × Radar</p>
+                  <div class="place-row">
+                    <input type="number" class="place-count" min="1" value="1">
+                    <button class="btn-place" data-type="radar" onclick="placeBuilding('radar',this,event)">Place</button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
-          <p class="section-label" style="margin-top:.5rem">Power Generation</p>
-
-          <div class="buildable-card">
-            <span class="card-icon">💧</span>
-            <div class="card-body">
-              <h4>Offshore Pump</h4>
-              <p>Pumps 1,200 water/sec into storage · no fuel cost</p>
-              <p class="card-cost">Cost: 1 × Offshore Pump</p>
-              <div class="place-row">
-                <input type="number" class="place-count" min="1" value="1">
-                <button class="btn-place" data-type="offshoreP" onclick="placeBuilding('offshoreP',this,event)">Place</button>
-              </div>
+          <!-- 🔬 Science -->
+          <div class="build-section">
+            <div class="build-section-header" onclick="toggleBuildSection('science')">
+              🔬 Science <span class="build-section-arrow" id="build-arrow-science">▼</span>
             </div>
-          </div>
-
-          <div class="buildable-card">
-            <span class="card-icon">♨️</span>
-            <div class="card-body">
-              <h4>Boiler</h4>
-              <p>Burns coal to heat water → steam 165°C · 60 steam/sec · 6 water/sec</p>
-              <p class="card-cost">Cost: 1 × Boiler</p>
-              <div class="place-row">
-                <input type="number" class="place-count" min="1" value="1">
-                <button class="btn-place" data-type="boiler" onclick="placeBuilding('boiler',this,event)">Place</button>
-              </div>
-            </div>
-          </div>
-
-          <div class="buildable-card">
-            <span class="card-icon">⚡</span>
-            <div class="card-body">
-              <h4>Steam Engine</h4>
-              <p>Converts steam → 900 kW of electricity · 30 steam/sec</p>
-              <p class="card-cost">Cost: 1 × Steam Engine</p>
-              <div class="place-row">
-                <input type="number" class="place-count" min="1" value="1">
-                <button class="btn-place" data-type="steamEngine" onclick="placeBuilding('steamEngine',this,event)">Place</button>
-              </div>
-            </div>
-          </div>
-
-          <div class="buildable-card" data-requires-tech="solarEnergy">
-            <span class="card-icon">☀️</span>
-            <div class="card-body">
-              <h4>Solar Panel</h4>
-              <p>Generates 60 kW · no fuel required</p>
-              <p class="card-cost">Cost: 1 × Solar Panel</p>
-              <div class="place-row">
-                <input type="number" class="place-count" min="1" value="1">
-                <button class="btn-place" data-type="solarPanel" onclick="placeBuilding('solarPanel',this,event)">Place</button>
-              </div>
-            </div>
-          </div>
-
-          <div class="buildable-card" data-requires-tech="accumulators">
-            <span class="card-icon">🔋</span>
-            <div class="card-body">
-              <h4>Accumulator</h4>
-              <p>Stores 5 MJ · charges from surplus power · discharges when demand exceeds supply</p>
-              <p class="card-cost">Cost: 1 × Accumulator</p>
-              <div class="place-row">
-                <input type="number" class="place-count" min="1" value="1">
-                <button class="btn-place" data-type="accumulator" onclick="placeBuilding('accumulator',this,event)">Place</button>
-              </div>
-            </div>
-          </div>
-
-          <div class="buildable-card" data-requires-tech="nuclearPowerTech">
-            <span class="card-icon">⚛️</span>
-            <div class="card-body">
-              <h4>Nuclear Reactor</h4>
-              <p>Burns uranium fuel cells to generate 488.88 MW · 1 fuel cell per 50s per reactor</p>
-              <p class="card-cost">Cost: 4 × Nuclear Reactor + 4 × Offshore Pump + 180 × Pipe + 68 × Heat Pipe + 48 × Heat Exchanger + 84 × Steam Turbine</p>
-              <div class="place-row">
-                <input type="number" class="place-count" min="1" value="1">
-                <button class="btn-place" data-type="nuclearReactor" onclick="placeBuilding('nuclearReactor',this,event)">Place</button>
-              </div>
-            </div>
-          </div>
-
-          <p class="section-label" style="margin-top:.5rem">Production</p>
-
-          <div class="buildable-card" data-requires-tech="automation">
-            <span class="card-icon">🏭</span>
-            <div class="card-body">
-              <h4>Assembly Machine Mk1</h4>
-              <p>Auto-crafts intermediate and building items · 75 kW · speed ×0.5</p>
-              <p class="card-cost">Cost: 1 × Assembly Machine Mk1</p>
-              <input class="picker-search" type="text" placeholder="Search recipes…" oninput="onPickerSearch('assembly', this.value)">
-              <div class="recipe-picker-host" data-ptype="assembly"></div>
-              <div class="place-row">
-                <input type="number" class="place-count" min="1" value="1">
-                <button class="btn-place" data-type="assembly" onclick="placeBuilding('assembly',this,event)">Place</button>
-              </div>
-            </div>
-          </div>
-
-          <div class="buildable-card" data-requires-tech="electricMiningDrill">
-            <span class="card-icon">🔌</span>
-            <div class="card-body">
-              <h4>Electric Mining Drill</h4>
-              <p>Mines at 0.5/sec · 90 kW · no coal needed</p>
-              <p class="card-cost">Cost: 1 × Electric Mining Drill</p>
-              <div class="recipe-picker-host" data-ptype="electricMiner"></div>
-              <div class="place-row">
-                <input type="number" class="place-count" min="1" value="1">
-                <button class="btn-place" data-type="electricMiner" onclick="placeBuilding('electricMiner',this,event)">Place</button>
-              </div>
-            </div>
-          </div>
-
-          <p class="section-label" style="margin-top:.5rem">Oil &amp; Chemicals</p>
-
-          <div class="buildable-card" data-requires-tech="oilGathering">
-            <span class="card-icon">🛢️</span>
-            <div class="card-body">
-              <h4>Pumpjack</h4>
-              <p>Extracts crude oil from oil patches · 90 kW</p>
-              <p class="card-cost">Cost: 1 × Pumpjack</p>
-              <div class="place-row">
-                <input type="number" class="place-count" min="1" value="1">
-                <button class="btn-place" data-type="pumpjack" onclick="placeBuilding('pumpjack',this,event)">Place</button>
-              </div>
-            </div>
-          </div>
-
-          <div class="buildable-card" data-requires-tech="oilProcessingTech">
-            <span class="card-icon">🏭</span>
-            <div class="card-body">
-              <h4>Oil Refinery</h4>
-              <p>Processes crude oil into fuel products · 420 kW</p>
-              <p class="card-cost">Cost: 1 × Oil Refinery</p>
-              <div class="recipe-picker-host" data-ptype="oilRefinery"></div>
-              <div class="place-row">
-                <input type="number" class="place-count" min="1" value="1">
-                <button class="btn-place" data-type="oilRefinery" onclick="placeBuilding('oilRefinery',this,event)">Place</button>
-              </div>
-            </div>
-          </div>
-
-          <div class="buildable-card" data-requires-tech="oilProcessingTech">
-            <span class="card-icon">🧫</span>
-            <div class="card-body">
-              <h4>Chemical Plant</h4>
-              <p>Produces chemicals from oil products · 210 kW</p>
-              <p class="card-cost">Cost: 1 × Chemical Plant</p>
-              <div class="recipe-picker-host" data-ptype="chemicalPlant"></div>
-              <div class="place-row">
-                <input type="number" class="place-count" min="1" value="1">
-                <button class="btn-place" data-type="chemicalPlant" onclick="placeBuilding('chemicalPlant',this,event)">Place</button>
-              </div>
-            </div>
-          </div>
-
-          <div class="buildable-card" data-requires-tech="uraniumProcessing">
-            <span class="card-icon">⭕</span>
-            <div class="card-body">
-              <h4>Centrifuge</h4>
-              <p>Processes uranium ore · 350 kW</p>
-              <p class="card-cost">Cost: 1 × Centrifuge</p>
-              <div class="recipe-picker-host" data-ptype="centrifuge"></div>
-              <div class="place-row">
-                <input type="number" class="place-count" min="1" value="1">
-                <button class="btn-place" data-type="centrifuge" onclick="placeBuilding('centrifuge',this,event)">Place</button>
-              </div>
-            </div>
-          </div>
-
-          <div class="buildable-card" data-requires-tech="rocketSiloTech">
-            <span class="card-icon">🚀</span>
-            <div class="card-body">
-              <h4>Rocket Silo</h4>
-              <p>Assembles rocket parts and launches satellites · 4000 kW</p>
-              <p class="card-cost">Cost: 1 × Rocket Silo</p>
-              <div class="recipe-picker-host" data-ptype="rocketSilo"></div>
-              <div class="place-row">
-                <input type="number" class="place-count" min="1" value="1">
-                <button class="btn-place" data-type="rocketSilo" onclick="placeBuilding('rocketSilo',this,event)">Place</button>
-              </div>
-            </div>
-          </div>
-
-          <p class="section-label" style="margin-top:.5rem">Exploration</p>
-
-          <div class="buildable-card" data-requires-tech="radarTech">
-            <span class="card-icon">📡</span>
-            <div class="card-body">
-              <h4>Radar</h4>
-              <p>Explores the map · uncovers 1 chunk/min · richer patches as you explore more</p>
-              <p class="card-cost">Cost: 1 × Radar</p>
-              <div class="place-row">
-                <input type="number" class="place-count" min="1" value="1">
-                <button class="btn-place" data-type="radar" onclick="placeBuilding('radar',this,event)">Place</button>
-              </div>
-            </div>
-          </div>
-
-          <p class="section-label" style="margin-top:.5rem">Science</p>
-
-          <div class="buildable-card">
-            <span class="card-icon">🔬</span>
-            <div class="card-body">
-              <h4>Lab</h4>
-              <p>Processes science packs to research technologies · 1 pack per 10s</p>
-              <p class="card-cost">Cost: 1 × Lab</p>
-              <div class="place-row">
-                <input type="number" class="place-count" min="1" value="1">
-                <button class="btn-place" data-type="lab" onclick="placeBuilding('lab',this,event)">Place</button>
+            <div class="build-section-body" id="build-section-science">
+              <div class="buildable-card">
+                <span class="card-icon">🔬</span>
+                <div class="card-body">
+                  <h4>Lab</h4>
+                  <p>Processes science packs to research technologies · 1 pack per 10s</p>
+                  <p class="card-cost">Cost: 1 × Lab</p>
+                  <div class="place-row">
+                    <input type="number" class="place-count" min="1" value="1">
+                    <button class="btn-place" data-type="lab" onclick="placeBuilding('lab',this,event)">Place</button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
