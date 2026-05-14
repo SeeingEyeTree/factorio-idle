@@ -230,9 +230,9 @@ const TECHNOLOGIES = {
   }),
   spidertron: new Technology({
     name: 'Spider Tron', icon: '🕷️', iconImg: 'data/icon_imgs/spidertron.png',
-    cost: { redScience: 2500, greenScience: 2500, blueScience: 2500, yellowScience: 2500, purpleScience: 2500, blackScience: 2500 }, timePerPack: 30,
-    prereqs: ['speedModuleTech3', 'nuclearPowerTech', 'military4'],
-    description: 'Its a spider. It has guns. It can climb walls. It is the ultimate combat machine.',
+    cost: { rainbowScience: 2500 }, timePerPack: 30,
+    prereqs: ['speedModuleTech3', 'nuclearPowerTech', 'military4','productionSciencePack','rainbowSciencePack'],
+    description: 'Its a spider. It has nukes. 🔒 Not available in demo.',
     unlockRecipes: ['spidertron', 'spidertronItem'], unlockBuildings: [],
   }),
   military3: new Technology({
@@ -251,8 +251,8 @@ const TECHNOLOGIES = {
   }),
   artillery: new Technology({
     name: 'Artillery', icon: '⚙️',
-    cost: { redScience: 2000, greenScience: 2000, blueScience: 2000, blackScience: 2000, yellowScience: 2000 }, timePerPack: 30,
-    prereqs: ['military4'],
+    cost: { rainbowScience: 2000 }, timePerPack: 30,
+    prereqs: ['military4','rainbowSciencePack'],
     description: 'The best in big bata boom hardware',
     unlockRecipes: ['artilleryShell', 'artilleryTurretItem'], unlockBuildings: [],
   }),
@@ -380,9 +380,9 @@ const TECHNOLOGIES = {
   }),
   atomicBombTech: new Technology({
     name: 'Big boom', icon: '⚛️',
-    cost: { redScience: 5000, greenScience: 5000, blueScience: 5000, purpleScience: 5000, yellowScience: 5000, blackScience: 5000 }, timePerPack: 30,
-    prereqs: ['kovarexEnrichmentTech','military4'],
-    description: 'Why use small bomb when big bomb do trick?',
+    cost: { rainbowScience: 5000 }, timePerPack: 30,
+    prereqs: ['kovarexEnrichmentTech','military4','rainbowSciencePack'],
+    description: 'Why use small bomb when big bomb do trick? 🔒 Not available in demo.',
     unlockRecipes: ['atomicBomb'], unlockBuildings: [],
   }),
   /*
@@ -402,9 +402,9 @@ const TECHNOLOGIES = {
   }),*/
   uraniumAmmoTech: new Technology({
     name: 'Uranium Ammo', icon: '☢️',
-    cost: { redScience: 1000, greenScience: 1000, blueScience: 1000, yellowScience: 1000, blackScience: 1000 }, timePerPack: 45,
-    prereqs: ['uraniumProcessing','military4'],
-    description: 'Unlocks uranium ammo for anti-tank weapons',
+    cost: { rainbowScience: 1000 }, timePerPack: 45,
+    prereqs: ['uraniumProcessing','military4','rainbowSciencePack'],
+    description: 'Unlocks uranium ammo for home defense.',
     unlockRecipes: ['uraniumRoundsMag'], unlockBuildings: [],
   }),
   nuclearPowerTech: new Technology({
@@ -492,11 +492,12 @@ const TECHNOLOGIES = {
     description: 'Unlocks Explosives crafting',
     unlockRecipes: ['explosives', 'explosiveCannonShell'], unlockBuildings: [],
   }),
+  /*
   gamerModule: new Technology({
     name: 'Gamer Module', icon: '⚛️',
     cost: { rainbowScience: 1000 }, timePerPack: 60,
     prereqs: ['rainbowSciencePack'],
     description: 'Unlocks Gamer Module — only for the most elite of gamers',
     unlockRecipes: ['gamerModule'], unlockBuildings: [],
-  }),
+  }),*/
 };

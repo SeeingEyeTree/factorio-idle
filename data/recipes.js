@@ -3,8 +3,8 @@
 // ── Items ─────────────────────────────────────────────────────
 const ITEMS = {
   // Raw resources
-  ironOre:              { name: 'Iron Ore',                  img: 'data/icon_imgs/iron_ore.jpg' },
-  copperOre:            { name: 'Copper Ore',               img: 'data/icon_imgs/copper_ore.jpg'  },
+  ironOre:              { name: 'Iron Ore',                  img: 'data/icon_imgs/iron_ore.png' },
+  copperOre:            { name: 'Copper Ore',               img: 'data/icon_imgs/copper_ore.png'  },
   coal:                 { name: 'Coal',                     img: 'data/icon_imgs/coal.png' },
   stone:                { name: 'Stone',                    img: 'data/icon_imgs/stone.jpg'  },
   //wood:                 { name: 'Wood',                     icon: { img: 'data/icon_imgs/wood.jpg' } },
@@ -14,14 +14,14 @@ const ITEMS = {
   // Smelted / basic processed
   ironPlate:            { name: 'Iron Plate',               icon: '🔩', img: 'data/icon_imgs/iron_plate.png' },
   copperPlate:          { name: 'Copper Plate',             icon: '🔶', img: 'data/icon_imgs/copper_plate.png' },
-  stoneBrick:           { name: 'Stone Brick',              icon: '🧱' },
-  steel:                { name: 'Steel Plate',              icon: '🪙' },
+  stoneBrick:           { name: 'Stone Brick',              icon: '🧱' ,img: 'data/icon_imgs/stone_brick.png' },
+  steel:                { name: 'Steel Plate',              icon: '🪙' ,img: 'data/icon_imgs/steel.png' },
 
   // Basic components
   ironGear:             { name: 'Iron Gear',                icon: '⚙️', img: 'data/icon_imgs/iron_gear.png' },
   ironStick:            { name: 'Iron Stick',               icon: '📌', img: 'data/icon_imgs/iron_stick.png' },
   copperCable:          { name: 'Copper Cable',             icon: '🟡', img: 'data/icon_imgs/copper_wire.png' },
-  pipe:                 { name: 'Pipe',                     icon: '🔵' },
+  pipe:                 { name: 'Pipe',                     icon: '🔵' ,img: 'data/icon_imgs/pipe.png' },
 
   // Circuits
   electronicCircuit:    { name: 'Electronic Circuit',       icon: '💚', img: 'data/icon_imgs/electric_circuit.png' },
@@ -60,13 +60,13 @@ const ITEMS = {
   landfill:             { name: 'Landfill',                 icon: '🏝️', img: 'data/icon_imgs/landfill.png' },
 
   // Science packs
-  redScience:           { name: 'Automation Science Pack',  icon: '🔴', img: 'data/icon_imgs/red_monster.jpg' },
-  greenScience:         { name: 'Logistic Science Pack',    icon: '🟢', img: 'data/icon_imgs/green_monster.jpg' },
-  blueScience:          { name: 'Chemical Science Pack',    icon: '🧪', img: 'data/icon_imgs/blue_monster.jpg' },
-  blackScience:         { name: 'Military Science Pack',    icon: '⬛', img: 'data/icon_imgs/black_monster.jpg' },
-  purpleScience:        { name: 'Production Science Pack',  icon: '🟣', img: 'data/icon_imgs/purple_monster.jpg' },
-  yellowScience:        { name: 'Utility Science Pack',     icon: '🟡', img: 'data/icon_imgs/yellow_monster.jpg' },
-  spaceScience:         { name: 'Space Science Pack',       icon: '🤍', img: 'data/icon_imgs/white_monster.jpg' },
+  redScience:           { name: 'Automation Science Pack',  icon: '🔴', img: 'data/icon_imgs/red_monster.png' },
+  greenScience:         { name: 'Logistic Science Pack',    icon: '🟢', img: 'data/icon_imgs/green_monster.png' },
+  blueScience:          { name: 'Chemical Science Pack',    icon: '🧪', img: 'data/icon_imgs/blue_monster.png' },
+  blackScience:         { name: 'Military Science Pack',    icon: '⬛', img: 'data/icon_imgs/black_monster.png' },
+  purpleScience:        { name: 'Production Science Pack',  icon: '🟣', img: 'data/icon_imgs/purple_monster.png' },
+  yellowScience:        { name: 'Utility Science Pack',     icon: '🟡', img: 'data/icon_imgs/yellow_monster.png' },
+  spaceScience:         { name: 'Space Science Pack',       icon: '🤍', img: 'data/icon_imgs/white_monster.png' },
   rainbowScience:       { name: 'Rainbow Science Pack',     icon: '🌈' },
 
   // Modules
@@ -127,12 +127,12 @@ const ITEMS = {
   steamTurbineItem:     { name: 'Steam Turbine',            icon: '💫', img: 'data/icon_imgs/steam_turbine.png' },
   radarItem:            { name: 'Radar',                    icon: '📡', img: 'data/icon_imgs/radar.png' },
   labItem:              { name: 'Unpaid Intern',                      icon: '🔬', img: 'data/icon_imgs/unpaid_intern.jpg' },
-  pumpjackItem:         { name: 'Pumpjack',                 icon: '🛢️' },
-  oilRefineryItem:      { name: 'Oil Refinery',             icon: '🏭' },
-  chemicalPlantItem:    { name: 'Chemical Plant',           icon: '🧫' },
-  centrifugeItem:       { name: 'Centrifuge',               icon: '⭕' },
+  pumpjackItem:         { name: 'Pumpjack',                 icon: '🛢️', img: 'data/icon_imgs/oil_refinery.png' },
+  oilRefineryItem:      { name: 'Oil Refinery',             icon: '🏭', img: 'data/icon_imgs/oil_refinery.png' },
+  chemicalPlantItem:    { name: 'Chemical Plant',           icon: '🧫' ,img: 'data/icon_imgs/chem_plant.jpg' },
+  centrifugeItem:       { name: 'Centrifuge',               icon: '⭕' ,img: 'data/icon_imgs/centrifuge.png' },
   //beaconItem:           { name: 'Beacon',                   icon: '📻' },
-  rocketSiloItem:       { name: 'Rocket Silo',              icon: '🚀' },
+  rocketSiloItem:       { name: 'Rocket Silo',              icon: '🚀', img: 'data/icon_imgs/rocket_silo.png' },
 
   // ── Military items ────────────────────────────────────────────
   firearmMagazine:      { name: 'Firearm Magazine',         icon: '🔫' },
