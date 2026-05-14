@@ -380,4 +380,8 @@ const CRAFT_SECTIONS = [
   { label: 'Rocket', keys: [
     'rocketPart', 'satellite',
   ] },
+  { label: 'Military', keys: [
+    'firearmMagazine', 'piercingRoundsMag', 'uraniumRoundsMag',
+    'grenade', 'stoneWall', 'artilleryShell', 'atomicBomb',
+  ] },
 ];

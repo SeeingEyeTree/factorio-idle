@@ -2079,12 +2079,12 @@ button {
 .chest-reward-effect   { font-size: .73rem; color: var(--text2); }
 .chest-modal-overlay   { position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 1000; display: flex; align-items: center; justify-content: center; }
 .chest-modal-overlay.hidden { display: none; }
-.chest-modal           { background: var(--bg1); border: 1px solid var(--border); border-radius: 10px; padding: 24px; max-width: 520px; width: 90vw; }
-.chest-modal-tier      { font-size: 1.1rem; font-weight: 700; color: var(--accent); margin-bottom: 6px; }
-.chest-modal-prompt    { font-size: .85rem; color: var(--text2); margin-bottom: 14px; }
-.chest-modal-choices   { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
-.chest-choice-card     { flex: 1; min-width: 130px; background: var(--bg2); border: 2px solid var(--border); border-radius: 8px; padding: 12px; cursor: pointer; text-align: left; transition: border-color .15s; }
-.chest-choice-card:hover { border-color: var(--accent); }
-.chest-choice-name     { font-size: .88rem; font-weight: 700; color: var(--text1); margin-bottom: 4px; }
-.chest-choice-level    { font-size: .78rem; color: var(--text2); margin-bottom: 3px; }
-.chest-choice-effect   { font-size: .8rem; color: var(--accent); font-weight: 600; }
+.chest-modal           { background: var(--bg0, #1a1e26); border: 1px solid var(--border); border-radius: 12px; padding: 28px; max-width: 680px; width: 92vw; box-shadow: 0 8px 32px rgba(0,0,0,.7); }
+.chest-modal-tier      { font-size: 1.2rem; font-weight: 700; color: var(--accent); margin-bottom: 6px; }
+.chest-modal-prompt    { font-size: .9rem; color: var(--text2); margin-bottom: 18px; }
+.chest-modal-choices   { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 18px; }
+.chest-choice-card     { flex: 1; min-width: 170px; background: var(--bg1); border: 2px solid var(--border); border-radius: 10px; padding: 18px 16px; cursor: pointer; text-align: left; transition: border-color .15s, background .15s; }
+.chest-choice-card:hover { border-color: var(--accent); background: var(--bg2); }
+.chest-choice-name     { font-size: 1rem; font-weight: 700; color: var(--text1); margin-bottom: 6px; }
+.chest-choice-level    { font-size: .82rem; color: var(--text2); margin-bottom: 5px; }
+.chest-choice-effect   { font-size: .88rem; color: var(--accent); font-weight: 600; }
