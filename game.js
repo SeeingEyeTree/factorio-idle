@@ -314,7 +314,6 @@ function getBuildingItemKey(type) {
 function defaultMetaState() {
   return {
     totalPoints: 0,
-    pendingPoints: 0,
     weightedKills: 0,
     saveBlacklist: [],
     buildingUpgrades: {},
@@ -343,6 +342,8 @@ function _applyMetaParsed(parsed) {
     skillPerks: { ...(parsed.skillPerks ?? {}) },
     saveBlacklist: Array.isArray(parsed.saveBlacklist) ? parsed.saveBlacklist : [],
   };
+  // pendingPoints is save-level (lives in state), not account-level — strip any stale value
+  delete metaState.pendingPoints;
 }
 
 async function loadMetaState() {
@@ -491,7 +492,7 @@ const TUTORIAL_GOALS = [
   },
   // 3
   {
-    text: 'Build a unpaid intern and craft a total of 10 red monster',
+    text: 'Build a Lab and craft 10 red science packs. Enemies won\'t attack until you produce your first red science pack — so this is your last moment of peace!',
     check: s => {
       const hasLab = (s.buildings['lab']?.count ?? 0) > 0;
       const packs  = s.itemsProduced?.['redScience'] ?? 0;
@@ -715,6 +716,15 @@ function getArtilleryDamageTechData(level) {
   return { cost: Object.fromEntries(packs.map(p => [p, 1])), timePerPack: 60, totalNeeded };
 }
 
+function getWallHpTechData(level) {
+  const totalNeeded = Math.round(Math.pow(1.8, level - 1) * 50);
+  return { cost: { redScience: 1, greenScience: 1 }, timePerPack: 30, totalNeeded };
+}
+
+function wallHpBonusMult() {
+  return 1 + (state?.research?.wallHpLevel ?? 0) * 0.15;
+}
+
 function miningProdMult() {
   const baseline = hasMetaPerk('perk_mining_baseline') ? 0.10 : 0;
   return 1 + baseline + (state.research?.miningProdLevel ?? 0) * 0.10;
@@ -783,6 +793,12 @@ const INFINITE_TECHS = {
     prereq:      null,
     getData:     (level) => getArtilleryDamageTechData(level),
   }),
+  'wall:hp': new InfiniteTech({
+    displayName: 'Wall Reinforcement',
+    stateField:  'wallHpLevel',
+    prereq:      null,
+    getData:     (level) => getWallHpTechData(level),
+  }),
 };
 
 function currentRobotTechData() {
@@ -795,7 +811,7 @@ function currentRobotTechData() {
 
 function computePlaceTimeSec() {
   const logisticsBonus = (state?.research?.done?.logistics ? 0.5 : 0) + (state?.research?.done?.logistics2 ? 0.5 : 0);
-  const placeSpeedBonus = hasMetaPerk('perk_place_speed') ? 0.5 : 0;
+  const placeSpeedBonus = hasMetaPerk('perk_place_speed') ? 0.25 : 0;
   const baseTime = PLACE_TIME - logisticsBonus - placeSpeedBonus;
   const robotCount = Math.floor(state?.inventory?.constructionRobotItem ?? 0);
   if (robotCount === 0) return { time: baseTime, batch: 1 };
@@ -931,20 +947,33 @@ function createState(settings) {
     chestHighPriority: [],
   };
 
-  // Apply Quick Start perk if purchased and meta prog is enabled
-  if (metaState?.perks?.quickStart && st.settings.metaProgEnabled) {
+  // Apply Quick Start perks (new skill perk system)
+  if (st.settings.metaProgEnabled) {
     const b = st.buildings;
     const add = (key, entry, n = 1) => {
       if (b[key]) b[key].count += n; else b[key] = { ...entry, count: n };
     };
-    add('lab',             { type: 'lab' });
-    add('boiler',          { type: 'boiler' });
-    add('steamEngine',     { type: 'steamEngine' });
-    add('miner:coal',      { type: 'miner', resource: 'coal' },      5);
-    add('miner:ironOre',   { type: 'miner', resource: 'ironOre' },   5);
-    add('furnace:ironPlate',  { type: 'furnace', recipe: 'ironPlate' },  5);
-    add('miner:copperOre', { type: 'miner', resource: 'copperOre' }, 5);
-    add('furnace:copperPlate', { type: 'furnace', recipe: 'copperPlate' }, 5);
+    if (metaState.skillPerks?.qs_iron_start) {
+      st.research.done.electricMiningDrill = true;
+      add('electricMiner:ironOre',   { type: 'electricMiner', resource: 'ironOre' },   10);
+      add('furnace:ironPlate',       { type: 'furnace', recipe: 'ironPlate' },           8);
+    }
+    if (metaState.skillPerks?.qs_copper_start) {
+      st.research.done.electricMiningDrill = true;
+      add('electricMiner:copperOre', { type: 'electricMiner', resource: 'copperOre' },  5);
+      add('furnace:copperPlate',     { type: 'furnace', recipe: 'copperPlate' },         4);
+    }
+    // Legacy quickStart perk (old saves)
+    if (metaState?.perks?.quickStart) {
+      add('lab',             { type: 'lab' });
+      add('boiler',          { type: 'boiler' });
+      add('steamEngine',     { type: 'steamEngine' });
+      add('miner:coal',      { type: 'miner', resource: 'coal' },      5);
+      add('miner:ironOre',   { type: 'miner', resource: 'ironOre' },   5);
+      add('furnace:ironPlate',  { type: 'furnace', recipe: 'ironPlate' },  5);
+      add('miner:copperOre', { type: 'miner', resource: 'copperOre' }, 5);
+      add('furnace:copperPlate', { type: 'furnace', recipe: 'copperPlate' }, 5);
+    }
   }
 
   return st;
@@ -1050,6 +1079,7 @@ function applyStateFromEnvelope(envelope) {
   if (state.research.laserDamageLevel   == null) state.research.laserDamageLevel   = 0;
   if (state.research.artilleryRangeLevel  == null) state.research.artilleryRangeLevel  = 0;
   if (state.research.artilleryDamageLevel == null) state.research.artilleryDamageLevel = 0;
+  if (state.research.wallHpLevel         == null) state.research.wallHpLevel         = 0;
   if (state.research.infiniteAutoStart === undefined) state.research.infiniteAutoStart = null;
   // Migrate old per-recipe craftJobs to unified craftQueue
   if (state.craftJobs && !state.craftQueue) {
@@ -1092,6 +1122,7 @@ function applyStateFromEnvelope(envelope) {
   if (state.settings?.biterIntervalSecs  == null) state.settings.biterIntervalSecs  = 120;
   if (state.settings?.biterDifficultyMult == null) state.settings.biterDifficultyMult = 1;
   if (!state.seen) state.seen = {};
+  if (state.tutorial && state.tutorial.coalWarned == null) state.tutorial.coalWarned = false;
   if (state.bitersKilled == null) state.bitersKilled = 0;
   if (state.settings?.metaProgEnabled == null) {
     if (state.settings) state.settings.metaProgEnabled = false;
@@ -1105,25 +1136,19 @@ function applyStateFromEnvelope(envelope) {
   if (!state.rateSnapshot) state.rateSnapshot = { time: 0, produced: {}, consumed: {} };
   if (!state.saveCreatedAt) state.saveCreatedAt = Date.now();
   if (state._deathHandled == null) state._deathHandled = false;
+  if (state.pendingPoints == null) state.pendingPoints = 0;
 
-  // Merge meta state from save envelope
+  // Merge saveBlacklist from save envelope into current metaState.
+  // Account-level data (totalPoints, buildingUpgrades, skillPerks, perks, gamerModule)
+  // is authoritative in meta.json (already loaded at startup) and must NOT be overwritten
+  // by the save file's embedded meta — that copy can be stale.
   if (isEnvelope && envelope.meta) {
-    const def = defaultMetaState();
-    const em  = envelope.meta;
-    // Merge saveBlacklist from both envelope.meta and the current in-memory metaState
-    // (current metaState was loaded from localStorage in loadMetaState() at startup)
+    const em = envelope.meta;
     const mergedBlacklist = Array.from(new Set([
       ...(Array.isArray(em.saveBlacklist) ? em.saveBlacklist : []),
       ...(Array.isArray(metaState.saveBlacklist) ? metaState.saveBlacklist : []),
     ]));
-    metaState = {
-      ...def,
-      ...em,
-      perks: { ...def.perks, ...(em.perks ?? {}) },
-      gamerModule: { ...def.gamerModule, ...(em.gamerModule ?? {}) },
-      buildingUpgrades: { ...(em.buildingUpgrades ?? {}) },
-      saveBlacklist: mergedBlacklist,
-    };
+    metaState.saveBlacklist = mergedBlacklist;
     saveMetaState();
   }
 
@@ -1747,7 +1772,7 @@ function revealChunk() {
     const chestRoll = Math.random();
     if      (chestRoll < 1/1000) { state.chestFinds.legendary.push(_ci); notify('🟡 Found a Legendary Chest!', 'success'); }
     else if (chestRoll < 1/500)  { state.chestFinds.rare.push(_ci);      notify('🟣 Found a Rare Chest!', 'info'); }
-    else if (chestRoll < 1/100)  { state.chestFinds.common.push(_ci);    notify('📦 Found a Common Chest!', 'info'); }
+    else if (chestRoll < (hasMetaPerk('perk_chest_drop_rate') ? 21/2000 : 1/100)) { state.chestFinds.common.push(_ci); notify('📦 Found a Common Chest!', 'info'); }
   }
 
   const mult = DENSITY_MULT[state.settings.density] ?? 1.0;
@@ -2673,6 +2698,13 @@ function tick() {
       state.productionHistory.allTimeSamples.push({ t: state.savePlayTime ?? 0, produced: { ...state.itemsProduced } });
       if (state.productionHistory.allTimeSamples.length > 1440) state.productionHistory.allTimeSamples.shift();
     }
+    // Tutorial: one-time warning when coal net rate goes negative
+    if (state.settings?.tutorialEnabled && state.tutorial && !state.tutorial.coalWarned) {
+      if ((state.inventoryDelta.coal ?? 0) < 0) {
+        state.tutorial.coalWarned = true;
+        notify('⚠️ Coal is running out! Burner miners and furnaces consume coal to run — make sure you have enough coal miners to keep up.', 'warning');
+      }
+    }
   }
   _p1('rates', _tRate);
 
@@ -2693,7 +2725,11 @@ function tick() {
     state.savePlayTime = (state.savePlayTime ?? 0) + dt;
     if (!state.biterActivated) {
       const redMade = (state.itemsProduced?.redScience ?? 0) > 0;
-      if (redMade) { state.biterActivated = true; state.biterTimer = -(420 - biterInterval()); }
+      if (redMade) {
+        state.biterActivated = true;
+        const graceSecs = hasMetaPerk('perk_grace') ? 60 : 0;
+        state.biterTimer = -(420 - biterInterval() + graceSecs);
+      }
     } else {
       // Artillery fires continuously between waves (not during active wave resolution)
       const artCount = state.perimeter?.artillery ?? 0;
@@ -3354,7 +3390,7 @@ function renderPower() {
     <div class="fluid-sep">·</div>
     <div class="fluid-cell">
       <span class="fluid-icon">🏆</span>
-      <span class="fluid-val">${(metaState.pendingPoints ?? 0).toFixed(2)} pts</span>
+      <span class="fluid-val">${(state?.pendingPoints ?? 0).toFixed(2)} pts</span>
     </div>`;
 }
 
@@ -4876,7 +4912,7 @@ function renderRobotTechs() {
   // ── Infinite Tech Chains ──
 
   function infiniteTechGroup(techType, label, prereqKey, levelKey, getDataFn, bonusLabel) {
-    if (!state.research.done?.[prereqKey]) return '';
+    if (prereqKey != null && !state.research.done?.[prereqKey]) return '';
     const level   = state.research[levelKey] ?? 0;
     const nextLvl = level + 1;
     const data    = getDataFn(nextLvl);
@@ -4929,6 +4965,25 @@ function renderRobotTechs() {
     getLaserDamageData,
     lvl => `+${((laserDamageMult(lvl) - 1) * 100).toFixed(0)}% laser DPS`,
   );
+  html += infiniteTechGroup(
+    'wall:hp', 'Wall Reinforcement', null, 'wallHpLevel',
+    getWallHpTechData,
+    lvl => `+${(lvl * 15).toFixed(0)}% wall HP`,
+  );
+  if (metaState.skillPerks?.scl_arty_range_unlock) {
+    html += infiniteTechGroup(
+      'artillery:range', 'Artillery Range', null, 'artilleryRangeLevel',
+      getArtilleryRangeTechData,
+      lvl => `${lvl} extra ring${lvl !== 1 ? 's' : ''} of coverage`,
+    );
+  }
+  if (metaState.skillPerks?.scl_arty_damage_unlock) {
+    html += infiniteTechGroup(
+      'artillery:damage', 'Artillery Damage', null, 'artilleryDamageLevel',
+      getArtilleryDamageTechData,
+      lvl => `+${(lvl * 25).toFixed(0)}% shell damage`,
+    );
+  }
 
   if (html === lastRobotTechHtml) return;
   lastRobotTechHtml = html;
@@ -5045,7 +5100,7 @@ function simulateNextWaveOutcome() {
 
   const base        = getBiterWaveStats();
   const { totalDPS } = calcDefenseDPS(base.armor, state.powerRatio ?? 1);
-  const wallHpMult  = hasMetaPerk('perk_wall_hp') ? 1.5 : 1;
+  const wallHpMult  = wallHpBonusMult();
   const totalWallHP = (state.perimeter.walls ?? 0) * WALL_HP * wallHpMult;
   const numSections = perimeterTiles();
   const rainbow     = hasRainbowScience();
@@ -5147,7 +5202,7 @@ function fightBiterWave() {
   }
 
   const p           = state.perimeter;
-  const wallHpMult  = hasMetaPerk('perk_wall_hp') ? 1.5 : 1;
+  const wallHpMult  = wallHpBonusMult();
   const totalWallHP = p.walls * WALL_HP * wallHpMult;
   const ammoType    = p.ammoType ?? 'firearmMagazine';
   const stats       = GUN_TURRET_STATS[ammoType] ?? GUN_TURRET_STATS.firearmMagazine;
@@ -5290,7 +5345,7 @@ function finalizeWave(w, forced) {
     state.bitersKilled = (state.bitersKilled ?? 0) + w.count * w.sectionsAttacked;
     const pts = state.biterThreatPoints ?? 0;
     const pointDelta = Math.floor(pts - 1) / 67;
-    if (pointDelta > 0) { metaState.pendingPoints = (metaState.pendingPoints ?? 0) + pointDelta; saveMetaState(); }
+    if (pointDelta > 0) { state.pendingPoints = (state.pendingPoints ?? 0) + pointDelta; }
   }
 
   state.biterWaveNumber = w.waveNum;
@@ -5307,7 +5362,7 @@ function finalizeWave(w, forced) {
     totalDPS:   totalDPS.toFixed(1),
     killTime:   artKilled ? null : w.waveTimer.toFixed(1),
     biterDamage: Math.round(w.overflow).toFixed(0),
-    totalWallHP: p.walls * WALL_HP * (hasMetaPerk('perk_wall_hp') ? 1.5 : 1),
+    totalWallHP: p.walls * WALL_HP * (wallHpBonusMult()),
     buildingsLost,
     ammoUsed:   actualMagsUsed,
     ammoType:   w.ammoType,
@@ -5482,7 +5537,7 @@ function renderPerimeter() {
 
   // Preview defense DPS with a mid-range armor estimate for next wave
   const { gunDPS, laserDPS, totalDPS, stats: gunStats, effectiveDmg, laserEffectiveDmg } = calcDefenseDPS(base.armor);
-  const totalWallHP = p.walls * WALL_HP * (hasMetaPerk('perk_wall_hp') ? 1.5 : 1);
+  const totalWallHP = p.walls * WALL_HP * (wallHpBonusMult());
   const nextBiterHP = base.count * base.hp;
 
   let previewKillTime = totalDPS > 0 ? (nextBiterHP / totalDPS).toFixed(1) : '∞';
@@ -6230,9 +6285,9 @@ function renderGraph() {
 }
 
 function handleRunEnd(reason) {
-  // 1. Award pending points
-  metaState.totalPoints = (metaState.totalPoints ?? 0) + (metaState.pendingPoints ?? 0);
-  metaState.pendingPoints = 0;
+  // 1. Award pending points (tracked in the save, not in meta)
+  metaState.totalPoints = (metaState.totalPoints ?? 0) + (state?.pendingPoints ?? 0);
+  if (state) state.pendingPoints = 0;
 
   // 2. Blacklist this save's timestamp
   const ts = state.saveCreatedAt;
@@ -6409,7 +6464,7 @@ function startNewGame() {
   state = createState({ density: 'medium', biters, biterIntervalSecs, biterDifficultyMult, metaProgEnabled, tutorialEnabled });
   placeQueue = []; _placeHead = 0; placing = false; currentPlacing = null; biterWaveWarned = false;
   currentSaveFile = null;
-  _pendingScriptRestore = null;
+  _pendingScriptRestore = { content: '', autoContent: '', autoRun: false };
   closeNewGameModal();
   showGame();
 }
@@ -6657,63 +6712,34 @@ const META_BUILDING_ITEM_KEY = {
 };
 
 const META_SKILL_PERKS = [
-  // Quick Start
-  { id: 'qs_starter_pack',    tree: 'Quick Start', name: 'Starter Pack',         tier: 1, cost: 1, icon: '🪨', effect: '50 coal + 1 burner miner on each starter resource' },
-  { id: 'qs_mining_crew',     tree: 'Quick Start', name: 'Mining Crew',          tier: 2, cost: 2, icon: '👷', effect: '5 burner miners on each starter resource' },
-  { id: 'qs_iron_age',        tree: 'Quick Start', name: 'Iron Age',             tier: 3, cost: 2, icon: '🔩', effect: '+3 stone furnaces preset to iron plate' },
-  { id: 'qs_bronze_age',      tree: 'Quick Start', name: 'Bronze Age',           tier: 4, cost: 2, icon: '🔶', effect: '+3 stone furnaces preset to copper plate' },
-  { id: 'qs_power_basic',     tree: 'Quick Start', name: 'Power: Basic',         tier: 3, cost: 3, icon: '⚡', effect: 'Offshore pump + boiler + 2 steam engines pre-built' },
-  { id: 'qs_power_lab',       tree: 'Quick Start', name: 'Power: Lab',           tier: 4, cost: 2, icon: '🔬', effect: '+1 lab pre-built' },
-  { id: 'qs_power_solar',     tree: 'Quick Start', name: 'Power: Solar',         tier: 5, cost: 4, icon: '☀️', effect: '+5 solar panels and +2 accumulators pre-built' },
-  { id: 'qs_assembler_gear',  tree: 'Quick Start', name: 'Auto: Gears',          tier: 4, cost: 3, icon: '⚙️', effect: '+1 assembler preset to iron gears' },
-  { id: 'qs_assembler_cable', tree: 'Quick Start', name: 'Auto: Cables',         tier: 5, cost: 2, icon: '🟡', effect: '+1 assembler preset to copper cables' },
-  { id: 'qs_red_running',     tree: 'Quick Start', name: 'Red Science Running',  tier: 6, cost: 4, icon: '🔴', effect: '50 red science in inventory at start' },
-  { id: 'qs_perimeter',       tree: 'Quick Start', name: 'Defense: Perimeter',   tier: 2, cost: 2, icon: '🧱', effect: 'Stone walls fully built around starting perimeter' },
-  { id: 'qs_turrets',         tree: 'Quick Start', name: 'Defense: Turrets',     tier: 3, cost: 3, icon: '🗼', effect: '+4 gun turrets and +100 firearm magazines' },
-  { id: 'qs_armed',           tree: 'Quick Start', name: 'Defense: Piercing',    tier: 4, cost: 2, icon: '🎯', effect: '+50 piercing rounds in inventory' },
-  // Perks
-  { id: 'perk_place_speed',     tree: 'Perks', name: 'Quick Hands',        tier: 1, cost: 2, icon: '🤲', effect: 'Base place time −0.5s' },
-  { id: 'perk_logistics_speed', tree: 'Perks', name: 'Logistics Research', tier: 2, cost: 2, icon: '⏩', effect: 'Logistics techs 25% stronger' },
-  { id: 'perk_robot_punch',     tree: 'Perks', name: 'Robot Force',        tier: 2, cost: 3, icon: '🤖', effect: 'Construction robots +25% effectiveness' },
-  { id: 'perk_robot_swarm',     tree: 'Perks', name: 'Swarm Tactics',      tier: 3, cost: 4, icon: '🦾', effect: 'Construction robots +60% total effectiveness' },
-  { id: 'perk_mining_baseline', tree: 'Perks', name: 'Better Picks',       tier: 1, cost: 2, icon: '⛏️', effect: '+10% baseline mining productivity' },
-  { id: 'perk_patch_size',      tree: 'Perks', name: 'Generous Veins',     tier: 1, cost: 1, icon: '💎', effect: 'Starting ore patches +25% larger' },
-  { id: 'perk_steam_output',    tree: 'Perks', name: 'Pressurized',        tier: 1, cost: 2, icon: '💨', effect: 'Steam engines produce +10% power' },
-  { id: 'perk_accumulator_cap', tree: 'Perks', name: 'Charged Cells',      tier: 2, cost: 2, icon: '🔋', effect: 'Accumulators store +25% energy' },
-  { id: 'perk_nuclear_extension', tree: 'Perks', name: 'Spent Fuel Reuse', tier: 3, cost: 3, icon: '☢️', effect: 'Uranium fuel cells last +25% longer' },
-  { id: 'perk_wall_hp',         tree: 'Perks', name: 'Reinforced Walls',   tier: 1, cost: 2, icon: '🧱', effect: 'Stone walls +50% HP' },
-  { id: 'perk_gun_baseline',    tree: 'Perks', name: 'Sharper Rounds',     tier: 1, cost: 2, icon: '🔫', effect: 'Gun turret damage +10% baseline' },
-  { id: 'perk_grace',           tree: 'Perks', name: 'Slow Wakening',      tier: 1, cost: 1, icon: '🕐', effect: 'Biter grace period +60s (stackable ×3)' },
-  { id: 'perk_lab_speed_1',     tree: 'Perks', name: 'Faster Labs I',      tier: 1, cost: 2, icon: '🧪', effect: 'Labs research +15% faster' },
-  { id: 'perk_lab_speed_2',     tree: 'Perks', name: 'Faster Labs II',     tier: 2, cost: 3, icon: '⚗️', effect: 'Labs research +25% faster total' },
-  { id: 'perk_pack_efficiency', tree: 'Perks', name: 'Pack Efficiency',    tier: 2, cost: 3, icon: '📦', effect: 'Science pack crafts +10% productivity' },
-  { id: 'perk_radar_speed',     tree: 'Perks', name: 'Sweep Radar',        tier: 1, cost: 1, icon: '📡', effect: 'Radar reveals chunks +50% faster' },
-  // Scaling
-  { id: 'scl_robot_speed_exp_1', tree: 'Scaling', name: 'Robot Speed Research I',   tier: 1, cost: 5,  icon: '🤖', effect: 'Robot speed cost base 2.0 → 1.95 per level' },
-  { id: 'scl_robot_speed_exp_2', tree: 'Scaling', name: 'Robot Speed Research II',  tier: 2, cost: 8,  icon: '🤖', effect: 'Robot speed cost base 1.95 → 1.90' },
-  { id: 'scl_robot_speed_mag_1', tree: 'Scaling', name: 'Robot Speed Magnitude I',  tier: 1, cost: 4,  icon: '🏎️', effect: 'Speed bonus per level +5%' },
-  { id: 'scl_robot_speed_mag_2', tree: 'Scaling', name: 'Robot Speed Magnitude II', tier: 2, cost: 6,  icon: '🏎️', effect: 'Speed bonus per level +10% cumulative' },
-  { id: 'scl_mining_exp_1',      tree: 'Scaling', name: 'Mining Prod Research I',   tier: 1, cost: 5,  icon: '⛏️', effect: 'Mining productivity cost base reduced to 1.95' },
-  { id: 'scl_mining_mag_1',      tree: 'Scaling', name: 'Mining Prod Magnitude I',  tier: 1, cost: 4,  icon: '💎', effect: '+12% prod per level instead of +10%' },
-  { id: 'scl_gun_exp_1',         tree: 'Scaling', name: 'Gun Damage Research I',    tier: 1, cost: 5,  icon: '🔫', effect: 'Gun damage cost base 2.0 → 1.95' },
-  { id: 'scl_gun_mag_1',         tree: 'Scaling', name: 'Gun Damage Magnitude I',   tier: 1, cost: 4,  icon: '💥', effect: '+5% extra damage per level beyond lvl 6' },
-  { id: 'scl_laser_exp_1',       tree: 'Scaling', name: 'Laser Damage Research I',  tier: 1, cost: 5,  icon: '⚡', effect: 'Laser damage cost base 2.0 → 1.95' },
-  { id: 'scl_laser_mag_1',       tree: 'Scaling', name: 'Laser Damage Magnitude I', tier: 1, cost: 4,  icon: '🌟', effect: '+10 effective damage per level' },
-  { id: 'scl_artillery_exp_1',   tree: 'Scaling', name: 'Artillery Research I',     tier: 1, cost: 5,  icon: '💣', effect: 'Artillery cost bases reduced 0.05' },
-  { id: 'scl_artillery_mag_1',   tree: 'Scaling', name: 'Artillery Magnitude I',    tier: 1, cost: 4,  icon: '💥', effect: '+5% artillery damage per level' },
-  { id: 'scl_universal',         tree: 'Scaling', name: 'Universal Scaling',        tier: 3, cost: 20, icon: '🌐', effect: 'ALL infinite tech bases reduced by extra 0.05' },
-  // Scripting
-  { id: 'script_unlock',      tree: 'Scripting', name: 'Script Access',      tier: 1, cost: 1,  icon: '📜', effect: 'Unlocks the Script Editor tab' },
-  { id: 'script_conditions',  tree: 'Scripting', name: 'Conditions',         tier: 2, cost: 3,  icon: '🔀', effect: 'Enables if/elif/else, ==, !=, <, >, and/or/not' },
-  { id: 'script_loops',       tree: 'Scripting', name: 'Loops',              tier: 3, cost: 4,  icon: '🔄', effect: 'Enables while, for, range()' },
-  { id: 'script_variables',   tree: 'Scripting', name: 'Variables',          tier: 2, cost: 2,  icon: '📝', effect: 'Enables in-script assignment (x = 5, etc.)' },
-  { id: 'script_memory',      tree: 'Scripting', name: 'Persistent Memory',  tier: 3, cost: 4,  icon: '💾', effect: 'MEM_* variables persist across runs' },
-  { id: 'script_arithmetic',  tree: 'Scripting', name: 'Arithmetic',         tier: 2, cost: 2,  icon: '➕', effect: 'Enables +, −, *, /, %, **' },
-  { id: 'script_math_basic',  tree: 'Scripting', name: 'Math Builtins',      tier: 3, cost: 2,  icon: '🧮', effect: 'Enables floor, ceil, round, min, max, abs' },
-  { id: 'script_auto_tab',    tree: 'Scripting', name: 'Auto-Run Tab',       tier: 3, cost: 5,  icon: '⏰', effect: 'Unlocks auto-run tab (script runs every 10s)' },
-  { id: 'script_auto_5s',     tree: 'Scripting', name: 'Faster Auto (5s)',   tier: 4, cost: 3,  icon: '⚡', effect: 'Auto-run interval 10s → 5s' },
-  { id: 'script_auto_1s',     tree: 'Scripting', name: 'Real-Time Auto',     tier: 5, cost: 5,  icon: '🚀', effect: 'Auto-run interval 5s → 1s' },
-  { id: 'script_calculator',  tree: 'Scripting', name: 'Recipe Calculator',  tier: 5, cost: 10, icon: '🧮', effect: 'Unlocks Recipe Calculator tab' },
+  // ── Quick Start ────────────────────────────────────────────────
+  { id: 'qs_iron_start',   tree: 'Quick Start', name: 'Iron Start',   tier: 1, cost: 1, icon: '🔩',
+    effect: 'Start with 10 electric mining drills (iron) and 8 stone furnaces smelting iron' },
+  { id: 'qs_copper_start', tree: 'Quick Start', name: 'Copper Start', tier: 1, cost: 1, icon: '🔶',
+    effect: 'Start with 5 electric mining drills (copper) and 4 stone furnaces smelting copper' },
+  { id: 'qs_demo_t2', tree: 'Quick Start', name: 'More in full game', tier: 2, cost: 99, icon: '🔒',
+    effect: 'More quick-start options in the full version' },
+  // ── Perks ──────────────────────────────────────────────────────
+  { id: 'perk_place_speed',    tree: 'Perks', name: 'Quick Hands',    tier: 1, cost: 2, icon: '🤲',
+    effect: 'Base place time −0.25s' },
+  { id: 'perk_grace',         tree: 'Perks', name: 'Slow Wakening',  tier: 1, cost: 1, icon: '🕐',
+    effect: '+60s before the first biter wave arrives' },
+  { id: 'perk_chest_drop_rate', tree: 'Perks', name: 'Lucky Finds', tier: 1, cost: 2, icon: '🍀',
+    effect: 'Common chest drop rate: 1/100 → 21/2000 (+5%)' },
+  { id: 'perk_demo_t2', tree: 'Perks', name: 'More in full game', tier: 2, cost: 99, icon: '🔒',
+    effect: 'More perks in the full version' },
+  // ── Scaling ────────────────────────────────────────────────────
+  { id: 'scl_arty_range_unlock', tree: 'Scaling', name: 'Artillery Range Research', tier: 1, cost: 3, icon: '🎯',
+    effect: 'Unlocks Artillery Range infinite tech in the Research tab' },
+  { id: 'scl_arty_damage_unlock', tree: 'Scaling', name: 'Artillery Damage Research', tier: 1, cost: 3, icon: '💥',
+    effect: 'Unlocks Artillery Damage infinite tech in the Research tab' },
+  { id: 'scl_demo_t2', tree: 'Scaling', name: 'More in full game', tier: 2, cost: 99, icon: '🔒',
+    effect: 'More scaling options in the full version' },
+  // ── Scripting ──────────────────────────────────────────────────
+  { id: 'script_unlock', tree: 'Scripting', name: 'Script Access', tier: 1, cost: 1, icon: '📜',
+    effect: 'Unlocks the Script Editor at the start of every run' },
+  { id: 'script_demo_t2', tree: 'Scripting', name: 'More in full game', tier: 2, cost: 99, icon: '🔒',
+    effect: 'More scripting features in the full version' },
 ];
 
 function buySkillPerk(id) {
@@ -6804,7 +6830,7 @@ function renderMetaProgression(containerId = 'meta-screen-content') {
   if (!el) return;
 
   const spendable = metaState.totalPoints ?? 0;
-  const pending   = metaState.pendingPoints ?? 0;
+  const pending   = state?.pendingPoints ?? 0;
   const inGame    = !!state;
 
   const tabs = [
@@ -6853,8 +6879,14 @@ function renderMetaProgression(containerId = 'meta-screen-content') {
           const owned = !!metaState.skillPerks?.[perk.id];
           const isDemo = perk.tier > 1;
           const canBuy = !owned && !isDemo && spendable >= perk.cost;
-          const tooltip = `${perk.name}\n${perk.effect}\nCost: ${perk.cost} pt${perk.cost !== 1 ? 's' : ''}${owned ? '\n✅ Owned' : isDemo ? '\n🔒 Not available in demo' : canBuy ? '' : `\nNeed ${perk.cost - Math.floor(spendable)} more pts`}`;
-          const icon = perk.icon ?? '⭐';
+          const tooltip = owned
+            ? `${perk.name}\n${perk.effect}\n✅ Owned`
+            : isDemo
+              ? `🔒 Not available in demo`
+              : canBuy
+                ? `${perk.name}\n${perk.effect}\nCost: ${perk.cost} pt${perk.cost !== 1 ? 's' : ''}`
+                : `${perk.name}\n${perk.effect}\nCost: ${perk.cost} pt${perk.cost !== 1 ? 's' : ''}\nNeed ${perk.cost - Math.floor(spendable)} more pts`;
+          const icon = (isDemo && !owned) ? '🔒' : (perk.icon ?? '⭐');
           let cls = 'perk-icon-btn';
           if (owned) cls += ' perk-icon-owned';
           else if (isDemo) cls += ' perk-icon-demo';
