@@ -500,33 +500,12 @@
             </div>
           </div>
 
-          <!-- 📡 Exploration -->
+          <!-- 🔬 Research & Exploration -->
           <div class="build-section">
-            <div class="build-section-header" onclick="toggleBuildSection('exploration')">
-              📡 Exploration <span class="build-section-arrow" id="build-arrow-exploration">▼</span>
+            <div class="build-section-header" onclick="toggleBuildSection('research')">
+              🔬 Research & Exploration <span class="build-section-arrow" id="build-arrow-research">▼</span>
             </div>
-            <div class="build-section-body" id="build-section-exploration">
-              <div class="buildable-card" data-requires-tech="radarTech">
-                <span class="card-icon">📡</span>
-                <div class="card-body">
-                  <h4>Radar</h4>
-                  <p>Explores the map · uncovers 1 chunk/min · richer patches as you explore more</p>
-                  <p class="card-cost">Cost: 1 × Radar</p>
-                  <div class="place-row">
-                    <input type="number" class="place-count" min="1" value="1">
-                    <button class="btn-place" data-type="radar" onclick="placeBuilding('radar',this,event)">Place</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- 🔬 Science -->
-          <div class="build-section">
-            <div class="build-section-header" onclick="toggleBuildSection('science')">
-              🔬 Science <span class="build-section-arrow" id="build-arrow-science">▼</span>
-            </div>
-            <div class="build-section-body" id="build-section-science">
+            <div class="build-section-body" id="build-section-research">
               <div class="buildable-card">
                 <span class="card-icon">🔬</span>
                 <div class="card-body">
@@ -536,6 +515,18 @@
                   <div class="place-row">
                     <input type="number" class="place-count" min="1" value="1">
                     <button class="btn-place" data-type="lab" onclick="placeBuilding('lab',this,event)">Place</button>
+                  </div>
+                </div>
+              </div>
+              <div class="buildable-card" data-requires-tech="radarTech">
+                <span class="card-icon">📡</span>
+                <div class="card-body">
+                  <h4>Radar</h4>
+                  <p>Explores the map · uncovers 1 chunk/min · richer patches as you explore more</p>
+                  <p class="card-cost">Cost: 1 × Radar</p>
+                  <div class="place-row">
+                    <input type="number" class="place-count" min="1" value="1">
+                    <button class="btn-place" data-type="radar" onclick="placeBuilding('radar',this,event)">Place</button>
                   </div>
                 </div>
               </div>
@@ -649,6 +640,16 @@
                 <input type="checkbox" id="settings-tutorial" class="sr-only" onchange="setTutorialEnabled(this.checked)">
                 <label for="settings-tutorial" class="toggle"></label>
               </div>
+            </div>
+            <div class="settings-row">
+              <div>
+                <div class="settings-row-label">Theme</div>
+                <div class="settings-row-desc">Switch between Caff-Infinite and Factorio display names and icons.</div>
+              </div>
+              <select id="settings-theme" class="limit-input" onchange="setTheme(this.value)">
+                <option value="caffactory">Caff-Infinite</option>
+                <option value="factorio">Factorio</option>
+              </select>
             </div>
             <div class="settings-row">
               <div>
@@ -803,6 +804,7 @@
 </div>
 
 <script src="data/recipes.js"></script>
+<script src="data/themes.js"></script>
 <script src="data/tech.js"></script>
 <script src="data/technologies.js"></script>
 <script src="game.js"></script>

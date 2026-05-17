@@ -14,7 +14,7 @@ const TECHNOLOGIES = {
   military: new Technology({
     name: 'Military', icon: '⚙️',
     cost: { redScience: 10 }, timePerPack: 15,
-    prereqs: [],
+    prereqs: ['gunTurret','stoneWallTech'],
     description: 'Unlocks the damage upgrades for gun turrets',
     unlockRecipes: [], unlockBuildings: [],
   }),
@@ -36,7 +36,7 @@ const TECHNOLOGIES = {
   radarTech: new Technology({
     name: 'Radar', icon: '📡', iconImg: 'data/icon_imgs/radar.png',
     cost: { redScience: 20 }, timePerPack: 10,
-    prereqs: [],
+    prereqs: ['military'],
     description: 'Unlocks Radar for map exploration',
     unlockRecipes: ['radarItem'], unlockBuildings: ['radar'],
   }),
