@@ -1858,7 +1858,7 @@ function revealChunk() {
   const nodes  = Math.round((55 + Math.floor(Math.random() * 36)) * mult);
   addPatchFind(resource, amount, nodes);
   const inPerim = state.chunksRevealed < Math.pow(state.perimeter.sideLength, 2);
-  notify(`🗺️ Found ${PATCHES[resource].name} patch! +${amount.toLocaleString()}${inPerim ? '' : ' (outside perimeter)'}`, 'info', { radar: true });
+  notify(`🗺️ Found ${itemDisplay(resource).name} patch! +${amount.toLocaleString()}${inPerim ? '' : ' (outside perimeter)'}`, 'info', { radar: true });
 }
 
 function patchInPerimeter(resource) {
@@ -3695,11 +3695,12 @@ function renderMining() {
   const existingKeys = [...container.querySelectorAll('[data-patch]')].map(el => el.dataset.patch);
   if (JSON.stringify(patchKeys) !== JSON.stringify(existingKeys)) {
     container.innerHTML = patchKeys.map(key => {
-      const info = PATCHES[key] ?? { name: key, icon: '🪨' };
+      const _pb = PATCHES[key] ?? { name: key, icon: '🪨' };
+      const _pt = itemDisplay(key);
       return `<div class="patch-card" data-patch="${key}">
-        <span class="patch-icon">${info.icon}</span>
+        <span class="patch-icon">${_pt.icon ?? _pb.icon}</span>
         <div class="patch-info">
-          <div class="patch-name">${info.name}</div>
+          <div class="patch-name">${_pt.name}</div>
           <div class="patch-remaining"></div>
           <div class="patch-nodes"></div>
         </div>
@@ -4162,7 +4163,7 @@ function renderBuildings() {
       const meta = type === 'miner'
         ? `coal: ${(count * COAL_PER_MINER).toFixed(4)}/sec`
         : `${ELECTRIC_MINER_KW * count} kW`;
-      const label = `${buildingDisplay(type).name} — ${PATCHES[group.resource]?.name}`;
+      const label = `${buildingDisplay(type).name} — ${itemDisplay(group.resource).name}`;
       return buildingCard(type, count, meta, statusTxt, isActive, -1, key, '', true, type === 'electricMiner' ? 'electricMiner' : null, false, label);
     }
 
@@ -4617,23 +4618,24 @@ function buildingCard(type, count, meta, statusTxt, isActive, barFill, key, extr
     ? `<div class="mini-bar"><div class="mini-fill ${isActive ? 'fill-active' : ''}" style="width:${fillPct}%"></div></div>`
     : '';
 
-  // Right-side image panel: building image (large) + current output item (smaller)
+  // Right-side image panel: building image + name label when there's an output item
   const _bldgItemKey = getBuildingItemKey(type);
-  const _bldgImgHtml = _bldgItemKey
-    ? `<div class="bldg-main-img">${itemIcon(_bldgItemKey)}</div>`
-    : `<div class="bldg-main-img bldg-main-emoji">${icon}</div>`;
   const _outKey = getBuildingOutputKey(key);
   const _outName = _outKey ? itemDisplay(_outKey).name : '';
+  const _bldgNameLabel = _outKey ? `<span class="bldg-name-label">${name}</span>` : '';
+  const _bldgImgHtml = _bldgItemKey
+    ? `<div class="bldg-main-wrap"><div class="bldg-main-img">${itemIcon(_bldgItemKey)}</div>${_bldgNameLabel}</div>`
+    : `<div class="bldg-main-wrap"><div class="bldg-main-img bldg-main-emoji">${icon}</div>${_bldgNameLabel}</div>`;
   const _outImgHtml = _outKey
-    ? `<div class="bldg-output-img"><span class="bldg-output-name">${_outName}</span>${itemIcon(_outKey)}</div>`
+    ? `<div class="bldg-output-img">${itemIcon(_outKey)}<span class="bldg-output-count">×${count}</span></div>`
     : '';
 
   return `<div class="building-card">
     ${_outImgHtml}
     <div class="building-info">
       <div class="building-row">
-        <span class="building-name">${name}</span>
-        <span class="building-count">×${count}</span>
+        <span class="building-name">${_outKey ? _outName : name}</span>
+        ${_outKey ? '' : `<span class="building-count">×${count}</span>`}
       </div>
       ${_outKey ? '' : extra}${limitRow}${moduleRow}
       <div class="building-meta">${meta}</div>
@@ -7545,10 +7547,11 @@ function _handleMapClick(e) {
 }
 
 function openOrePatchPopup(key) {
-  const patch   = state?.patches?.[key];
-  const info    = PATCHES[key] ?? { name: key, icon: '🪨' };
-  const pos     = ORE_PATCH_TILES[key];
-  const popup   = document.getElementById('ore-patch-popup');
+  const patch     = state?.patches?.[key];
+  const _patchBase = PATCHES[key] ?? { name: key, icon: '🪨' };
+  const _themed    = itemDisplay(key);
+  const pos       = ORE_PATCH_TILES[key];
+  const popup     = document.getElementById('ore-patch-popup');
   if (!popup || !patch) return;
 
   const consumed   = state.patchConsumed?.[key] ?? 0;
@@ -7560,7 +7563,7 @@ function openOrePatchPopup(key) {
   const canMine    = !depleted && !cooling && inPerim;
 
   popup.dataset.oreKey = key;
-  popup.querySelector('.ore-popup-title').textContent = `${info.icon} ${info.name}`;
+  popup.querySelector('.ore-popup-title').textContent = `${_themed.icon ?? _patchBase.icon} ${_themed.name}`;
   popup.querySelector('.ore-popup-remaining').textContent = fmtNum(Math.floor(patch.remaining));
   popup.querySelector('.ore-popup-mined').textContent    = fmtNum(Math.floor(consumed));
   popup.querySelector('.ore-popup-manifest').textContent = fmtNum(Math.round(manifested));
@@ -7710,15 +7713,17 @@ function _refreshBuildingPopup() {
   _bldPopupRecipeIdx = Math.max(0, Math.min(_bldPopupRecipeIdx, recipes.length - 1));
   const recipe = recipes[_bldPopupRecipeIdx];
 
-  popup.querySelector('.bld-popup-title').textContent  = cat.label;
-  popup.querySelector('.bld-popup-recipe').textContent = recipe.name;
+  const _catTitle = cat.types?.[0] ? (buildingDisplay(cat.types[0]).name ?? cat.label) : cat.label;
+  popup.querySelector('.bld-popup-title').textContent  = _catTitle;
+  const _recipeOutKey = Object.keys(recipe.outputs ?? {})[0];
+  popup.querySelector('.bld-popup-recipe').textContent = _recipeOutKey ? itemDisplay(_recipeOutKey).name : recipe.name;
   popup.querySelector('.bld-popup-arrow-prev').disabled = _bldPopupRecipeIdx === 0;
   popup.querySelector('.bld-popup-arrow-next').disabled = _bldPopupRecipeIdx === recipes.length - 1;
 
   const statsEl = popup.querySelector('.bld-popup-stats');
   statsEl.innerHTML = '';
   for (const outKey of Object.keys(recipe.outputs ?? {})) {
-    const itemName = ITEMS[outKey]?.name ?? outKey;
+    const itemName = itemDisplay(outKey).name;
     const produced  = Math.floor(state?.itemsProduced?.[outKey] ?? 0);
     const base      = Math.floor(state?.baseProduced?.[outKey]  ?? 0);
     const manifest  = Math.max(0, produced - base);

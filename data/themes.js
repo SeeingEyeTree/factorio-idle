@@ -69,7 +69,7 @@ const THEMES = {
       sulfuricAcid:    { name: 'Pre-Workout Powder',      img: 'data/icon_imgs/caffactory/sulfuric_acid.png' },
       plasticBar:      { name: 'Plastic Bags',            img: 'data/icon_imgs/caffactory/plastic_bar.png' },
       battery:         { name: 'AA Battery Pack',         img: 'data/icon_imgs/caffactory/battery.png' },
-      solidFuel:       { name: 'Caffeine Brick',         img: 'data/icon_imgs/caffactory/solid_fuel.png' },
+      solidFuel:       { name: 'Caffeine Brick' },
 
       // Engine / robot components
       engineUnit:         { name: 'Coffee Maker Motor',   img: 'data/icon_imgs/caffactory/coffee_motor.png' },
@@ -205,15 +205,15 @@ const THEMES = {
 
     buildings: {
       // Building type → display name in Caff-Infinite theme
-      miner:         { name: 'Cubicle Rummager' },
-      electricMiner: { name: 'Automated Janitor' },
+      miner:         { name: 'The MINES' },
+      electricMiner: { name: 'MINES (safety optional)' },
       furnace:       { name: 'Blast Furnace' },
       steelFurnace:  { name: 'Pressure Forge' },
       electricFurnace: { name: 'Vacuum Furnace' },
       assembly:      { name: 'Junior Intern Pod' },
       assembly2:     { name: 'Mid-Level Intern Pod' },
       assembly3:     { name: 'Senior Intern Pod' },
-      lab:           { name: 'Unpaid Intern' },
+      lab:           { name: 'Dedicated Drinker' },
       boiler:        { name: 'Coffee Boiler' },
       steamEngine:   { name: 'Steam Generator' },
       offshoreP:     { name: 'Water Cooler' },
