@@ -5,6 +5,8 @@ Requires: pip install google-genai pillow
 """
 
 import csv
+import os
+import sys
 import time
 from pathlib import Path
 from google import genai
@@ -12,8 +14,7 @@ from google.genai import types
 from PIL import Image
 from io import BytesIO
 
-# Your API key
-API_KEY = "AIzaSyDcC3sDlhYGupPiDfOdFtl0wrJdy3f-l8c"
+API_KEY = os.environ.get('GEMINI_API_KEY') or sys.exit('Set GEMINI_API_KEY environment variable')
 
 # Initialize client
 client = genai.Client(api_key=API_KEY)

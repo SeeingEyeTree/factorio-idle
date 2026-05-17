@@ -22,7 +22,7 @@ Usage:
     # Skip reference image (higher quality, no logo consistency):
     python temp_python_scripts/generate_tier1.py --imagen-only
 """
-import argparse, sys, time
+import argparse, os, sys, time
 from pathlib import Path
 from io import BytesIO
 
@@ -33,7 +33,7 @@ try:
 except ImportError:
     sys.exit("Run: pip install google-genai pillow")
 
-API_KEY    = "AIzaSyDcC3sDlhYGupPiDfOdFtl0wrJdy3f-l8c"
+API_KEY    = os.environ.get('GEMINI_API_KEY') or sys.exit('Set GEMINI_API_KEY environment variable')
 ROOT       = Path(__file__).resolve().parent.parent
 OUTPUT_DIR = ROOT / 'data' / 'icon_imgs'
 LOGO_PATH  = OUTPUT_DIR / 'Caf_logo.png'
