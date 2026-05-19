@@ -1,14 +1,16 @@
 {
-  "name": "factorio-idle",
+  "name": "caff-infinit",
   "version": "0.1.0",
-  "description": "A Factorio-inspired idle/automation game",
+  "description": "A corporate idle/automation game",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "dist": "electron-packager . \"Factorio Idle\" --platform=win32 --arch=x64 --out=dist --overwrite --ignore=\"node_modules|dist|example_imgs|\\.claude\""
+    "compress-images": "node compress-images.js",
+    "dist": "electron-packager . \"Caff-Infinit\" --platform=win32 --arch=x64 --out=dist --overwrite --ignore=\"node_modules|dist|example_imgs|\\.claude|caffactory_rebrand\\.xlsx|temp_python_scripts|examples|icon_imgs/caffactory/regen|icon_imgs/caffactory/Old|icon_imgs/caffactory/normalized\""
   },
   "devDependencies": {
     "electron": "^34.0.0",
-    "electron-packager": "^17.1.2"
+    "electron-packager": "^17.1.2",
+    "sharp": "^0.34.5"
   }
 }

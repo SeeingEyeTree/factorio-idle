@@ -10,22 +10,7 @@ const THEMES = {
 
   // ── Factorio theme ────────────────────────────────────────────
   // Only entries that differ from what ITEMS / BUILDING_DEFS already has.
-  factorio: {
-    items: {
-      labItem: { name: 'Lab', icon: '🔬', img: null },
-    },
-    buildings: {
-      lab: { name: 'Lab', icon: '🔬' },
-    },
-    techs: {
-      // Override name, description, icon (emoji), and/or iconImg (image path) per tech:
-      // automation: { name: 'Automation', description: 'Unlocks assembling machines.', iconImg: 'data/icon_imgs/factorio/assembler_machine_1.png' },
-    },
-    sprites: {},
-  },
-
-  // ── Caff-Infinite (caffactory) theme ─────────────────────────
-  caffactory: {
+    caffactory: {
     items: {
 
       // Science packs → Caff-Infinite branded energy drink cans
@@ -231,4 +216,22 @@ const THEMES = {
     sprites: {},
 
   },
+
+
+  classic: {
+    items: {
+      labItem: { name: 'Lab', icon: '🔬', img: null },
+    },
+    buildings: {
+      lab: { name: 'Lab', icon: '🔬' },
+    },
+    techs: {
+      // Override name, description, icon (emoji), and/or iconImg (image path) per tech:
+      // automation: { name: 'Automation', description: 'Unlocks assembling machines.', iconImg: 'data/icon_imgs/factorio/assembler_machine_1.png' },
+    },
+    sprites: {},
+  },
+
+  // ── Caff-Infinite (caffactory) theme ─────────────────────────
+
 };

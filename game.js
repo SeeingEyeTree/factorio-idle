@@ -3261,7 +3261,7 @@ function generatePerfReport() {
   const fmtRow = r =>
     `${r.name.padEnd(22)} | ${pad(r.n, 5)} | ${pad(r.mean.toFixed(3), 8)} | ${pad(r.p95.toFixed(3), 8)} | ${pad(r.max.toFixed(3), 8)}\n`;
 
-  return `=== Factorio Idle Performance Report ===\nGenerated: ${new Date().toISOString()}\nWindow: ${_prof.WINDOW} samples per section\n\n` + header + rows.map(fmtRow).join('');
+  return `=== Caff-Infinit Performance Report ===\nGenerated: ${new Date().toISOString()}\nWindow: ${_prof.WINDOW} samples per section\n\n` + header + rows.map(fmtRow).join('');
 }
 
 async function savePerfReport() {

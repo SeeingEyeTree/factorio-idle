@@ -35,12 +35,29 @@ const SCRIPT_RECIPE_MAP = (function() {
   return map;
 })();
 
+// Auto-generates snake_case aliases from the active theme's item and building names.
+// Called at script execution time when `state` is available.
+// Returns { itemAliases: {snake → camelItemKey}, buildingAliases: {snake → buildingType} }
+function _buildThemeAliases() {
+  const _s = n => n.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  const theme = THEMES?.[state?.settings?.theme] ?? {};
+  const itemAliases     = {};
+  const buildingAliases = {};
+  for (const [key, ov] of Object.entries(theme.items ?? {})) {
+    if (ov.name) itemAliases[_s(ov.name)] = key;
+  }
+  for (const [type, ov] of Object.entries(theme.buildings ?? {})) {
+    if (ov.name) buildingAliases[_s(ov.name)] = type;
+  }
+  return { itemAliases, buildingAliases };
+}
+
 // Shorthand / legacy aliases that supplement the auto-generated canonical names.
 // Format: script identifier → camelCase recipe key.
 // Add new shorthands here; the canonical snake_case name is always available too.
 const SCRIPT_RECIPE_EXTRA_ALIASES = {
   // Shorthands (shorter than the full canonical name)
-  gear:                'ironGear',
+  gear:                'ironGear',            // canonical: wooden_gear
   cable:               'copperCable',
   belt:                'transportBelt',
   engine:              'engineUnit',
@@ -678,6 +695,9 @@ function buildScriptContext() {
   const countType  = t => Object.values(bldgs).filter(g => g.type === t).reduce((s, g) => s + g.count, 0);
   const countMiner = (t, r) => bldgs[`${t}:${r}`]?.count ?? 0;
 
+  // Aliases derived from the active theme's item/building names — auto-update when themes.js changes.
+  const { itemAliases: _tItems, buildingAliases: _tBldgs } = _buildThemeAliases();
+
   const ctx = {};
 
   // ── Inventory + delta (all ITEMS)
@@ -685,6 +705,18 @@ function buildScriptContext() {
     const v = _camelToScream(key);
     ctx[v]          = Math.floor(inv[key] ?? 0);
     ctx['DELTA_' + v] = delta[key] ?? 0;
+  }
+
+  // ── Themed inventory variables: e.g. BLAST_FURNACE → stoneFurnaceItem count
+  for (const [alias, key] of Object.entries(_tItems)) {
+    const v = alias.toUpperCase();
+    ctx[v]            = Math.floor(inv[key] ?? 0);
+    ctx['DELTA_' + v] = delta[key] ?? 0;
+    ctx[alias]        = alias;  // snake_case identifier for craft()/give() calls
+  }
+  // Themed building identifiers: e.g. blast_furnace → resolves to 'furnace' in place()/limit()
+  for (const alias of Object.keys(_tBldgs)) {
+    ctx[alias] = alias;
   }
 
   // ── Building counts
@@ -936,7 +968,7 @@ function buildScriptContext() {
     };
     const raw    = String(item ?? '');
     const camel  = raw.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
-    const key    = GIVE_MAP[raw] ?? (ITEMS[camel] ? camel : raw);
+    const key    = GIVE_MAP[raw] ?? _tItems[raw] ?? (ITEMS[camel] ? camel : raw);
     const count  = typeof n === 'number' ? Math.max(1, Math.floor(n)) : 1;
     if (!key) { scriptOutput.push({ type: 'warn', text: 'give: item name required' }); return; }
     if (!ITEMS[key]) { scriptOutput.push({ type: 'warn', text: `give: unknown item "${key}"` }); return; }
@@ -978,6 +1010,7 @@ function buildScriptContext() {
   ctx.limit = function(type, recipeOrAmount, amount) {
     // Extended alias map: covers multi-word and legacy aliases beyond SCRIPT_TYPE_ALIASES
     const TYPE_MAP = {
+      ..._tBldgs,            // theme building name aliases (lowest priority)
       ...SCRIPT_TYPE_ALIASES,
       burner_miner: 'miner', burner: 'miner',
       electric_drill: 'electricMiner', electric_miner: 'electricMiner', e_miner: 'electricMiner',
@@ -1052,6 +1085,7 @@ function scriptPlaceBuilding(type, arg, n, moduleType) {
   }
   // Extended alias map: covers multi-word and legacy aliases beyond the single SCRIPT_TYPE_ALIASES entry per type
   const TYPE_MAP = {
+    ..._buildThemeAliases().buildingAliases,  // theme building name aliases (lowest priority)
     ...SCRIPT_TYPE_ALIASES,
     burner_miner: 'miner', burner: 'miner',
     electric_drill: 'electricMiner', electric_miner: 'electricMiner', e_miner: 'electricMiner',
@@ -1250,7 +1284,7 @@ function scriptDoCraft(item, n) {
     stone_wall: 'stoneWall',
   };
 
-  const key = ALIAS[item] ?? item;
+  const key = ALIAS[item] ?? _buildThemeAliases().itemAliases[item] ?? item;
   if (!PLAYER_RECIPES?.[key]) {
     scriptOutput.push({ type: 'warn', text: `craft: unknown recipe "${item}"` });
     return;

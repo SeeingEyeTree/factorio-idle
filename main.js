@@ -14,7 +14,7 @@ function createWindow() {
     height: 800,
     minWidth: 900,
     minHeight: 600,
-    title: 'Factorio Idle',
+    title: 'Caff-Infinit',
     autoHideMenuBar: true,
     show: false,
     webPreferences: {

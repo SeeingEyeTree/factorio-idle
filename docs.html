@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Factorio Idle — Scripting Reference</title>
+  <title>Caff-Infint — Scripting Reference</title>
   <style>
     :root {
       --bg:      #1a1a1f;
@@ -148,13 +148,14 @@
     }
     .tag-new  { background: #1b4a2a; color: #4caf50; }
     .tag-inf  { background: #2a2a1a; color: var(--accent); }
+    code.alias-theme { color: var(--blue); }
   </style>
 </head>
 <body>
 <div class="page">
 
   <div class="page-header">
-    <h1>Factorio Idle — Scripting Reference</h1>
+    <h1>Caff-Infint — Scripting Reference</h1>
     <p>Python-like automation scripts for your factory. Press <strong>▶ Run</strong> to execute manually, or enable <strong>Auto</strong> to run every 10 seconds.</p>
   </div>
 
@@ -180,6 +181,12 @@
     <a href="#math">Math helpers</a>
     <a href="#examples">Examples</a>
   </nav>
+
+  <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:1.5rem;padding:.5rem .8rem;background:var(--surf);border:1px solid var(--border2);border-radius:6px">
+    <span style="color:var(--text2);font-size:.88rem">Theme aliases:</span>
+    <select id="docs-theme-select" style="background:var(--surf2);color:var(--text);border:1px solid var(--border2);border-radius:4px;padding:.2rem .5rem;font-family:var(--font);font-size:.85rem;cursor:pointer"></select>
+    <span style="color:var(--dim);font-size:.82rem">— themed aliases shown in <span style="color:var(--blue)">blue</span> throughout the tables below</span>
+  </div>
 
   <!-- ── Language ───────────────────────────────────────────── -->
   <div class="section" id="language">
@@ -242,44 +249,13 @@
   <!-- ── place() types ─────────────────────────────────────── -->
   <div class="section" id="place-types">
     <div class="section-title">place() — Building Types (1st argument)</div>
-    <table>
-      <tr><th>Alias(es)</th><th>Building</th></tr>
-      <tr><td><code>miner</code> · <code>burner_miner</code> · <code>burner</code></td><td>Burner Mining Drill</td></tr>
-      <tr><td><code>e_drill</code> · <code>electric_miner</code> · <code>electric_drill</code> · <code>e_miner</code></td><td>Electric Mining Drill</td></tr>
-      <tr><td><code>furnace</code> · <code>stone_furnace</code></td><td>Stone Furnace</td></tr>
-      <tr><td><code>steel_furnace</code></td><td>Steel Furnace</td></tr>
-      <tr><td><code>electric_furnace</code></td><td>Electric Furnace</td></tr>
-      <tr><td><code>assembly</code> · <code>assembler</code> · <code>assembly1</code> · <code>am1</code></td><td>Assembly Machine Mk1</td></tr>
-      <tr><td><code>assembly2</code> · <code>assembler2</code> · <code>am2</code></td><td>Assembly Machine Mk2</td></tr>
-      <tr><td><code>assembly3</code> · <code>assembler3</code> · <code>am3</code></td><td>Assembly Machine Mk3</td></tr>
-      <tr><td><code>lab</code></td><td>Lab</td></tr>
-      <tr><td><code>boiler</code></td><td>Boiler</td></tr>
-      <tr><td><code>steam_engine</code> · <code>steamengine</code></td><td>Steam Engine</td></tr>
-      <tr><td><code>solar_panel</code> · <code>solar</code></td><td>Solar Panel</td></tr>
-      <tr><td><code>accumulator</code> · <code>acc</code></td><td>Accumulator</td></tr>
-      <tr><td><code>offshore_pump</code> · <code>offshore</code> · <code>pump</code></td><td>Offshore Pump</td></tr>
-      <tr><td><code>radar</code></td><td>Radar</td></tr>
-      <tr><td><code>pumpjack</code> · <code>oil_pump</code></td><td>Pumpjack</td></tr>
-      <tr><td><code>oil_refinery</code> · <code>refinery</code></td><td>Oil Refinery</td></tr>
-      <tr><td><code>chemical_plant</code> · <code>chem_plant</code></td><td>Chemical Plant</td></tr>
-      <tr><td><code>centrifuge</code></td><td>Centrifuge</td></tr>
-      <tr><td><code>rocket_silo</code> · <code>silo</code></td><td>Rocket Silo</td></tr>
-      <tr><td><code>nuclear_reactor</code> · <code>nuclear</code> · <code>reactor</code></td><td>Nuclear Reactor complex</td></tr>
-    </table>
+    <div id="docs-place-types"><p style="color:var(--dim)">Loading…</p></div>
   </div>
 
   <!-- ── place() resources ─────────────────────────────────── -->
   <div class="section" id="place-resources">
     <div class="section-title">place() — Resources (2nd argument for miners)</div>
-    <table>
-      <tr><th>Alias(es)</th><th>Resource</th></tr>
-      <tr><td><code>iron</code> · <code>iron_ore</code></td><td>Iron Ore</td></tr>
-      <tr><td><code>copper</code> · <code>copper_ore</code></td><td>Copper Ore</td></tr>
-      <tr><td><code>coal</code></td><td>Coal</td></tr>
-      <tr><td><code>stone</code></td><td>Stone</td></tr>
-      <tr><td><code>oil</code> · <code>crude_oil</code></td><td>Crude Oil (pumpjack)</td></tr>
-      <tr><td><code>uranium</code> · <code>uranium_ore</code></td><td>Uranium Ore</td></tr>
-    </table>
+    <div id="docs-place-resources"><p style="color:var(--dim)">Loading…</p></div>
     <div class="note">If the resource argument is omitted, the building's currently selected recipe/resource is used.</div>
   </div>
 
@@ -302,16 +278,7 @@
       The optional 4th argument fills <strong>all module slots</strong> of each placed building with the specified module.
       Modules are consumed from inventory at placement time. Buildings with no module slots (AM1, stone/steel furnace) ignore this argument.
     </p>
-    <table>
-      <tr><th>Alias(es)</th><th>Module</th></tr>
-      <tr><td><code>speed_module</code> · <code>speed1</code> · <code>speed_1</code></td><td>Speed Module</td></tr>
-      <tr><td><code>speed_module_2</code> · <code>speed2</code> · <code>speed_2</code></td><td>Speed Module 2</td></tr>
-      <tr><td><code>speed_module_3</code> · <code>speed3</code> · <code>speed_3</code></td><td>Speed Module 3</td></tr>
-      <tr><td><code>productivity_module</code> · <code>prod1</code> · <code>prod_1</code></td><td>Productivity Module</td></tr>
-      <tr><td><code>productivity_module_2</code> · <code>prod2</code> · <code>prod_2</code></td><td>Productivity Module 2</td></tr>
-      <tr><td><code>productivity_module_3</code> · <code>prod3</code> · <code>prod_3</code></td><td>Productivity Module 3</td></tr>
-      <tr><td><code>gamer_module</code></td><td>Gamer Module</td></tr>
-    </table>
+    <div id="docs-place-modules-table"><p style="color:var(--dim)">Loading…</p></div>
     <div class="note" style="margin-top:.8rem">
       <strong>Example:</strong> <code>place(am3, iron_gear, 5, speed_module_3)</code> — places 5 AM3s (4 slots each) and consumes 20 Speed Module 3 from inventory.
     </div>
@@ -323,73 +290,7 @@
     <p style="color:var(--text2);margin-bottom:.8rem">
       <code>craft(item, n)</code> adds <code>n</code> copies to the unified manual craft queue. Items are crafted one at a time in order; ingredients are consumed when crafting begins.
     </p>
-    <table>
-      <tr><th>Alias(es)</th><th>Item</th></tr>
-      <tr><td><code>iron_gear</code> · <code>gear</code></td><td>Iron Gear Wheel</td></tr>
-      <tr><td><code>copper_cable</code> · <code>cable</code></td><td>Copper Cable</td></tr>
-      <tr><td><code>pipe</code></td><td>Pipe</td></tr>
-      <tr><td><code>iron_stick</code></td><td>Iron Stick</td></tr>
-      <tr><td><code>circuit</code> · <code>green_circuit</code> · <code>electronic_circuit</code></td><td>Electronic Circuit</td></tr>
-      <tr><td><code>advanced_circuit</code> · <code>red_circuit</code></td><td>Advanced Circuit</td></tr>
-      <tr><td><code>processing_unit</code> · <code>blue_circuit</code></td><td>Processing Unit</td></tr>
-      <tr><td><code>engine_unit</code> · <code>engine</code></td><td>Engine Unit</td></tr>
-      <tr><td><code>electric_engine</code> · <code>electric_engine_unit</code></td><td>Electric Engine Unit</td></tr>
-      <tr><td><code>flying_robot_frame</code> · <code>robot_frame</code></td><td>Flying Robot Frame</td></tr>
-      <tr><td><code>construction_robot</code></td><td>Construction Robot</td></tr>
-      <tr><td><code>inserter</code></td><td>Inserter</td></tr>
-      <tr><td><code>transport_belt</code> · <code>belt</code></td><td>Transport Belt</td></tr>
-      <tr><td><code>red_science</code></td><td>Automation Science Pack</td></tr>
-      <tr><td><code>green_science</code></td><td>Logistic Science Pack</td></tr>
-      <tr><td><code>blue_science</code></td><td>Chemical Science Pack</td></tr>
-      <tr><td><code>black_science</code></td><td>Military Science Pack</td></tr>
-      <tr><td><code>purple_science</code></td><td>Production Science Pack</td></tr>
-      <tr><td><code>yellow_science</code></td><td>Utility Science Pack</td></tr>
-      <tr><td><code>low_density_structure</code> · <code>lds</code></td><td>Low Density Structure</td></tr>
-      <tr><td><code>concrete</code></td><td>Concrete</td></tr>
-      <tr><td><code>rail</code></td><td>Rail</td></tr>
-      <tr><td><code>repair_pack</code></td><td>Repair Pack</td></tr>
-      <tr><td><code>landfill</code></td><td>Landfill</td></tr>
-      <tr><td><code>stone_furnace</code></td><td>Stone Furnace item</td></tr>
-      <tr><td><code>steel_furnace</code></td><td>Steel Furnace item</td></tr>
-      <tr><td><code>electric_furnace</code></td><td>Electric Furnace item</td></tr>
-      <tr><td><code>burner_miner</code></td><td>Burner Mining Drill item</td></tr>
-      <tr><td><code>electric_miner</code></td><td>Electric Mining Drill item</td></tr>
-      <tr><td><code>assembly_machine</code> · <code>am1</code></td><td>Assembly Machine Mk1 item</td></tr>
-      <tr><td><code>assembly_machine2</code> · <code>am2</code></td><td>Assembly Machine Mk2 item</td></tr>
-      <tr><td><code>assembly_machine3</code> · <code>am3</code></td><td>Assembly Machine Mk3 item</td></tr>
-      <tr><td><code>lab</code></td><td>Lab item</td></tr>
-      <tr><td><code>offshore_pump</code></td><td>Offshore Pump item</td></tr>
-      <tr><td><code>boiler</code></td><td>Boiler item</td></tr>
-      <tr><td><code>steam_engine</code></td><td>Steam Engine item</td></tr>
-      <tr><td><code>solar_panel</code></td><td>Solar Panel item</td></tr>
-      <tr><td><code>accumulator</code></td><td>Accumulator item</td></tr>
-      <tr><td><code>radar</code></td><td>Radar item</td></tr>
-      <tr><td><code>pumpjack</code></td><td>Pumpjack item</td></tr>
-      <tr><td><code>oil_refinery</code></td><td>Oil Refinery item</td></tr>
-      <tr><td><code>chemical_plant</code></td><td>Chemical Plant item</td></tr>
-      <tr><td><code>centrifuge</code></td><td>Centrifuge item</td></tr>
-      <tr><td><code>rocket_silo</code></td><td>Rocket Silo item</td></tr>
-      <tr><td><code>nuclear_reactor</code></td><td>Nuclear Reactor item</td></tr>
-      <tr><td><code>heat_pipe</code></td><td>Heat Pipe item</td></tr>
-      <tr><td><code>heat_exchanger</code></td><td>Heat Exchanger item</td></tr>
-      <tr><td><code>steam_turbine</code></td><td>Steam Turbine item</td></tr>
-      <tr><td><code>speed_module</code></td><td>Speed Module</td></tr>
-      <tr><td><code>productivity_module</code></td><td>Productivity Module</td></tr>
-      <tr><td><code>beacon</code></td><td>Beacon item</td></tr>
-      <tr><td><code>firearm_magazine</code> · <code>ammo</code></td><td>Firearm Magazine</td></tr>
-      <tr><td><code>piercing_rounds</code> · <code>piercing</code></td><td>Piercing Rounds Magazine</td></tr>
-      <tr><td><code>uranium_rounds</code></td><td>Uranium Rounds Magazine</td></tr>
-      <tr><td><code>uranium_fuel_cell</code></td><td>Uranium Fuel Cell</td></tr>
-      <tr><td><code>grenade</code></td><td>Grenade</td></tr>
-      <tr><td><code>artillery_shell</code></td><td>Artillery Shell</td></tr>
-      <tr><td><code>atomic_bomb</code></td><td>Atomic Bomb</td></tr>
-      <tr><td><code>satellite</code></td><td>Satellite</td></tr>
-      <tr><td><code>spidertron</code></td><td>Spidertron</td></tr>
-      <tr><td><code>locomotive</code></td><td>Locomotive</td></tr>
-      <tr><td><code>gun_turret</code></td><td>Gun Turret item</td></tr>
-      <tr><td><code>laser_turret</code></td><td>Laser Turret item</td></tr>
-      <tr><td><code>stone_wall</code></td><td>Stone Wall</td></tr>
-    </table>
+    <div id="docs-craft-items"><p style="color:var(--dim)">Loading from PLAYER_RECIPES…</p></div>
   </div>
 
   <!-- ── fortify() ─────────────────────────────────────────── -->
@@ -398,12 +299,7 @@
     <p style="color:var(--text2);margin-bottom:.8rem">
       <code>fortify(type, n)</code> transfers items from inventory to the perimeter. Will not exceed perimeter capacity.
     </p>
-    <table>
-      <tr><th>Alias(es)</th><th>Defense</th></tr>
-      <tr><td><code>walls</code> · <code>wall</code> · <code>stone_wall</code></td><td>Stone Walls</td></tr>
-      <tr><td><code>gun</code> · <code>gun_turret</code> · <code>gun_turrets</code></td><td>Gun Turrets</td></tr>
-      <tr><td><code>laser</code> · <code>laser_turret</code> · <code>laser_turrets</code></td><td>Laser Turrets</td></tr>
-    </table>
+    <div id="docs-fortify-table"><p style="color:var(--dim)">Loading…</p></div>
   </div>
 
   <!-- ── research() ────────────────────────────────────────── -->
@@ -472,39 +368,7 @@
   <!-- ── Building counts ───────────────────────────────────── -->
   <div class="section" id="buildings">
     <div class="section-title">Building Count Variables (placed buildings, read-only)</div>
-    <div id="docs-building-vars">
-      <table>
-        <tr><th>Variable</th><th>Counts</th></tr>
-        <tr><td><code>MINERS_IRON</code></td><td>Burner miners on Iron Ore</td></tr>
-        <tr><td><code>MINERS_COPPER</code></td><td>Burner miners on Copper Ore</td></tr>
-        <tr><td><code>MINERS_COAL</code></td><td>Burner miners on Coal</td></tr>
-        <tr><td><code>MINERS_STONE</code></td><td>Burner miners on Stone</td></tr>
-        <tr><td><code>E_MINERS_IRON</code></td><td>Electric miners on Iron Ore</td></tr>
-        <tr><td><code>E_MINERS_COPPER</code></td><td>Electric miners on Copper Ore</td></tr>
-        <tr><td><code>E_MINERS_COAL</code></td><td>Electric miners on Coal</td></tr>
-        <tr><td><code>E_MINERS_STONE</code></td><td>Electric miners on Stone</td></tr>
-        <tr><td><code>FURNACES</code></td><td>Stone Furnaces placed</td></tr>
-        <tr><td><code>STEEL_FURNACES</code></td><td>Steel Furnaces placed</td></tr>
-        <tr><td><code>ELECTRIC_FURNACES</code></td><td>Electric Furnaces placed</td></tr>
-        <tr><td><code>ASSEMBLERS</code></td><td>Assembling Machine Mk1 placed</td></tr>
-        <tr><td><code>ASSEMBLERS2</code></td><td>Assembling Machine Mk2 placed</td></tr>
-        <tr><td><code>ASSEMBLERS3</code></td><td>Assembling Machine Mk3 placed</td></tr>
-        <tr><td><code>LABS</code></td><td>Labs placed</td></tr>
-        <tr><td><code>BOILERS</code></td><td>Boilers placed</td></tr>
-        <tr><td><code>STEAM_ENGINES</code></td><td>Steam Engines placed</td></tr>
-        <tr><td><code>PUMPS</code></td><td>Offshore Pumps placed</td></tr>
-        <tr><td><code>RADARS</code></td><td>Radars placed</td></tr>
-        <tr><td><code>SOLAR_PANELS</code></td><td>Solar Panels placed</td></tr>
-        <tr><td><code>ACCUMULATORS</code></td><td>Accumulators placed</td></tr>
-        <tr><td><code>PUMPJACKS</code></td><td>Pumpjacks placed</td></tr>
-        <tr><td><code>OIL_REFINERIES</code></td><td>Oil Refineries placed</td></tr>
-        <tr><td><code>CHEMICAL_PLANTS</code></td><td>Chemical Plants placed</td></tr>
-        <tr><td><code>CENTRIFUGES</code></td><td>Centrifuges placed</td></tr>
-        <tr><td><code>ROCKET_SILOS</code></td><td>Rocket Silos placed</td></tr>
-        <tr><td><code>NUCLEAR_REACTORS</code></td><td>Nuclear Reactor complexes placed</td></tr>
-        <tr><td><code>CHUNKS_EXPLORED</code></td><td>Radar chunks explored</td></tr>
-      </table>
-    </div>
+    <div id="docs-building-vars"><p style="color:var(--dim)">Loading…</p></div>
   </div>
 
   <!-- ── Inventory building counts ─────────────────────────── -->
@@ -539,16 +403,7 @@
       Use these to gate <code>place()</code> calls that require modules.
       The calculator's generated scripts use these automatically when a module type is selected.
     </p>
-    <table>
-      <tr><th>Variable</th><th>Module</th></tr>
-      <tr><td><code>SPEED_MODULE</code></td><td>Speed Module (tier 1)</td></tr>
-      <tr><td><code>SPEED_MODULE_2</code></td><td>Speed Module 2</td></tr>
-      <tr><td><code>SPEED_MODULE_3</code></td><td>Speed Module 3</td></tr>
-      <tr><td><code>PROD_MODULE</code></td><td>Productivity Module (tier 1)</td></tr>
-      <tr><td><code>PROD_MODULE_2</code></td><td>Productivity Module 2</td></tr>
-      <tr><td><code>PROD_MODULE_3</code></td><td>Productivity Module 3</td></tr>
-      <tr><td><code>GAMER_MODULE</code></td><td>Gamer Module</td></tr>
-    </table>
+    <div id="docs-module-inv-table"><p style="color:var(--dim)">Loading…</p></div>
     <div class="note" style="margin-top:.8rem">
       <strong>Example:</strong> <code>place(am3, iron_gear, 5, speed_module_3)</code> — places 5 AM3s and fills each of their 4 module slots with Speed Module 3 (consuming 20 modules from inventory).
     </div>
@@ -691,28 +546,283 @@
 </div>
 
 <script src="data/recipes.js"></script>
+<script src="data/themes.js"></script>
 <script src="docs-data.js"></script>
 <script>
 (function() {
-  // Convert camelCase to SCREAMING_SNAKE_CASE
   function toScreamingSnake(key) {
     return key.replace(/([A-Z])/g, '_$1').toUpperCase();
   }
-
+  function camelToSnake(str) {
+    return str.replace(/([A-Z])/g, m => '_' + m.toLowerCase());
+  }
+  function nameToSnake(n) {
+    return n.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  }
   function makeTable(headers, rows) {
     const ths = headers.map(h => `<th>${h}</th>`).join('');
     return `<table><tr>${ths}</tr>${rows}</table>`;
+  }
+
+  // ── Data constants ────────────────────────────────────────────
+
+  // Place resources — mirrors RESOURCE_MAP in script.js
+  const PLACE_RESOURCES = [
+    { aliases: ['iron', 'iron_ore'],       itemKey: 'ironOre',    name: 'Iron Ore' },
+    { aliases: ['copper', 'copper_ore'],   itemKey: 'copperOre',  name: 'Copper Ore' },
+    { aliases: ['coal'],                   itemKey: 'coal',        name: 'Coal' },
+    { aliases: ['stone'],                  itemKey: 'stone',       name: 'Stone' },
+    { aliases: ['oil', 'crude_oil'],       itemKey: 'crudeOil',   name: 'Crude Oil (pumpjack)' },
+    { aliases: ['uranium', 'uranium_ore'], itemKey: 'uraniumOre', name: 'Uranium Ore' },
+  ];
+
+  // Place modules — mirrors MODULE_MAP in script.js
+  const PLACE_MODULES_DATA = [
+    { aliases: ['speed_module',   'speed1', 'speed_1'], itemKey: 'speedModule',         name: 'Speed Module' },
+    { aliases: ['speed_module_2', 'speed2', 'speed_2'], itemKey: 'speedModule2',        name: 'Speed Module 2' },
+    { aliases: ['speed_module_3', 'speed3', 'speed_3'], itemKey: 'speedModule3',        name: 'Speed Module 3' },
+    { aliases: ['productivity_module',   'prod1', 'prod_1'], itemKey: 'productivityModule',  name: 'Productivity Module' },
+    { aliases: ['productivity_module_2', 'prod2', 'prod_2'], itemKey: 'productivityModule2', name: 'Productivity Module 2' },
+    { aliases: ['productivity_module_3', 'prod3', 'prod_3'], itemKey: 'productivityModule3', name: 'Productivity Module 3' },
+    { aliases: ['gamer_module'], itemKey: 'gamerModule', name: 'Gamer Module' },
+  ];
+
+  // Fortify types
+  const FORTIFY_DATA = [
+    { aliases: ['walls', 'wall', 'stone_wall'],             itemKey: 'stoneWall',       name: 'Stone Walls' },
+    { aliases: ['gun', 'gun_turret', 'gun_turrets'],        itemKey: 'gunTurretItem',   name: 'Gun Turrets' },
+    { aliases: ['laser', 'laser_turret', 'laser_turrets'],  itemKey: 'laserTurretItem', name: 'Laser Turrets' },
+  ];
+
+  // Building count variables — fixed var names + building/resource type keys for theme desc
+  const BUILDING_COUNTS = [
+    { var: 'MINERS_IRON',     buildingType: 'miner',         resourceKey: 'ironOre',    desc: 'Burner miners on Iron Ore' },
+    { var: 'MINERS_COPPER',   buildingType: 'miner',         resourceKey: 'copperOre',  desc: 'Burner miners on Copper Ore' },
+    { var: 'MINERS_COAL',     buildingType: 'miner',         resourceKey: 'coal',       desc: 'Burner miners on Coal' },
+    { var: 'MINERS_STONE',    buildingType: 'miner',         resourceKey: 'stone',      desc: 'Burner miners on Stone' },
+    { var: 'E_MINERS_IRON',   buildingType: 'electricMiner', resourceKey: 'ironOre',    desc: 'Electric miners on Iron Ore' },
+    { var: 'E_MINERS_COPPER', buildingType: 'electricMiner', resourceKey: 'copperOre',  desc: 'Electric miners on Copper Ore' },
+    { var: 'E_MINERS_COAL',   buildingType: 'electricMiner', resourceKey: 'coal',       desc: 'Electric miners on Coal' },
+    { var: 'E_MINERS_STONE',  buildingType: 'electricMiner', resourceKey: 'stone',      desc: 'Electric miners on Stone' },
+    { var: 'FURNACES',         buildingType: 'furnace',        desc: 'Stone Furnaces placed' },
+    { var: 'STEEL_FURNACES',   buildingType: 'steelFurnace',   desc: 'Steel Furnaces placed' },
+    { var: 'ELECTRIC_FURNACES',buildingType: 'electricFurnace',desc: 'Electric Furnaces placed' },
+    { var: 'ASSEMBLERS',       buildingType: 'assembly',        desc: 'Assembly Machine Mk1 placed' },
+    { var: 'ASSEMBLERS2',      buildingType: 'assembly2',       desc: 'Assembly Machine Mk2 placed' },
+    { var: 'ASSEMBLERS3',      buildingType: 'assembly3',       desc: 'Assembly Machine Mk3 placed' },
+    { var: 'LABS',             buildingType: 'lab',             desc: 'Labs placed' },
+    { var: 'BOILERS',          buildingType: 'boiler',          desc: 'Boilers placed' },
+    { var: 'STEAM_ENGINES',    buildingType: 'steamEngine',     desc: 'Steam Engines placed' },
+    { var: 'PUMPS',            buildingType: 'offshoreP',       desc: 'Offshore Pumps placed' },
+    { var: 'RADARS',           buildingType: 'radar',           desc: 'Radars placed' },
+    { var: 'SOLAR_PANELS',     buildingType: 'solarPanel',      desc: 'Solar Panels placed' },
+    { var: 'ACCUMULATORS',     buildingType: 'accumulator',     desc: 'Accumulators placed' },
+    { var: 'PUMPJACKS',        buildingType: 'pumpjack',        desc: 'Pumpjacks placed' },
+    { var: 'OIL_REFINERIES',   buildingType: 'oilRefinery',     desc: 'Oil Refineries placed' },
+    { var: 'CHEMICAL_PLANTS',  buildingType: 'chemicalPlant',   desc: 'Chemical Plants placed' },
+    { var: 'CENTRIFUGES',      buildingType: 'centrifuge',      desc: 'Centrifuges placed' },
+    { var: 'ROCKET_SILOS',     buildingType: 'rocketSilo',      desc: 'Rocket Silos placed' },
+    { var: 'NUCLEAR_REACTORS', buildingType: 'nuclearReactor',  desc: 'Nuclear Reactor complexes placed' },
+    { var: 'CHUNKS_EXPLORED',  desc: 'Radar chunks explored' },
+  ];
+
+  // Building type → item key (for INV_ table theme lookups)
+  const BUILDING_TYPE_TO_ITEM_KEY = {
+    miner:          'burnerMinerItem',
+    electricMiner:  'electricMinerItem',
+    furnace:        'stoneFurnaceItem',
+    steelFurnace:   'steelFurnaceItem',
+    electricFurnace:'electricFurnaceItem',
+    assembly:       'assemblyMachine1Item',
+    assembly2:      'assemblyMachine2Item',
+    assembly3:      'assemblyMachine3Item',
+    lab:            'labItem',
+    boiler:         'boilerItem',
+    steamEngine:    'steamEngineItem',
+    solarPanel:     'solarPanelItem',
+    accumulator:    'accumulatorItem',
+    offshoreP:      'offshorePumpItem',
+    radar:          'radarItem',
+    pumpjack:       'pumpjackItem',
+    oilRefinery:    'oilRefineryItem',
+    chemicalPlant:  'chemicalPlantItem',
+    centrifuge:     'centrifugeItem',
+    rocketSilo:     'rocketSiloItem',
+    nuclearReactor: 'nuclearReactorItem',
+    gunTurret:      'gunTurretItem',
+    laserTurret:    'laserTurretItem',
+  };
+
+  // Module inventory variables
+  const MODULE_INV_DATA = [
+    { var: 'SPEED_MODULE',   itemKey: 'speedModule',         name: 'Speed Module (tier 1)' },
+    { var: 'SPEED_MODULE_2', itemKey: 'speedModule2',        name: 'Speed Module 2' },
+    { var: 'SPEED_MODULE_3', itemKey: 'speedModule3',        name: 'Speed Module 3' },
+    { var: 'PROD_MODULE',    itemKey: 'productivityModule',  name: 'Productivity Module (tier 1)' },
+    { var: 'PROD_MODULE_2',  itemKey: 'productivityModule2', name: 'Productivity Module 2' },
+    { var: 'PROD_MODULE_3',  itemKey: 'productivityModule3', name: 'Productivity Module 3' },
+    { var: 'GAMER_MODULE',   itemKey: 'gamerModule',         name: 'Gamer Module' },
+  ];
+
+  // Place types data — mirrors SCRIPT_TYPE_ALIASES in script.js
+  const PLACE_TYPES = [
+    { type: 'miner',           aliases: ['miner', 'burner_miner', 'burner'],                          name: 'Burner Mining Drill' },
+    { type: 'electricMiner',   aliases: ['e_drill', 'electric_miner', 'electric_drill', 'e_miner'],   name: 'Electric Mining Drill' },
+    { type: 'furnace',         aliases: ['furnace', 'stone_furnace'],                                  name: 'Stone Furnace' },
+    { type: 'steelFurnace',    aliases: ['steel_furnace'],                                             name: 'Steel Furnace' },
+    { type: 'electricFurnace', aliases: ['electric_furnace'],                                          name: 'Electric Furnace' },
+    { type: 'assembly',        aliases: ['assembly', 'assembler', 'assembly1', 'am1'],                 name: 'Assembly Machine Mk1' },
+    { type: 'assembly2',       aliases: ['assembly2', 'assembler2', 'am2'],                            name: 'Assembly Machine Mk2' },
+    { type: 'assembly3',       aliases: ['assembly3', 'assembler3', 'am3'],                            name: 'Assembly Machine Mk3' },
+    { type: 'lab',             aliases: ['lab'],                                                        name: 'Lab' },
+    { type: 'boiler',          aliases: ['boiler'],                                                     name: 'Boiler' },
+    { type: 'steamEngine',     aliases: ['steam_engine', 'steamengine'],                               name: 'Steam Engine' },
+    { type: 'solarPanel',      aliases: ['solar_panel', 'solar'],                                      name: 'Solar Panel' },
+    { type: 'accumulator',     aliases: ['accumulator', 'acc'],                                        name: 'Accumulator' },
+    { type: 'offshoreP',       aliases: ['offshore_pump', 'offshore', 'pump'],                        name: 'Offshore Pump' },
+    { type: 'radar',           aliases: ['radar'],                                                      name: 'Radar' },
+    { type: 'pumpjack',        aliases: ['pumpjack', 'oil_pump'],                                     name: 'Pumpjack' },
+    { type: 'oilRefinery',     aliases: ['oil_refinery', 'refinery'],                                 name: 'Oil Refinery' },
+    { type: 'chemicalPlant',   aliases: ['chemical_plant', 'chem_plant'],                             name: 'Chemical Plant' },
+    { type: 'centrifuge',      aliases: ['centrifuge'],                                                 name: 'Centrifuge' },
+    { type: 'rocketSilo',      aliases: ['rocket_silo', 'silo'],                                      name: 'Rocket Silo' },
+    { type: 'nuclearReactor',  aliases: ['nuclear_reactor', 'nuclear', 'reactor'],                    name: 'Nuclear Reactor complex' },
+  ];
+
+  // Extra craft aliases by item key — mirrors SCRIPT_RECIPE_EXTRA_ALIASES in script.js
+  const CRAFT_ITEM_EXTRAS = {
+    ironGear:              ['gear'],
+    copperCable:           ['cable'],
+    transportBelt:         ['belt'],
+    engineUnit:            ['engine'],
+    electricEngineUnit:    ['electric_engine'],
+    plasticBar:            ['plastic'],
+    electronicCircuit:     ['circuit', 'green_circuit'],
+    advancedCircuit:       ['red_circuit'],
+    processingUnit:        ['blue_circuit'],
+    lowDensityStructure:   ['lds'],
+    firearmMagazine:       ['ammo'],
+    piercingRoundsMag:     ['piercing', 'piercing_rounds'],
+    constructionRobotItem: ['construction_robot'],
+    assemblyMachine1Item:  ['am1'],
+    assemblyMachine2Item:  ['am2'],
+    assemblyMachine3Item:  ['am3'],
+  };
+
+  function getThemeData() {
+    if (typeof THEMES === 'undefined') return {};
+    const sel = document.getElementById('docs-theme-select');
+    return (sel && THEMES[sel.value]) ? THEMES[sel.value] : {};
+  }
+
+  // ── place() types table — hardcoded aliases + theme building aliases inline
+  function buildPlaceTypesTable(themeData) {
+    const el = document.getElementById('docs-place-types');
+    if (!el) return;
+    let rows = '';
+    for (const entry of PLACE_TYPES) {
+      const cells = entry.aliases.map(a => `<code>${a}</code>`);
+      const themeOv = (themeData.buildings ?? {})[entry.type];
+      if (themeOv?.name) cells.push(`<code class="alias-theme">${nameToSnake(themeOv.name)}</code>`);
+      rows += `<tr><td>${cells.join(' · ')}</td><td>${entry.name}</td></tr>`;
+    }
+    el.innerHTML = makeTable(['Alias(es)', 'Building'], rows);
+  }
+
+  // ── place() resources table
+  function buildPlaceResourcesTable(themeData) {
+    const el = document.getElementById('docs-place-resources');
+    if (!el) return;
+    let rows = '';
+    for (const entry of PLACE_RESOURCES) {
+      const cells = entry.aliases.map(a => `<code>${a}</code>`);
+      const themeOv = (themeData.items ?? {})[entry.itemKey];
+      if (themeOv?.name) cells.push(`<code class="alias-theme">${nameToSnake(themeOv.name)}</code>`);
+      rows += `<tr><td>${cells.join(' · ')}</td><td>${entry.name}</td></tr>`;
+    }
+    el.innerHTML = makeTable(['Alias(es)', 'Resource'], rows);
+  }
+
+  // ── place() modules table
+  function buildPlaceModulesTable(themeData) {
+    const el = document.getElementById('docs-place-modules-table');
+    if (!el) return;
+    let rows = '';
+    for (const entry of PLACE_MODULES_DATA) {
+      const cells = entry.aliases.map(a => `<code>${a}</code>`);
+      const themeOv = (themeData.items ?? {})[entry.itemKey];
+      if (themeOv?.name) cells.push(`<code class="alias-theme">${nameToSnake(themeOv.name)}</code>`);
+      rows += `<tr><td>${cells.join(' · ')}</td><td>${entry.name}</td></tr>`;
+    }
+    el.innerHTML = makeTable(['Alias(es)', 'Module'], rows);
+  }
+
+  // ── fortify() types table
+  function buildFortifyTable(themeData) {
+    const el = document.getElementById('docs-fortify-table');
+    if (!el) return;
+    let rows = '';
+    for (const entry of FORTIFY_DATA) {
+      const cells = entry.aliases.map(a => `<code>${a}</code>`);
+      const themeOv = (themeData.items ?? {})[entry.itemKey];
+      if (themeOv?.name) cells.push(`<code class="alias-theme">${nameToSnake(themeOv.name)}</code>`);
+      rows += `<tr><td>${cells.join(' · ')}</td><td>${entry.name}</td></tr>`;
+    }
+    el.innerHTML = makeTable(['Alias(es)', 'Defense'], rows);
+  }
+
+  // ── Building count variables table
+  function buildBuildingCountsTable(themeData) {
+    const el = document.getElementById('docs-building-vars');
+    if (!el) return;
+    let rows = '';
+    for (const entry of BUILDING_COUNTS) {
+      const bThemeName = entry.buildingType ? (themeData.buildings ?? {})[entry.buildingType]?.name : null;
+      const rThemeName = entry.resourceKey  ? (themeData.items ?? {})[entry.resourceKey]?.name    : null;
+      let desc = entry.desc;
+      if (bThemeName) {
+        const themed = rThemeName ? `${bThemeName} on ${rThemeName}` : `${bThemeName} placed`;
+        desc += ` · <span class="alias-theme">${themed}</span>`;
+      }
+      rows += `<tr><td><code>${entry.var}</code></td><td>${desc}</td></tr>`;
+    }
+    el.innerHTML = makeTable(['Variable', 'Counts'], rows);
+  }
+
+  // ── Module inventory variables table
+  function buildModuleInventoryTable(themeData) {
+    const el = document.getElementById('docs-module-inv-table');
+    if (!el) return;
+    let rows = '';
+    for (const entry of MODULE_INV_DATA) {
+      const cells = [`<code>${entry.var}</code>`];
+      const themeOv = (themeData.items ?? {})[entry.itemKey];
+      if (themeOv?.name) cells.push(`<code class="alias-theme">${nameToSnake(themeOv.name).toUpperCase()}</code>`);
+      rows += `<tr><td>${cells.join(' · ')}</td><td>${entry.name}</td></tr>`;
+    }
+    el.innerHTML = makeTable(['Variable', 'Module'], rows);
+  }
+
+  // ── craft() items table — PLAYER_RECIPES + extra aliases + theme item aliases inline
+  function buildCraftItemsTable(themeData) {
+    const el = document.getElementById('docs-craft-items');
+    if (!el || typeof PLAYER_RECIPES === 'undefined') return;
+    let rows = '';
+    for (const [camelKey, recipe] of Object.entries(PLAYER_RECIPES)) {
+      const canonical = camelToSnake(camelKey);
+      const extras = (CRAFT_ITEM_EXTRAS[camelKey] ?? []).filter(a => a !== canonical);
+      const cells = [`<code>${canonical}</code>`, ...extras.map(a => `<code>${a}</code>`)];
+      const themeOv = (themeData.items ?? {})[camelKey];
+      if (themeOv?.name) cells.push(`<code class="alias-theme">${nameToSnake(themeOv.name)}</code>`);
+      rows += `<tr><td>${cells.join(' · ')}</td><td>${recipe.name}</td></tr>`;
+    }
+    el.innerHTML = makeTable(['Alias(es)', 'Item'], rows);
   }
 
   // ── place() recipe table — auto-generated from PLAYER_RECIPES + FURNACE_RECIPES
   function buildPlaceRecipesTable() {
     const el = document.getElementById('docs-place-recipes');
     if (!el || typeof PLAYER_RECIPES === 'undefined' || typeof FURNACE_RECIPES === 'undefined') return;
-
-    // Must mirror camelToSnake() in script.js
-    function camelToSnake(str) {
-      return str.replace(/([A-Z])/g, m => '_' + m.toLowerCase());
-    }
 
     // Must mirror SCRIPT_RECIPE_EXTRA_ALIASES in script.js
     const EXTRA_ALIASES = {
@@ -729,15 +839,12 @@
       science_pack_3: 'blueScience', military_science: 'blackScience',
       production_science: 'purpleScience', utility_science: 'yellowScience',
     };
-
-    // Build reverse map: camelKey → [extra alias strings]
     const extraByKey = {};
     for (const [alias, camelKey] of Object.entries(EXTRA_ALIASES)) {
       if (!extraByKey[camelKey]) extraByKey[camelKey] = [];
       extraByKey[camelKey].push(alias);
     }
 
-    // Machinery type → group label
     const MACHINERY_LABEL = {
       undefined:   'Assembly Machine (default)',
       assembly:    'Assembly Machine',
@@ -746,33 +853,24 @@
       centrifuge:  'Centrifuge',
       rocket_silo: 'Rocket Silo',
     };
-
-    // Bucket recipes into groups preserving insertion order
     const groupOrder = ['Furnace', 'Assembly Machine (default)', 'Assembly Machine',
                         'Chemical Plant', 'Oil Refinery', 'Centrifuge', 'Rocket Silo'];
     const groups = {};
     groupOrder.forEach(g => { groups[g] = []; });
-
-    for (const [camelKey, recipe] of Object.entries(FURNACE_RECIPES)) {
-      groups['Furnace'].push([camelKey, recipe]);
-    }
-    for (const [camelKey, recipe] of Object.entries(PLAYER_RECIPES)) {
-      const label = MACHINERY_LABEL[recipe.machinery] ?? 'Assembly Machine (default)';
-      groups[label].push([camelKey, recipe]);
+    for (const [k, r] of Object.entries(FURNACE_RECIPES)) groups['Furnace'].push([k, r]);
+    for (const [k, r] of Object.entries(PLAYER_RECIPES)) {
+      (groups[MACHINERY_LABEL[r.machinery] ?? 'Assembly Machine (default)'] ??= []).push([k, r]);
     }
 
     let html = '';
     for (const groupName of groupOrder) {
       const recipes = groups[groupName];
-      if (!recipes || recipes.length === 0) continue;
+      if (!recipes?.length) continue;
       html += `<p style="color:var(--accent);font-weight:600;margin:1rem 0 .3rem;font-size:.95em">${groupName}</p>`;
       html += `<table><tr><th>Canonical alias</th><th>Extra aliases</th><th>Recipe</th></tr>`;
       for (const [camelKey, recipe] of recipes) {
         const canonical = camelToSnake(camelKey);
-        const extras = (extraByKey[camelKey] || [])
-          .filter(a => a !== canonical)
-          .map(a => `<code>${a}</code>`)
-          .join(' · ');
+        const extras = (extraByKey[camelKey] ?? []).filter(a => a !== canonical).map(a => `<code>${a}</code>`).join(' · ');
         html += `<tr><td><code>${canonical}</code></td><td>${extras}</td><td>${recipe.name}</td></tr>`;
       }
       html += `</table>`;
@@ -780,44 +878,81 @@
     el.innerHTML = html;
   }
 
-  // ── Inventory variable table (from ITEMS in recipes.js)
-  function buildInvVarsTable() {
+  // ── Inventory variable table — ITEMS + theme SCREAM_CASE aliases inline
+  function buildInvVarsTable(themeData) {
     const el = document.getElementById('docs-inv-vars');
     if (!el || typeof ITEMS === 'undefined') return;
     const rows = Object.entries(ITEMS).map(([key, item]) => {
       const varName = toScreamingSnake(key);
-      return `<tr><td><code>${varName}</code></td><td>${item.name ?? key}</td></tr>`;
+      const cells = [`<code>${varName}</code>`];
+      const themeOv = (themeData.items ?? {})[key];
+      if (themeOv?.name) cells.push(`<code class="alias-theme">${nameToSnake(themeOv.name).toUpperCase()}</code>`);
+      return `<tr><td>${cells.join(' · ')}</td><td>${item.name ?? key}</td></tr>`;
     }).join('');
     el.innerHTML = makeTable(['Variable', 'Item'], rows);
   }
 
-  // ── Delta variable table (auto-generated from ITEMS)
-  function buildDeltaVarsTable() {
+  // ── Delta variable table — ITEMS + theme DELTA_* aliases inline
+  function buildDeltaVarsTable(themeData) {
     const el = document.getElementById('docs-delta-vars');
     if (!el || typeof ITEMS === 'undefined') return;
     const rows = Object.entries(ITEMS).map(([key, item]) => {
       const varName = 'DELTA_' + toScreamingSnake(key);
-      return `<tr><td><code>${varName}</code></td><td>Net production rate of ${item.name ?? key} per second</td></tr>`;
+      const cells = [`<code>${varName}</code>`];
+      const themeOv = (themeData.items ?? {})[key];
+      if (themeOv?.name) cells.push(`<code class="alias-theme">DELTA_${nameToSnake(themeOv.name).toUpperCase()}</code>`);
+      return `<tr><td>${cells.join(' · ')}</td><td>Net production rate of ${item.name ?? key} per second</td></tr>`;
     }).join('');
     el.innerHTML = makeTable(['Variable', 'Meaning'], rows);
   }
 
-  // ── Inventory building item counts table (from BUILDING_DEFS_DOCS in docs-data.js)
-  function buildInvBuildingsTable() {
+  // ── Inventory building item counts table
+  function buildInvBuildingsTable(themeData) {
     const el = document.getElementById('docs-inv-buildings');
     if (!el || typeof BUILDING_DEFS_DOCS === 'undefined') return;
     const rows = Object.entries(BUILDING_DEFS_DOCS).map(([type, def]) => {
       const varName = 'INV_' + type.replace(/([A-Z])/g, '_$1').toUpperCase();
-      return `<tr><td><code>${varName}</code></td><td>Count of ${def.name} in inventory (not placed)</td></tr>`;
+      const cells = [`<code>${varName}</code>`];
+      const itemKey = BUILDING_TYPE_TO_ITEM_KEY[type];
+      const themeOv = itemKey ? (themeData.items ?? {})[itemKey] : null;
+      if (themeOv?.name) cells.push(`<code class="alias-theme">INV_${nameToSnake(themeOv.name).toUpperCase()}</code>`);
+      return `<tr><td>${cells.join(' · ')}</td><td>Count of ${def.name} in inventory (not placed)</td></tr>`;
     }).join('');
     el.innerHTML = makeTable(['Variable', 'Description'], rows);
   }
 
+  function initThemeSelector() {
+    if (typeof THEMES === 'undefined') return;
+    const sel = document.getElementById('docs-theme-select');
+    if (!sel) return;
+    for (const key of Object.keys(THEMES)) {
+      const opt = document.createElement('option');
+      opt.value = key;
+      opt.textContent = key.charAt(0).toUpperCase() + key.slice(1);
+      sel.appendChild(opt);
+    }
+    sel.addEventListener('change', refreshAll);
+    if (sel.options.length > 0) sel.value = sel.options[0].value;
+  }
+
+  function refreshAll() {
+    const themeData = getThemeData();
+    buildPlaceResourcesTable(themeData);
+    buildPlaceTypesTable(themeData);
+    buildPlaceModulesTable(themeData);
+    buildFortifyTable(themeData);
+    buildCraftItemsTable(themeData);
+    buildInvVarsTable(themeData);
+    buildDeltaVarsTable(themeData);
+    buildBuildingCountsTable(themeData);
+    buildInvBuildingsTable(themeData);
+    buildModuleInventoryTable(themeData);
+  }
+
   function init() {
+    initThemeSelector();
     buildPlaceRecipesTable();
-    buildInvVarsTable();
-    buildDeltaVarsTable();
-    buildInvBuildingsTable();
+    refreshAll();
   }
 
   if (document.readyState === 'loading') {
