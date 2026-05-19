@@ -21,8 +21,8 @@ const TECHNOLOGIES = {
   logistics: new Technology({
     name: 'Logistics', icon: '🔁',
     cost: { redScience: 20 }, timePerPack: 15,
-    prereqs: [],
-    description: 'Reduces building placement time by 0.25 seconds',
+    prereqs: ['automation'],
+    description: 'Reduces building placement time by 0.5 seconds',
     unlockRecipes: [], unlockBuildings: [],
   }),
   /*
@@ -107,15 +107,15 @@ const TECHNOLOGIES = {
   solarEnergy: new Technology({
     name: 'Solar Energy', icon: '☀️', iconImg: 'data/icon_imgs/solar_panel.png',
     cost: { redScience: 250, greenScience: 250 }, timePerPack: 30,
-    prereqs: ['logisticSciencePack', 'steelProcessing'],
+    prereqs: ['logisticSciencePack', 'steelProcessing','concrete'],
     description: 'Unlocks Solar Panel (60 kW, no fuel required)',
     unlockRecipes: ['solarPanelItem'], unlockBuildings: ['solarPanel'],
   }),
   logistics2: new Technology({
     name: 'Logistics 2', icon: '⏩',
     cost: { redScience: 200, greenScience: 200 }, timePerPack: 30,
-    prereqs: ['logisticSciencePack', 'logistics'],
-    description: 'Further reduces building placement time by 0.25 seconds (0.5s total with Logistics)',
+    prereqs: ['logisticSciencePack', 'logistics', 'automation2'],
+    description: 'Further reduces building placement time by 0.5 seconds',
     unlockRecipes: [], unlockBuildings: [],
   }),
   scriptingTech: new Technology({
@@ -150,7 +150,7 @@ const TECHNOLOGIES = {
   plastics: new Technology({
     name: 'Plastics', icon: '🧪',
     cost: { redScience: 200, greenScience: 200 }, timePerPack: 30,
-    prereqs: ['oilGathering'],
+    prereqs: ['oilGathering','oilProcessingTech'],
     description: 'Unlocks plastic bar production from petroleum gas (coming with oil update)',
     unlockRecipes: ['plasticBar'], unlockBuildings: [],
   }),
@@ -164,7 +164,7 @@ const TECHNOLOGIES = {
   sulfurProcessing: new Technology({
     name: 'Sulfur Processing', icon: '💛',
     cost: { redScience: 150, greenScience: 150 }, timePerPack: 30,
-    prereqs: ['oilGathering'],
+    prereqs: ['oilGathering', 'oilProcessingTech'],
     description: 'Enables sulfur production from petroleum gas (coming with oil update)',
     unlockRecipes: ['sulfur'], unlockBuildings: [],
   }),

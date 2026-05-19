@@ -444,6 +444,7 @@ const pickerSearches = {};
 
 // Persists the user-chosen "add count" per building group across render cycles
 const buildingAddCounts = {};
+const buildingRemoveCounts = {};
 
 // (Legacy delta-tracking variables removed — rates now use itemsProduced/itemsConsumed counters)
 
@@ -478,17 +479,17 @@ let _tutGlowIntervalId = null;
 const TUTORIAL_GOALS = [
   // 0
   {
-    text: 'To place buildings you first need to craft them. Go to the Crafting tab and make 1 stone furnace and 1 burner mining drill — you\'ll need to wait for some iron to be produced first.',
+    text: () => `To place buildings you first need to craft them. Go to the Crafting tab and make 1 ${itemDisplay('stoneFurnaceItem').name} and 1 ${itemDisplay('burnerMinerItem').name} — you'll need to wait for some ${itemDisplay('ironPlate').name} to be produced first.`,
     check: s => (s.itemsProduced?.burnerMinerItem ?? 0) >= 1,
     glowCraft: ['stoneFurnaceItem','burnerMinerItem'],
     subGoals: [
-      { text: 'Craft 3 iron gears',     check: s => (s.itemsProduced?.ironGear ?? 0) >= 3 },
-      { text: 'Craft 2 stone furnaces', check: s => (s.itemsProduced?.stoneFurnaceItem ?? 0) >= 2 },
+      { text: () => `Craft 3 ${itemDisplay('ironGear').name}`,          check: s => (s.itemsProduced?.ironGear ?? 0) >= 3 },
+      { text: () => `Craft 2 ${itemDisplay('stoneFurnaceItem').name}`,  check: s => (s.itemsProduced?.stoneFurnaceItem ?? 0) >= 2 },
     ],
   },
   // 1
   {
-    text: 'Great! Now go to the Buildings tab and place your miners and furnaces on iron ore so they actually produce resources for you.',
+    text: () => `Great! Now go to the Buildings tab and place ${itemDisplay('burnerMinerItem').name} and ${itemDisplay('stoneFurnaceItem').name} on iron ore so they actually produce resources for you.`,
     check: s => {
       const ironMiners   = Object.values(s.buildings).filter(g => g.type==='miner' && g.resource==='ironOre').reduce((n,g)=>n+g.count,0);
       const ironFurnaces = Object.values(s.buildings).filter(g => g.type==='furnace' && g.recipe==='ironPlate').reduce((n,g)=>n+g.count,0);
@@ -498,7 +499,7 @@ const TUTORIAL_GOALS = [
   },
   // 2
   {
-    text: 'Now scale up — place 10 burner miners on iron ore and 8 stone furnaces smelting iron plates. Don\'t forget coal and stone miners too!',
+    text: () => `Now scale up — place 10 ${itemDisplay('burnerMinerItem').name} on iron ore and 8 ${itemDisplay('stoneFurnaceItem').name} smelting ${itemDisplay('ironPlate').name}. Don't forget coal and stone miners too!`,
     check: s => {
       const ironMiners   = Object.values(s.buildings).filter(g => (g.type==='miner'||g.type==='electricMiner') && g.resource==='ironOre').reduce((n,g)=>n+g.count,0);
       const ironFurnaces = Object.values(s.buildings).filter(g => (g.type==='furnace'||g.type==='steelFurnace'||g.type==='electricFurnace') && g.recipe==='ironPlate').reduce((n,g)=>n+g.count,0);
@@ -513,7 +514,7 @@ const TUTORIAL_GOALS = [
   },
   // 3
   {
-    text: 'Place 5 miners on copper ore and 4 furnaces smelting copper plates.',
+    text: () => `Place 5 ${itemDisplay('burnerMinerItem').name} on copper ore and 4 ${itemDisplay('stoneFurnaceItem').name} smelting ${itemDisplay('copperPlate').name}.`,
     check: s => {
       const copperMiners   = Object.values(s.buildings).filter(g => (g.type==='miner'||g.type==='electricMiner') && g.resource==='copperOre').reduce((n,g)=>n+g.count,0);
       const copperFurnaces = Object.values(s.buildings).filter(g => (g.type==='furnace'||g.type==='steelFurnace'||g.type==='electricFurnace') && g.recipe==='copperPlate').reduce((n,g)=>n+g.count,0);
@@ -528,7 +529,7 @@ const TUTORIAL_GOALS = [
   },
   // 4
   {
-    text: 'Build 1 offshore pump, 1 boiler and 2 steam engines for power',
+    text: () => `Build 1 ${itemDisplay('offshorePumpItem').name}, 1 ${itemDisplay('boilerItem').name} and 2 ${itemDisplay('steamEngineItem').name} for power`,
     check: s => {
       const pumps   = s.buildings['offshoreP']?.count ?? 0;
       const boilers = s.buildings['boiler']?.count ?? 0;
@@ -537,9 +538,9 @@ const TUTORIAL_GOALS = [
     },
     glowCraft: ['offshorePumpItem','boilerItem','steamEngineItem'],
   },
-  // 3
+  // 5
   {
-    text: 'Build a Lab and craft 10 red science packs. Enemies won\'t attack until you produce your first red science pack — so this is your last moment of peace!',
+    text: () => `Build a ${buildingDisplay('lab').name} and craft 10 ${itemDisplay('redScience').name}. Enemies won't attack until you produce your first ${itemDisplay('redScience').name} — so this is your last moment of peace!`,
     check: s => {
       const hasLab = (s.buildings['lab']?.count ?? 0) > 0;
       const packs  = s.itemsProduced?.['redScience'] ?? 0;
@@ -681,6 +682,9 @@ const TUTORIAL_GOALS = [
   // },
 ];
 
+// Resolve goal text — supports plain strings or zero-arg functions (for itemDisplay() interpolation)
+const _gt = t => typeof t === 'function' ? t() : (t ?? '');
+
 function itemIcon(key) {
   const item = itemDisplay(key);
   if (!item) return '❓';
@@ -764,8 +768,13 @@ function getArtilleryDamageTechData(level) {
 }
 
 function getWallHpTechData(level) {
-  const totalNeeded = Math.round(Math.pow(1.8, level - 1) * 50);
-  return { cost: { redScience: 1, greenScience: 1 }, timePerPack: 30, totalNeeded };
+  let packs, t = 60, totalNeeded;
+  if (level <= 2)      { packs = ['redScience']; t = 30; totalNeeded = level * 100; }
+  else if (level <= 4) { packs = ['redScience','greenScience','blackScience']; totalNeeded = level * 100; }
+  else if (level <= 5) { packs = ['redScience','greenScience','blackScience','blueScience']; totalNeeded = 500; }
+  else if (level <= 6) { packs = ['redScience','greenScience','blackScience','blueScience','yellowScience']; totalNeeded = 600; }
+  else                 { packs = ['rainbowScience']; totalNeeded = Math.pow(2, level - 7) * 1000; }
+  return { cost: Object.fromEntries(packs.map(p => [p, 1])), timePerPack: t, totalNeeded };
 }
 
 function wallHpBonusMult() {
@@ -843,7 +852,7 @@ const INFINITE_TECHS = {
   'wall:hp': new InfiniteTech({
     displayName: 'Wall Reinforcement',
     stateField:  'wallHpLevel',
-    prereq:      null,
+    prereq:      'stoneWallTech',
     getData:     (level) => getWallHpTechData(level),
   }),
 };
@@ -1106,6 +1115,10 @@ function applyStateFromEnvelope(envelope) {
   if (state.devFreeResearch == null)   state.devFreeResearch  = false;
   if (state.devTickSpeed    == null)   state.devTickSpeed     = 1;
   if (state.settings?.radarNotif == null) state.settings.radarNotif = true;
+  if (state.settings?.chestNotifications == null) state.settings.chestNotifications = true;
+  if (state.settings?.waveWarning == null) state.settings.waveWarning = true;
+  if (state.settings?.autoSave == null) state.settings.autoSave = true;
+  if (state.settings?.autoSaveInterval == null) state.settings.autoSaveInterval = 300;
   if (state.settings?.defaultLimitBuilding == null) state.settings.defaultLimitBuilding = 10;
   if (state.settings?.defaultLimitOther    == null) state.settings.defaultLimitOther    = Infinity;
   if (state.settings?.tutorialEnabled == null) state.settings.tutorialEnabled = false; // old saves: off by default
@@ -1364,20 +1377,23 @@ async function saveScript() {
 
 async function importScript() {
   const edId = activeScriptEditorId();
+  const hlId = edId.replace('-editor', '-hl');
+  function _applyImport(content) {
+    const el = document.getElementById(edId);
+    if (!el) return;
+    el.value = content;
+    syncScriptHighlight(el, document.getElementById(hlId));
+  }
   if (window.fileAPI) {
     const content = await window.fileAPI.importScript();
-    if (content != null) {
-      const el = document.getElementById(edId);
-      if (el) el.value = content;
-    }
+    if (content != null) _applyImport(content);
   } else {
     const input = document.createElement('input');
     input.type = 'file'; input.accept = '.fscript,.txt';
     input.onchange = async e => {
       const file = e.target.files[0];
       if (!file) return;
-      const el = document.getElementById(edId);
-      if (el) el.value = await file.text();
+      _applyImport(await file.text());
     };
     input.click();
   }
@@ -1684,8 +1700,10 @@ function completeResearch(key) {
 
   // If queue is now empty and auto-start is configured, start that infinite tech
   if (!state.research.current && state.research.infiniteAutoStart) {
-    state.research.current = state.research.infiniteAutoStart;
-    state.research.totalConsumed = 0;
+    const ias = state.research.infiniteAutoStart;
+    state.research.current = ias;
+    state.research.totalConsumed = (state.research.savedKey === ias ? state.research.savedProgress : 0) ?? 0;
+    if (state.research.savedKey === ias) { state.research.savedKey = null; state.research.savedProgress = 0; }
     getGS('lab').starved = false;
   }
 
@@ -1784,8 +1802,10 @@ function completeRobotResearch(type) {
 
   // If queue is now empty and auto-start is configured, start that infinite tech
   if (!state.research.current && state.research.infiniteAutoStart) {
-    state.research.current = state.research.infiniteAutoStart;
-    state.research.totalConsumed = 0;
+    const ias = state.research.infiniteAutoStart;
+    state.research.current = ias;
+    state.research.totalConsumed = (state.research.savedKey === ias ? state.research.savedProgress : 0) ?? 0;
+    if (state.research.savedKey === ias) { state.research.savedKey = null; state.research.savedProgress = 0; }
     getGS('lab').starved = false;
   }
 
@@ -1814,14 +1834,15 @@ function revealChunk() {
   // Chest drops: guaranteed common on 10th chunk, random thereafter
   if (!state.chestFinds) state.chestFinds = { common: [], rare: [], legendary: [] };
   const _ci = state.chunksRevealed;
+  const _chestNotif = state.settings.chestNotifications !== false;
   if (_ci === 10) {
     state.chestFinds.common.push(_ci);
-    notify('📦 Found a Common Chest! (guaranteed first chest)', 'info');
+    if (_chestNotif) notify('📦 Found a Common Chest! (guaranteed first chest)', 'info');
   } else {
     const chestRoll = Math.random();
-    if      (chestRoll < 1/1000) { state.chestFinds.legendary.push(_ci); notify('🟡 Found a Legendary Chest!', 'success'); }
-    else if (chestRoll < 1/500)  { state.chestFinds.rare.push(_ci);      notify('🟣 Found a Rare Chest!', 'info'); }
-    else if (chestRoll < (hasMetaPerk('perk_chest_drop_rate') ? 21/2000 : 1/100)) { state.chestFinds.common.push(_ci); notify('📦 Found a Common Chest!', 'info'); }
+    if      (chestRoll < 1/1000) { state.chestFinds.legendary.push(_ci); if (_chestNotif) notify('🟡 Found a Legendary Chest!', 'success'); }
+    else if (chestRoll < 1/500)  { state.chestFinds.rare.push(_ci);      if (_chestNotif) notify('🟣 Found a Rare Chest!', 'info'); }
+    else if (chestRoll < (hasMetaPerk('perk_chest_drop_rate') ? 21/2000 : 1/100)) { state.chestFinds.common.push(_ci); if (_chestNotif) notify('📦 Found a Common Chest!', 'info'); }
   }
 
   const mult = DENSITY_MULT[state.settings.density] ?? 1.0;
@@ -1902,9 +1923,10 @@ function tick() {
   const _tTick = _p0();
   const dt     = TICK_MS / 1000 * (state?.devTickSpeed ?? 1);
 
-  // Auto-save every 5 minutes of play time
+  // Auto-save on configurable interval
   _autoSaveTimer += dt;
-  if (_autoSaveTimer >= 300) { _autoSaveTimer = 0; saveGame(); }
+  const _asSecs = state.settings.autoSaveInterval ?? 300;
+  if (state.settings.autoSave !== false && _autoSaveTimer >= _asSecs) { _autoSaveTimer = 0; saveGame(); }
   const _tGrp = _p0(); const groups = buildGroupMap(); _p1('buildGroupMap', _tGrp);
 
   // ── Compute total power demand (uses last tick's powerKw) ──
@@ -2296,6 +2318,7 @@ function tick() {
     const count = group.count;
     const extracted = Math.min(PUMPJACK_SPEED * miningProdMult() * count * dt * powerRatio, patch.remaining);
     patch.remaining -= extracted;
+    state.patchConsumed[group.resource] = (state.patchConsumed[group.resource] ?? 0) + extracted;
     recordProduced(group.resource, extracted);
   }
   _p1('pumpjacks', _tPJ);
@@ -2421,8 +2444,8 @@ function tick() {
           const byLimit = gs.limit === Infinity ? cycles : Math.max(0, Math.floor((gs.limit - inv) / outAmt));
           const actual = clampByU235Reserve(recipe, Math.min(afford, byLimit, cycles));
           if (actual > 0) {
-            for (const [k, v] of Object.entries(recipe.inputs)) recordConsumed(k, v * actual);
             if (group.recipe === 'uraniumProcessing') {
+              for (const [k, v] of Object.entries(recipe.inputs)) recordConsumed(k, v * actual);
               for (let i = 0; i < actual; i++) {
                 state.uraniumProcessingCount = (state.uraniumProcessingCount ?? 0) + 1;
                 if (state.uraniumProcessingCount % 143 === 0) {
@@ -2434,14 +2457,26 @@ function tick() {
                 }
               }
             } else {
+              // Consume inputs: update inventory fully; track only net consumed for stats
+              // (handles kovarex where U-235 appears in both inputs and outputs)
+              for (const [k, v] of Object.entries(recipe.inputs)) {
+                const inAmt = v * actual;
+                state.inventory[k] = Math.max(0, (state.inventory[k] ?? 0) - inAmt);
+                const netConsumed = inAmt - (recipe.outputs[k] ?? 0) * actual;
+                if (netConsumed > 0) state.itemsConsumed[k] = (state.itemsConsumed[k] ?? 0) + netConsumed;
+              }
+              // Produce outputs: update inventory via prodFrac; track only net produced for stats
               for (const [k, v] of Object.entries(recipe.outputs)) {
                 const tot = v * actual * (1 + prodBonus);
                 gs.prodFrac[k] = (gs.prodFrac[k] ?? 0) + tot;
                 const w = Math.floor(gs.prodFrac[k]); gs.prodFrac[k] -= w;
-                if (w > 0) recordProduced(k, w);
-              }
-              for (const [k, v] of Object.entries(recipe.outputs))
+                if (w > 0) {
+                  state.inventory[k] = (state.inventory[k] ?? 0) + w;
+                  const netProduced = Math.max(0, w - (recipe.inputs[k] ?? 0) * actual);
+                  if (netProduced > 0) state.itemsProduced[k] = (state.itemsProduced[k] ?? 0) + netProduced;
+                }
                 state.baseProduced[k] = (state.baseProduced[k] ?? 0) + v * actual;
+              }
             }
             gs.progress -= actual; gs.active = true;
           } else { gs.progress = 0; gs.active = false; }
@@ -2770,8 +2805,8 @@ function tick() {
 
   // ── Biters ──
   const _tBit = _p0();
+  state.savePlayTime = (state.savePlayTime ?? 0) + dt;
   if (state.settings.biters) {
-    state.savePlayTime = (state.savePlayTime ?? 0) + dt;
     if (!state.biterActivated) {
       const redMade = (state.itemsProduced?.redScience ?? 0) > 0;
       if (redMade) {
@@ -2829,8 +2864,11 @@ function tick() {
         fightBiterWave();
       } else if (!biterWaveWarned && interval - state.biterTimer <= 30) {
         biterWaveWarned = true;
-        const tierName = getBiterEnemyTier()?.name ?? 'Biters';
-        notify(`⚠️ ${tierName} wave incoming in ~${Math.ceil(interval - state.biterTimer)}s!`, 'warning');
+        if (state.settings.waveWarning !== false) _showWaveWarningPopup();
+        else {
+          const tierName = getBiterEnemyTier()?.name ?? 'Biters';
+          notify(`⚠️ ${tierName} wave incoming in ~${Math.ceil(interval - state.biterTimer)}s!`, 'warning');
+        }
       }
     }
   }
@@ -2849,7 +2887,8 @@ function tick() {
       const goal = TUTORIAL_GOALS[state.tutorial.goalIndex];
       if (!goal?.check(state)) break;
       state.tutorial.goalIndex++;
-      notify(`🎯 Goal complete! Next: ${TUTORIAL_GOALS[state.tutorial.goalIndex]?.text ?? 'All goals done!'}`, 'info');
+      const _nextGoal = TUTORIAL_GOALS[state.tutorial.goalIndex];
+      notify(`🎯 Goal complete! Next: ${_nextGoal ? _gt(_nextGoal.text) : 'All goals done!'}`, 'info');
     }
   }
 
@@ -2932,7 +2971,7 @@ function placeBuilding(type, triggerEl, ev) {
   if (!isUnlocked('building', type)) { notify(`Research required to place this building.`, 'warning'); return; }
 
   const countEl = triggerEl?.closest('.place-row')?.querySelector('.place-count');
-  const count = Math.max(1, parseInt(countEl?.value ?? '1') || 1);
+  const count = Math.max(1, Math.floor(parseFloat(countEl?.value ?? '1') || 1));
   const frontOfQueue = !!(ev?.altKey);
 
   const pr = state.placementRecipes ?? defaultPlacementRecipes();
@@ -2946,7 +2985,16 @@ function placeBuilding(type, triggerEl, ev) {
 
   let actualCount = 0;
   for (let i = 0; i < count; i++) {
-    if (!canAfford(costs)) { if (i === 0) notify(`Need ${COST_LABEL[type]} — craft it first`, 'warning'); break; }
+    if (!canAfford(costs)) {
+      if (i === 0) {
+        const missing = Object.entries(costs)
+          .filter(([k, n]) => (state.inventory[k] ?? 0) < n)
+          .map(([k, n]) => `${itemDisplay(k).name}: need ${fmtNum(n)}, have ${fmtNum(Math.floor(state.inventory[k] ?? 0))}`)
+          .join(' · ');
+        notify(missing ? `Missing: ${missing}` : `Need ${COST_LABEL[type]} — craft it first`, 'warning');
+      }
+      break;
+    }
     spend(costs);
     actualCount++;
   }
@@ -3014,17 +3062,23 @@ function tickPlacement() {
   document.getElementById('place-progress').style.width = (pct * 100) + '%';
   updatePlacementUI(placeBatch);
   if (pct >= 1) {
-    const entry = placeQueue[_placeHead];
-    if (!entry) { processNextPlacement(); return; }
-    const toPlace = Math.min(placeBatch, entry.count);
-    const k = groupKey(entry);
-    if (!state.buildings[k]) state.buildings[k] = { type: entry.type, count: 0,
-      ...(entry.resource != null && { resource: entry.resource }),
-      ...(entry.recipe   != null && { recipe:   entry.recipe   }) };
-    state.buildings[k].count += toPlace;
-    if (entry.initModuleType) fillGroupModules(k, entry.initModuleType);
-    entry.count -= toPlace;
-    if (entry.count <= 0) _placeDequeue();
+    // Consume the full batch budget across as many queue entries as needed,
+    // so one tick can place buildings of mixed types without extra waits.
+    let budget = placeBatch;
+    while (budget > 0 && _placeHead < placeQueue.length) {
+      const entry = placeQueue[_placeHead];
+      if (!entry) break;
+      const toPlace = Math.min(budget, entry.count);
+      const k = groupKey(entry);
+      if (!state.buildings[k]) state.buildings[k] = { type: entry.type, count: 0,
+        ...(entry.resource != null && { resource: entry.resource }),
+        ...(entry.recipe   != null && { recipe:   entry.recipe   }) };
+      state.buildings[k].count += toPlace;
+      if (entry.initModuleType) fillGroupModules(k, entry.initModuleType);
+      entry.count -= toPlace;
+      if (entry.count <= 0) _placeDequeue();
+      budget -= toPlace;
+    }
     _groupsDirty = true; _typeCountsCache = null;
     processNextPlacement();
   } else {
@@ -3032,9 +3086,20 @@ function tickPlacement() {
   }
 }
 
+function clearPlaceQueue() {
+  placeQueue = [];
+  _placeHead = 0;
+  placing = false;
+  currentPlacing = null;
+  document.getElementById('place-progress').style.width = '0%';
+  updatePlacementUI();
+}
+
 function updatePlacementUI(placeBatch) {
   const label = document.getElementById('placement-label');
   const queueInfo = document.getElementById('place-queue-info');
+  const clearBtn = document.getElementById('clear-queue-btn');
+  const totalQueued = placeQueue.slice(_placeHead).reduce((s, e) => s + e.count, 0);
   if (placing && currentPlacing) {
     const batchStr = currentPlacing.count > 1 ? ` ×${currentPlacing.count.toLocaleString()}` : '';
     const name = buildingDisplay(currentPlacing.type).name;
@@ -3046,6 +3111,7 @@ function updatePlacementUI(placeBatch) {
     document.getElementById('place-progress').style.width = '0%';
     if (queueInfo) queueInfo.textContent = 'empty';
   }
+  if (clearBtn) clearBtn.style.display = totalQueued > 0 ? '' : 'none';
 }
 
 // ── Manual Mining ─────────────────────────────────────────────
@@ -3115,22 +3181,28 @@ function toggleGroup(key) {
 }
 
 function setBuildingAddCount(key, val) {
-  const n = Math.max(1, parseInt(val) || 1);
+  const n = Math.max(1, Math.floor(parseFloat(val) || 1));
   buildingAddCounts[key] = n;
 }
 
-function removeOneFromGroup(key) {
+function setBuildingRemoveCount(key, val) {
+  const n = Math.max(1, Math.floor(parseFloat(val) || 1));
+  buildingRemoveCounts[key] = n;
+}
+
+function removeOneFromGroup(key, count) {
   const entry = state.buildings[key];
   if (!entry || entry.count <= 0) return;
   const type = entry.type;
-  entry.count--;
+  const toRemove = Math.min(count ?? 1, entry.count);
+  entry.count -= toRemove;
   if (entry.count <= 0) {
     delete state.buildings[key];
     delete state.groupSettings[key];
   }
   _groupsDirty = true; _typeCountsCache = null;
   const costs = BUILDING_COSTS[type];
-  if (costs) for (const [item, amt] of Object.entries(costs)) refundItem(item, amt);
+  if (costs) for (let i = 0; i < toRemove; i++) for (const [item, amt] of Object.entries(costs)) refundItem(item, amt);
   renderBuildings();
 }
 
@@ -3305,11 +3377,12 @@ function renderTutorialGoal() {
 
   const idx  = state.tutorial?.goalIndex ?? 0;
   const goal = TUTORIAL_GOALS[idx];
+  const displayText = _gt(goal?.text);
 
   if (bar) {
     bar.style.display = '';
     bar.textContent = goal
-      ? `🎯 Goal: ${goal.text}`
+      ? `🎯 Goal: ${displayText}`
       : '🏆 All goals complete!';
   }
 
@@ -3325,18 +3398,18 @@ function renderTutorialGoal() {
 
   const subGoalsHtml = (goal.subGoals ?? []).map(sg => {
     const done = sg.check(state);
-    return `<div class="goal-sub${done ? ' done' : ''}">${done ? '✅' : '☐'} ${sg.text}</div>`;
+    return `<div class="goal-sub${done ? ' done' : ''}">${done ? '✅' : '☐'} ${_gt(sg.text)}</div>`;
   }).join('');
 
   const nextGoal = TUTORIAL_GOALS[idx + 1];
   const upcomingHtml = nextGoal
-    ? `<div class="goal-upcoming-label">Up next:</div><div class="goal-upcoming-item">${nextGoal.text}</div>`
+    ? `<div class="goal-upcoming-label">Up next:</div><div class="goal-upcoming-item">${_gt(nextGoal.text)}</div>`
     : '';
 
   panel.innerHTML = `
     <div class="goal-panel-header">🎯 Current Goal</div>
     <div class="goal-current-box">
-      <div class="goal-current-text">${goal.text}</div>
+      <div class="goal-current-text">${displayText}</div>
       ${progressText ? `<div class="goal-progress-text">${progressText}</div>` : ''}
       ${subGoalsHtml}
     </div>
@@ -3455,6 +3528,7 @@ let _waveSimCache    = null;  // cached result of simulateNextWaveOutcome()
 let _waveSimAge      = 999;   // seconds since last sim; force immediate run on first tick
 
 function _maxChestChunk() {
+  if (!state.settings?.biters) return Infinity;
   return Math.pow(state.perimeter?.sideLength ?? 14, 2);
 }
 function chestAvailCount(tier) {
@@ -3976,6 +4050,56 @@ function setRadarNotif(val) {
   if (state) state.settings.radarNotif = val;
 }
 
+function setChestNotifications(val) {
+  if (state) state.settings.chestNotifications = val;
+}
+
+function setAutoSave(val) {
+  if (state) state.settings.autoSave = val;
+}
+
+function setAutoSaveInterval(val) {
+  if (!state) return;
+  const n = Math.max(30, Math.min(3600, parseInt(val) || 300));
+  state.settings.autoSaveInterval = n;
+  const el = document.getElementById('settings-autosave-interval');
+  if (el) el.value = n;
+}
+
+function setWaveWarning(val) {
+  if (state) state.settings.waveWarning = val;
+}
+
+function _showWaveWarningPopup() {
+  const popup = document.getElementById('biter-wave-popup');
+  if (!popup) return;
+  const interval = biterInterval();
+  const secs = Math.ceil(interval - state.biterTimer);
+  const waveNum = (state.biterWaveCount ?? 0) + 1;
+  const tier = getBiterEnemyTier();
+  const tierName = tier?.name ?? 'Biters';
+
+  const lasers = Object.values(state.buildings ?? {}).filter(g => g.type === 'laserTurret').reduce((s, g) => s + (g.count ?? 0), 0);
+  const arty   = Object.values(state.buildings ?? {}).filter(g => g.type === 'artilleryTurret').reduce((s, g) => s + (g.count ?? 0), 0);
+
+  let stats = `${tierName} in ~${secs}s`;
+  if (lasers > 0) stats += ` · ⚡ ${lasers} laser turrets`;
+  if (arty   > 0) stats += ` · 💣 ${arty} artillery`;
+
+  document.getElementById('wave-popup-title').textContent = `⚠️ Wave #${waveNum} incoming!`;
+  document.getElementById('wave-popup-stats').textContent = stats;
+
+  popup.classList.remove('hidden', 'biter-popup-fade');
+  popup.classList.add('biter-popup-show');
+  setTimeout(() => {
+    popup.classList.add('biter-popup-fade');
+    setTimeout(() => {
+      popup.classList.remove('biter-popup-show', 'biter-popup-fade');
+      popup.classList.add('hidden');
+    }, 600);
+  }, 8000);
+}
+
 function setTutorialEnabled(val) {
   if (state) state.settings.tutorialEnabled = val;
   renderUI();
@@ -3989,30 +4113,29 @@ function setDefaultLimit(which, val, isInf) {
 }
 
 function refreshPlaceTabNames() {
-  // Re-render dynamic drill/assembler cards (their cost lines are generated from theme)
+  // Re-render dynamic drill/assembler cards (icons, h4s, costs, descriptions, pickers)
   renderDrillCard();
   if (state) renderAssemblyCard();
-  // Update static buildable-card h4s, cost lines, and card icons
-  document.querySelectorAll('.buildable-card').forEach(card => {
-    const placeBtn = card.querySelector('button.btn-place[data-type]');
-    if (!placeBtn) return;
-    const type = placeBtn.dataset.type;
-    // h4 name
+  // Update static buildable-card h4s, costs, icons, and description templates
+  document.querySelectorAll('.buildable-card[data-btype]').forEach(card => {
+    const type = card.dataset.btype;
     const h4 = card.querySelector('h4');
     if (h4) h4.textContent = buildingDisplay(type).name;
-    // Cost line — iterate all BUILDING_COSTS entries for full multi-item costs
     const costP = card.querySelector('p.card-cost');
     if (costP) {
       const costs = BUILDING_COSTS[type] ?? {};
       const parts = Object.entries(costs).map(([k, n]) => `${n} × ${itemDisplay(k).name}`);
       if (parts.length) costP.textContent = `Cost: ${parts.join(' + ')}`;
     }
-    // Card icon — replace emoji with actual building image
     const iconSpan = card.querySelector('.card-icon');
     if (iconSpan) {
       const itemKey = getBuildingItemKey(type);
       if (itemKey) iconSpan.innerHTML = itemIcon(itemKey);
     }
+    // Fill description templates: {itemKey} → themed item name
+    card.querySelectorAll('p[data-desc]').forEach(p => {
+      p.textContent = p.dataset.desc.replace(/\{([^}]+)\}/g, (_, k) => itemDisplay(k).name);
+    });
   });
 }
 
@@ -4022,11 +4145,23 @@ function setTheme(t) {
   renderUI();
   updateMap();
   refreshPlaceTabNames();
+  renderSettings();
 }
 
 function renderSettings() {
   const radarEl = document.getElementById('settings-radar-notif');
   if (radarEl) radarEl.checked = state.settings.radarNotif !== false;
+
+  const chestEl = document.getElementById('settings-chest-notif');
+  if (chestEl) chestEl.checked = state.settings.chestNotifications !== false;
+
+  const wwEl = document.getElementById('settings-wave-warning');
+  if (wwEl) wwEl.checked = state.settings.waveWarning !== false;
+
+  const asEl = document.getElementById('settings-autosave');
+  if (asEl) asEl.checked = state.settings.autoSave !== false;
+  const asIntEl = document.getElementById('settings-autosave-interval');
+  if (asIntEl) { asIntEl.value = state.settings.autoSaveInterval ?? 300; asIntEl.disabled = state.settings.autoSave === false; }
 
   const dlb = state.settings.defaultLimitBuilding ?? 10;
   const dlo = state.settings.defaultLimitOther    ?? Infinity;
@@ -4046,6 +4181,22 @@ function renderSettings() {
 
   const themeEl = document.getElementById('settings-theme');
   if (themeEl) themeEl.value = state.settings.theme ?? 'caffactory';
+
+  // Update calc dropdown labels with themed names
+  document.querySelectorAll('#calc-furnace-tier option').forEach(o => {
+    if (o.value) o.textContent = buildingDisplay(o.value).name;
+  });
+  document.querySelectorAll('#calc-asm-tier option').forEach(o => {
+    if (o.value) o.textContent = buildingDisplay(o.value).name;
+  });
+  const moduleLabels = {
+    speedModule: k => itemDisplay(k).name, speedModule2: k => itemDisplay(k).name,
+    speedModule3: k => itemDisplay(k).name, productivityModule: k => itemDisplay(k).name,
+    productivityModule2: k => itemDisplay(k).name, productivityModule3: k => itemDisplay(k).name,
+  };
+  document.querySelectorAll('#calc-module option').forEach(o => {
+    if (o.value && moduleLabels[o.value]) o.textContent = moduleLabels[o.value](o.value);
+  });
 }
 
 function buildingMatchesSearch(group, q) {
@@ -4104,7 +4255,7 @@ function renderBuildings() {
   const focused = document.activeElement;
   if (focused && focused.closest('#active-buildings') &&
       (focused.classList.contains('limit-input') || focused.classList.contains('add-count-input') ||
-       focused.classList.contains('module-type-sel'))) return;
+       focused.classList.contains('remove-count-input') || focused.classList.contains('module-type-sel'))) return;
 
   const container = document.getElementById('active-buildings');
   const groups    = buildGroupMap();
@@ -4131,7 +4282,7 @@ function renderBuildings() {
       `${gs.selectedModuleType}|${JSON.stringify(gs.modules ?? {})}|${gs.outsidePerimeter ?? 0}|` +
       `${gs.acidStarved ?? 0}|${gs.standby ?? 0}|${Math.round((gs.progress ?? 0) * 20)}|` +
       `${(type === 'miner' || type === 'electricMiner') ? placeQueue.slice(_placeHead).filter(e => e.resource === group.resource).reduce((s,e)=>s+e.count,0) : 0}|` +
-      `${buildingAddCounts[key] ?? 1}`;
+      `${buildingAddCounts[key] ?? 1}|${buildingRemoveCounts[key] ?? 1}`;
     if (_cardCache[key]?.hash === _ch) return _cardCache[key].html;
     _anyCardMiss = true;
     const _cardHtml = (() => {
@@ -4161,7 +4312,7 @@ function renderBuildings() {
                        : !hasPatch    ? 'Patch depleted'
                                       : `${(count * speed * (type === 'electricMiner' ? calcGroupModifiers('electricMiner', count, gs.modules).speedMult : 1) * pRatio).toFixed(2)}/sec${brownStr}`;
       const meta = type === 'miner'
-        ? `coal: ${(count * COAL_PER_MINER).toFixed(4)}/sec`
+        ? `${itemDisplay('coal').name}: ${(count * COAL_PER_MINER).toFixed(4)}/sec`
         : `${ELECTRIC_MINER_KW * count} kW`;
       const label = `${buildingDisplay(type).name} — ${itemDisplay(group.resource).name}`;
       return buildingCard(type, count, meta, statusTxt, isActive, -1, key, '', true, type === 'electricMiner' ? 'electricMiner' : null, false, label);
@@ -4183,7 +4334,7 @@ function renderBuildings() {
       const { speedMult, prodBonus } = calcGroupModifiers('furnace', count, gs.modules);
       const rateStr = recipeRateStr(activeN, count, 1, speedMult, 1, recipe, outputKey, prodBonus);
       return buildingCard('furnace', count,
-        `coal: ${(count * COAL_PER_FURNACE).toFixed(4)}/sec · ${rateStr}`,
+        `${itemDisplay('coal').name}: ${(count * COAL_PER_FURNACE).toFixed(4)}/sec · ${rateStr}`,
         statusTxt, gs.enabled && !gs.starved && activeN > 0, -1, key,
         buildCurrentRecipeDisplay(group.recipe, FURNACE_RECIPES), true, 'furnace', true);
     }
@@ -4204,7 +4355,7 @@ function renderBuildings() {
       const { speedMult, prodBonus } = calcGroupModifiers('steelFurnace', count, gs.modules);
       const rateStr = recipeRateStr(activeN, count, STEEL_FURNACE_SPEED, speedMult, 1, recipe, outputKey, prodBonus);
       return buildingCard('steelFurnace', count,
-        `coal: ${(count * COAL_PER_STEEL_FURNACE).toFixed(4)}/sec · ${rateStr}`,
+        `${itemDisplay('coal').name}: ${(count * COAL_PER_STEEL_FURNACE).toFixed(4)}/sec · ${rateStr}`,
         statusTxt, gs.enabled && !gs.starved && activeN > 0, -1, key,
         buildCurrentRecipeDisplay(group.recipe, FURNACE_RECIPES), true, 'steelFurnace', true);
     }
@@ -4294,7 +4445,7 @@ function renderBuildings() {
                        : gs.starved  ? '⚡ No Coal'
                                      : `${count * BOILER_STEAM_PER_SEC} steam/sec`;
       return buildingCard('boiler', count,
-        `coal: ${(count * BOILER_COAL_PER_SEC).toFixed(3)}/sec · water: ${count * BOILER_WATER_PER_SEC}/sec`,
+        `${itemDisplay('coal').name}: ${(count * BOILER_COAL_PER_SEC).toFixed(3)}/sec · water: ${count * BOILER_WATER_PER_SEC}/sec`,
         statusTxt, gs.enabled && !gs.starved, state.steam / effectiveSteamMax(), key);
     }
 
@@ -4486,10 +4637,10 @@ function renderBuildings() {
       const fuelRate  = (count / NUCLEAR_FUEL_INTERVAL).toFixed(3);
       const fuelProg  = (gs2.fuelAcc ?? 0) % 1;
       const statusTxt2 = !gs2.enabled ? 'Disabled'
-                        : gs2.starved  ? '☢️ No Uranium Fuel Cells'
+                        : gs2.starved  ? `☢️ No ${itemDisplay('uraniumFuelCell').name}s`
                                        : `${(totalKw / 1000).toFixed(2)} MW`;
       return buildingCard('nuclearReactor', count,
-        `${(totalKw / 1000).toFixed(2)} MW · ${fuelRate} fuel cells/sec`,
+        `${(totalKw / 1000).toFixed(2)} MW · ${fuelRate}  ${itemDisplay('uraniumFuelCell').name}/sec`,
         statusTxt2, gs2.enabled && !gs2.starved, fuelProg, key);
     }
 
@@ -4643,7 +4794,11 @@ function buildingCard(type, count, meta, statusTxt, isActive, barFill, key, extr
       ${barHtml}
       <div class="building-add-row">
         <button class="btn-add-building" data-add="${key}" title="Alt+click to place at front of queue">+ Add</button>
-        <input type="number" class="add-count-input" data-add-count="${key}" min="1" value="${buildingAddCounts[key] ?? 1}" onchange="setBuildingAddCount('${key}', this.value)">
+        <input type="text" class="add-count-input" data-add-count="${key}" value="${buildingAddCounts[key] ?? 1}" onchange="setBuildingAddCount('${key}', this.value)">
+      </div>
+      <div class="building-add-row">
+        <button class="btn-remove-building" data-remove="${key}">− Remove</button>
+        <input type="text" class="remove-count-input" data-remove-count="${key}" value="${buildingRemoveCounts[key] ?? 1}" onchange="setBuildingRemoveCount('${key}', this.value)">
       </div>
     </div>
     ${_bldgImgHtml}
@@ -4651,7 +4806,6 @@ function buildingCard(type, count, meta, statusTxt, isActive, barFill, key, extr
       ${showPriority ? `<button class="btn-priority ${gs.priority ? 'priority-on' : ''}" data-priority="${key}" title="${gs.priority ? 'Remove priority' : 'Set high priority'}">★</button>` : ''}
       <button class="btn-toggle ${gs.enabled ? 'tog-on' : 'tog-off'}" data-toggle="${key}"
         title="${gs.enabled ? 'Pause' : 'Resume'}">${gs.enabled ? '⏸' : '▶'}</button>
-      <button class="btn-removesmall" data-remove="${key}" title="Remove one">−1</button>
     </div>
   </div>`;
 }
@@ -4913,8 +5067,10 @@ function renderResearchStatus() {
   const gs   = getGS('lab');
 
   if (!res.current) {
-    const savedNote = res.savedKey && TECHNOLOGIES[res.savedKey]
-      ? `<span class="research-idle-note">Saved progress: ${techDisplay(res.savedKey).name} (${res.savedProgress ?? 0} packs)</span>`
+    const _savedDef = res.savedKey && (TECHNOLOGIES[res.savedKey] || INFINITE_TECHS[res.savedKey]);
+    const _savedName = res.savedKey ? (INFINITE_TECHS[res.savedKey]?.displayName ?? techDisplay(res.savedKey).name) : '';
+    const savedNote = _savedDef
+      ? `<span class="research-idle-note">Saved progress: ${_savedName} (${res.savedProgress ?? 0} packs)</span>`
       : '';
     el.innerHTML = `<p class="research-idle">No research in progress. Click a technology node below to start.${savedNote ? '<br>' + savedNote : ''}</p>`;
     return;
@@ -5955,7 +6111,7 @@ function renderPerimeter() {
     if (wph !== lastWavePreviewHash) {
       lastWavePreviewHash = wph;
       const _previewTierData = getBiterEnemyTier();
-      const _previewTierName = _previewTierData?.name ?? 'Biters';
+      const _previewTierName = _previewTierData?.name ?? 'Enemies';
       const _previewTierImg  = _previewTierData?.img ?? '';
       lastWavePreviewHtml = `<div class="perimeter-card perimeter-card-wide">
     <div class="perimeter-card-title">📊 Next Wave — Wave ${nextWave} · ${_previewTierName}</div>
@@ -5963,11 +6119,11 @@ function renderPerimeter() {
       <div class="wave-preview-stats">
         <div class="perimeter-wave-row">
           <div class="perimeter-wave-col">
-            <div class="perimeter-label">Biters</div>
+            <div class="perimeter-label">Enemies</div>
             <div class="perimeter-range">${fmtN(base.count)}</div>
           </div>
           <div class="perimeter-wave-col">
-            <div class="perimeter-label">HP / biter</div>
+            <div class="perimeter-label">HP / Enemy</div>
             <div class="perimeter-range">${fmtN(base.hp)}</div>
           </div>
           <div class="perimeter-wave-col">
@@ -5975,7 +6131,7 @@ function renderPerimeter() {
             <div class="perimeter-range">${base.armor}</div>
           </div>
           <div class="perimeter-wave-col">
-            <div class="perimeter-label">DPS / biter</div>
+            <div class="perimeter-label">DPS / enemy</div>
             <div class="perimeter-range">${base.dps.toFixed(1)}</div>
           </div>
         </div>
@@ -5983,7 +6139,7 @@ function renderPerimeter() {
           <span>Threat level</span><strong>${(state.biterThreatPoints ?? 0).toFixed(1)} pts${rainbowActive ? ' (exponential)' : ''}</strong>
         </div>
         <div class="wave-stat-compact">
-          <span>Biter HP pool</span><strong>~${fmtN(Math.max(0, nextBiterHP - artAccumDmg))}${artAccumDmg > 0 ? ` (of ${fmtN(nextBiterHP)})` : ''}</strong>
+          <span>Enemies HP pool</span><strong>~${fmtN(Math.max(0, nextBiterHP - artAccumDmg))}${artAccumDmg > 0 ? ` (of ${fmtN(nextBiterHP)})` : ''}</strong>
         </div>
         <div class="wave-stat-compact">
           <span>Total DPS</span><strong>${totalDPS.toFixed(1)}</strong>
@@ -5992,7 +6148,7 @@ function renderPerimeter() {
           <span>Est. kill time</span><strong>${sim?.killTime != null ? sim.killTime + 's (sim)' : previewKillTime + 's'}</strong>
         </div>
         <div class="wave-stat-compact">
-          <span>Est. biter dmg</span><strong>~${fmtN(previewDamage)} · Wall: ${fmtN(totalWallHP)}</strong>
+          <span>Est. Enemies dmg</span><strong>~${fmtN(previewDamage)} · Wall: ${fmtN(totalWallHP)}</strong>
         </div>
         ${previewAmmoEst != null ? `<div class="wave-stat-compact"><span>Est. ammo used</span><strong>${previewAmmoEst.toLocaleString()} × ${ITEMS[ammoType]?.name ?? ammoType}</strong></div>` : ''}
         ${laserEnergyPerWave != null ? `<div class="wave-stat-compact"><span>Est. laser energy</span><strong>${(laserEnergyPerWave / 1000).toFixed(1)} MJ</strong></div>` : ''}
@@ -6039,7 +6195,7 @@ function renderPerimeter() {
       <span>Kill time</span><strong>${lastWave.killTime != null ? lastWave.killTime + 's' : '∞ (not killed)'}</strong>
     </div>
     <div class="perimeter-stat-row">
-      <span>Biter damage dealt</span><strong>${fmtN(parseFloat(lastWave.biterDamage))} · vs ${fmtN(lastWave.totalWallHP)} wall HP</strong>
+      <span>Enemies damage dealt</span><strong>${fmtN(parseFloat(lastWave.biterDamage))} · vs ${fmtN(lastWave.totalWallHP)} wall HP</strong>
     </div>
     <div class="perimeter-stat-row">
       <span>Ammo consumed</span><strong>${lastWave.ammoUsed} × ${ITEMS[lastWave.ammoType]?.name ?? lastWave.ammoType}</strong>
@@ -6075,11 +6231,11 @@ function renderBiterIndicator() {
   if (!state.settings.biters) { el.classList.add('hidden'); return; }
   el.classList.remove('hidden');
   if (!state.biterActivated) {
-    el.textContent = `⏳ Biters: make red science to activate`;
+    el.textContent = `⏳ Enemies: make red science to activate`;
     el.classList.remove('biter-warning');
   } else {
     const secs     = Math.ceil(biterInterval() - (state.biterTimer ?? 0));
-    const tierName = getBiterEnemyTier()?.name ?? 'Biters';
+    const tierName = getBiterEnemyTier()?.name ?? 'Enemies';
     el.textContent = `⚠ ${tierName}: ${secs}s`;
     el.classList.toggle('biter-warning', secs <= 30);
   }
@@ -6519,17 +6675,21 @@ function renderDrillCard() {
   const type = _drillTab;
   const burnerName   = itemDisplay('burnerMinerItem').name;
   const electricName = itemDisplay('electricMinerItem').name;
+  const coalName     = itemDisplay('coal').name;
   const stats = type === 'miner'
-    ? `<p>Mines at 0.25/sec · requires coal to operate</p><p class="card-cost">Cost: 1 × ${burnerName}</p>`
-    : `<p>Mines at 0.5/sec · 90 kW · no coal needed</p><p class="card-cost">Cost: 1 × ${electricName}</p>`;
-  // Also update h4 to reflect current tab's building name
-  const drillH4 = el.closest('.buildable-card')?.querySelector('h4');
+    ? `<p>Mines at 0.25/sec · requires ${coalName} to operate</p><p class="card-cost">Cost: 1 × ${burnerName}</p>`
+    : `<p>Mines at 0.5/sec · 90 kW · no ${coalName} needed</p><p class="card-cost">Cost: 1 × ${electricName}</p>`;
+  // Update h4 and card icon to reflect current tab
+  const drillCard = el.closest('.buildable-card');
+  const drillH4   = drillCard?.querySelector('h4');
   if (drillH4) drillH4.textContent = buildingDisplay(type === 'miner' ? 'miner' : 'electricMiner').name;
+  const drillIcon = drillCard?.querySelector('.card-icon');
+  if (drillIcon) { const k = getBuildingItemKey(type === 'miner' ? 'miner' : 'electricMiner'); if (k) drillIcon.innerHTML = itemIcon(k); }
   const ptype = type === 'miner' ? 'miner' : 'electricMiner';
   el.innerHTML = `${stats}
     <div class="recipe-picker-host" data-ptype="${ptype}"></div>
     <div class="place-row">
-      <input type="number" class="place-count" min="1" value="1">
+      <input type="text" class="place-count" value="1">
       <button class="btn-place" data-type="${type}" onclick="placeBuilding('${type}',this,event)">Place</button>
     </div>`;
   renderAllPlacementPickers();
@@ -6544,9 +6704,12 @@ function renderAssemblyCard() {
   if (_assemblyTab === 'assembly3' && !done.automation3) _assemblyTab = done.automation2 ? 'assembly2' : 'assembly';
   if (_assemblyTab === 'assembly2' && !done.automation2) _assemblyTab = 'assembly';
   const type = _assemblyTab;
-  // Also update h4 to reflect current tab's building name
-  const asmH4 = document.getElementById('asm-card-content')?.closest('.buildable-card')?.querySelector('h4');
+  // Update h4 and card icon to reflect current tab
+  const asmCard = document.getElementById('asm-card-content')?.closest('.buildable-card');
+  const asmH4   = asmCard?.querySelector('h4');
   if (asmH4) asmH4.textContent = buildingDisplay(type).name;
+  const asmIcon = asmCard?.querySelector('.card-icon');
+  if (asmIcon) { const k = getBuildingItemKey(type); if (k) asmIcon.innerHTML = itemIcon(k); }
   const statsMap = {
     assembly:  `<p>Auto-crafts intermediate and building items · 75 kW · speed ×0.5</p><p class="card-cost">Cost: 1 × ${itemDisplay('assemblyMachine1Item').name}</p>`,
     assembly2: `<p>Auto-crafts items · 150 kW · speed ×0.75</p><p class="card-cost">Cost: 1 × ${itemDisplay('assemblyMachine2Item').name}</p>`,
@@ -6556,7 +6719,7 @@ function renderAssemblyCard() {
     <input class="picker-search" type="text" placeholder="Search recipes…" oninput="onPickerSearch('${type}', this.value)">
     <div class="recipe-picker-host" data-ptype="${type}"></div>
     <div class="place-row">
-      <input type="number" class="place-count" min="1" value="1">
+      <input type="text" class="place-count" value="1">
       <button class="btn-place" data-type="${type}" onclick="placeBuilding('${type}',this,event)">Place</button>
     </div>`;
   renderAllPlacementPickers();
@@ -6707,11 +6870,16 @@ function setupEventDelegation() {
     const tog = e.target.closest('[data-toggle]');
     if (tog) { toggleGroup(tog.dataset.toggle); return; }
     const rem = e.target.closest('[data-remove]');
-    if (rem) { removeOneFromGroup(rem.dataset.remove); return; }
+    if (rem) {
+      const remCountEl = rem.closest('.building-add-row')?.querySelector('[data-remove-count]');
+      const remCount = Math.max(1, Math.floor(parseFloat(remCountEl?.value ?? String(buildingRemoveCounts[rem.dataset.remove] ?? 1)) || 1));
+      removeOneFromGroup(rem.dataset.remove, remCount);
+      return;
+    }
     const add = e.target.closest('[data-add]');
     if (add) {
       const countEl = add.closest('.building-add-row')?.querySelector('[data-add-count]');
-      const count = Math.max(1, parseInt(countEl?.value ?? String(buildingAddCounts[add.dataset.add] ?? 1)) || 1);
+      const count = Math.max(1, Math.floor(parseFloat(countEl?.value ?? String(buildingAddCounts[add.dataset.add] ?? 1)) || 1));
       addBuildingFromGroup(add.dataset.add, count, e.altKey);
       return;
     }
@@ -7061,7 +7229,7 @@ const BUILDING_MAP_MILESTONES = [10, 100, 1000, 10000];
 const BUILDING_MAP_CATEGORIES = {
   furnace: {
     label: 'Furnace',
-    types: ['furnace', 'steelFurnace', 'electricFurnace'],
+    types: ['furnace', 'steelFurnace', 'electricFurnace', 'electricFurnace'],
     getRecipes: () => Object.entries(FURNACE_RECIPES).map(([k, r]) => ({ key: k, ...r })),
     color: '#7a3a1a',
     slotImgs: [
@@ -7074,7 +7242,7 @@ const BUILDING_MAP_CATEGORIES = {
   },
   assembly: {
     label: 'Assembler',
-    types: ['assembly', 'assembly2', 'assembly3'],
+    types: ['assembly', 'assembly2', 'assembly3', 'assembly3'],
     getRecipes: () => Object.entries(PLAYER_RECIPES).filter(([, r]) => !r.machinery || r.machinery === 'assembly').map(([k, r]) => ({ key: k, ...r })),
     color: '#2a4a6a',
     slotImgs: [
@@ -7087,7 +7255,7 @@ const BUILDING_MAP_CATEGORIES = {
   },
   chemPlant: {
     label: 'Chem Plant',
-    types: ['chemicalPlant'],
+    types: Array(4).fill('chemicalPlant'),
     getRecipes: () => Object.entries(PLAYER_RECIPES).filter(([, r]) => r.machinery === 'chemical').map(([k, r]) => ({ key: k, ...r })),
     color: '#2a6a3a',
     slotImgs: Array(4).fill('data/icon_imgs/chem_plant.jpg'),
@@ -7095,7 +7263,7 @@ const BUILDING_MAP_CATEGORIES = {
   },
   oilRefinery: {
     label: 'Oil Refinery',
-    types: ['oilRefinery'],
+    types: Array(4).fill('oilRefinery'),
     getRecipes: () => Object.entries(PLAYER_RECIPES).filter(([, r]) => r.machinery === 'refinery').map(([k, r]) => ({ key: k, ...r })),
     color: '#5a4a1a',
     slotImgs: Array(4).fill(null),
@@ -7103,7 +7271,7 @@ const BUILDING_MAP_CATEGORIES = {
   },
   centrifuge: {
     label: 'Centrifuge',
-    types: ['centrifuge'],
+    types: Array(4).fill('centrifuge'),
     getRecipes: () => Object.entries(PLAYER_RECIPES).filter(([, r]) => r.machinery === 'centrifuge').map(([k, r]) => ({ key: k, ...r })),
     color: '#1a3a6a',
     slotImgs: Array(4).fill('data/icon_imgs/Centrifuge.jpg'),
@@ -7111,7 +7279,7 @@ const BUILDING_MAP_CATEGORIES = {
   },
   rocketSilo: {
     label: 'Rocket Silo',
-    types: ['rocketSilo'],
+    types: Array(4).fill('rocketSilo'),
     getRecipes: () => Object.entries(PLAYER_RECIPES).filter(([, r]) => r.machinery === 'rocket_silo').map(([k, r]) => ({ key: k, ...r })),
     color: '#4a1a6a',
     slotImgs: Array(4).fill('data/icon_imgs/rocket_silo.jpg'),
@@ -7125,6 +7293,19 @@ const BUILDING_MAP_CATEGORIES = {
     slotImgs: ['data/icon_imgs/construction_robot.png'],
     defaults: [{ col: 3, row: 4 }],
     getSlotCount: () => (state?.research?.done?.logistics ? 1 : 0),
+    getRecipes: () => [],
+  },
+  lab: {
+    label: '🔬 Labs',
+    types: ['lab'],
+    isLab: true,
+    color: '#1a4a5a',
+    slotImgs: [null],
+    defaults: [{ col: 4, row: 4 }],
+    getSlotCount: () => {
+      const gs = state ? getGS('lab') : null;
+      return (gs && (gs.count ?? 0) > 0) ? 1 : 0;
+    },
     getRecipes: () => [],
   },
 };
@@ -7605,27 +7786,59 @@ function openBuildingPopup(catKey) {
   _bldPopupCat = catKey;
   _bldPopupRecipeIdx = 0;
   if (BUILDING_MAP_CATEGORIES[catKey]?.isHub) { _refreshHubPopup(); return; }
+  if (BUILDING_MAP_CATEGORIES[catKey]?.isLab) { _refreshLabPopup(); return; }
   _refreshBuildingPopup();
 }
 
-function _queueItemLabel(item) {
-  const BLDG_NAMES = {
-    miner: 'Burner Drill', electricMiner: 'Electric Drill',
-    furnace: 'Furnace', steelFurnace: 'Steel Furnace', electricFurnace: 'Electric Furnace',
-    assembly: 'Assembler Mk1', assembly2: 'Assembler Mk2', assembly3: 'Assembler Mk3',
-    chemicalPlant: 'Chem Plant', oilRefinery: 'Oil Refinery',
-    centrifuge: 'Centrifuge', rocketSilo: 'Rocket Silo',
-    lab: 'Lab', radar: 'Radar',
-    boiler: 'Boiler', steamEngine: 'Steam Engine', offshore: 'Offshore Pump',
-    solar: 'Solar Panel', accumulator: 'Accumulator',
-    nuclearReactor: 'Nuclear Reactor', heatExchanger: 'Heat Exchanger', steamTurbine: 'Steam Turbine',
-  };
-  const typeName = BLDG_NAMES[item.type] ?? item.type;
-  const recipeObj = item.recipe
-    ? (PLAYER_RECIPES?.[item.recipe] ?? FURNACE_RECIPES?.[item.recipe])
+function _refreshLabPopup() {
+  const popup = document.getElementById('building-popup');
+  if (!popup) return;
+  const gs = getGS('lab');
+  const count = gs?.count ?? 0;
+  const theme = state.settings?.theme ?? 'caffactory';
+  const packWord = theme === 'caffactory' ? 'energy drinks' : 'science packs';
+
+  const res = state.research;
+  const isInfinite = res.current?.includes(':');
+  const techData = res.current
+    ? (isInfinite ? currentRobotTechData() : (() => {
+        const t = TECHNOLOGIES[res.current];
+        return t ? { cost: t.cost, timePerPack: t.timePerPack, totalNeeded: Math.max(...Object.values(t.cost)) } : null;
+      })())
     : null;
-  const detail = item.recipe   ? (recipeObj?.name ?? ITEMS[item.recipe]?.name ?? item.recipe)
-               : item.resource ? (ITEMS[item.resource]?.name ?? item.resource)
+
+  let etaRow = '';
+  if (techData && count > 0) {
+    const { speedMult } = calcGroupModifiers('lab', count, gs?.modules);
+    const labPerkMult = hasMetaPerk('perk_lab_speed_1') ? 1.15 : 1;
+    const packsPerSec = count * speedMult * labPerkMult / techData.timePerPack;
+    const remaining = Math.max(0, techData.totalNeeded - (res.totalConsumed ?? 0));
+    const etaSecs = packsPerSec > 0 ? remaining / packsPerSec : Infinity;
+    const etaStr = !isFinite(etaSecs) ? '∞'
+      : etaSecs < 60 ? `${Math.round(etaSecs)}s`
+      : etaSecs < 3600 ? `${Math.floor(etaSecs/60)}m ${Math.round(etaSecs%60)}s`
+      : `${Math.floor(etaSecs/3600)}h ${Math.floor((etaSecs%3600)/60)}m`;
+    const techName = isInfinite ? INFINITE_TECHS[res.current]?.displayName : techDisplay(res.current).name;
+    etaRow = `<div class="bld-popup-row"><span>ETA (${techName})</span><strong>${etaStr}</strong></div>`;
+  }
+
+  const totalConsumedEver = Object.values(state.research?.done ?? {}).reduce((s, v) => s + (typeof v === 'number' ? v : 0), 0);
+
+  popup.querySelector('.bld-popup-title').textContent = `${buildingDisplay('lab').icon} ${buildingDisplay('lab').name}`;
+  const nav = popup.querySelector('.bld-popup-nav');
+  if (nav) nav.style.display = 'none';
+  popup.querySelector('.bld-popup-stats').innerHTML = `
+    <div class="bld-popup-row"><span>Labs placed</span><strong>${count}</strong></div>
+    <div class="bld-popup-row"><span>Current research ${packWord}</span><strong>${fmtNum(res.totalConsumed ?? 0)}</strong></div>
+    ${etaRow}
+  `;
+  popup.classList.remove('hidden');
+}
+
+function _queueItemLabel(item) {
+  const typeName = buildingDisplay(item.type).name ?? item.type;
+  const detail = item.recipe   ? itemDisplay(Object.keys(PLAYER_RECIPES?.[item.recipe]?.outputs ?? FURNACE_RECIPES?.[item.recipe]?.outputs ?? {})[0] ?? item.recipe).name
+               : item.resource ? itemDisplay(item.resource).name
                : '';
   return detail ? `${typeName} – ${detail}` : typeName;
 }
@@ -8071,6 +8284,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') { closeOrePatchPopup(); closeBuildingPopup(); closeTileBgPicker(); }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'r') e.preventDefault();
   });
 
   refreshSaveList();

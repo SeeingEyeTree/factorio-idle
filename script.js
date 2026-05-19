@@ -210,6 +210,21 @@ class ScriptParser {
         this.eat('NEWLINE');
         return { type: 'augassign', name, op, value };
       }
+      // Subscript assignment: name[idx] = val
+      if (next?.type === 'OP' && next.value === '[') {
+        const savedPos = this.pos;
+        const name = this.advance().value;
+        this.advance(); // consume '['
+        const idx = this.parseExpr();
+        this.eat('OP', ']');
+        if (this.peek().type === 'OP' && this.peek().value === '=') {
+          this.advance();
+          const value = this.parseExpr();
+          this.eat('NEWLINE');
+          return { type: 'subscript_assign', name, idx, value };
+        }
+        this.pos = savedPos; // not an assignment, fall through
+      }
     }
 
     const expr = this.parseExpr();
@@ -379,8 +394,21 @@ class ScriptParser {
     if (t.type === 'FALSE')  { this.advance(); return { type: 'bool', b: false }; }
     if (t.type === 'NONE')   { this.advance(); return { type: 'none' }; }
 
+    // Array literal: [expr, expr, ...]
+    if (t.type === 'OP' && t.value === '[') {
+      this.advance();
+      const elems = [];
+      while (!(this.peek().type === 'OP' && this.peek().value === ']')) {
+        elems.push(this.parseExpr());
+        if (this.peek().type === 'OP' && this.peek().value === ',') this.advance();
+      }
+      this.eat('OP', ']');
+      return { type: 'array', elems };
+    }
+
     if (t.type === 'NAME') {
       this.advance();
+      let node;
       if (this.peek().type === 'OP' && this.peek().value === '(') {
         this.advance();
         const args = [];
@@ -389,9 +417,18 @@ class ScriptParser {
           if (this.peek().type === 'OP' && this.peek().value === ',') this.advance();
         }
         this.eat('OP', ')');
-        return { type: 'call', func: t.value, args };
+        node = { type: 'call', func: t.value, args };
+      } else {
+        node = { type: 'name', id: t.value };
       }
-      return { type: 'name', id: t.value };
+      // Subscript access: node[idx][idx]...
+      while (this.peek().type === 'OP' && this.peek().value === '[') {
+        this.advance();
+        const idx = this.parseExpr();
+        this.eat('OP', ']');
+        node = { type: 'subscript', obj: node, idx };
+      }
+      return node;
     }
 
     if (t.type === 'OP' && t.value === '(') {
@@ -434,6 +471,7 @@ class ScriptEvaluator {
     this.vars[name] = value;
     if (name.startsWith('MEM_') && state?.scriptMemory != null)
       state.scriptMemory[name] = value;
+    if (name === 'VERBOSE') _scriptVerbose = value;
   }
 
   execProgram(ast) { return this.execBlock(ast.body); }
@@ -456,6 +494,14 @@ class ScriptEvaluator {
 
       case 'assign': {
         this.assign(stmt.name, this.evalExpr(stmt.value));
+        return null;
+      }
+
+      case 'subscript_assign': {
+        const obj = this.lookup(stmt.name);
+        const idx = this.evalExpr(stmt.idx);
+        const val = this.evalExpr(stmt.value);
+        if (Array.isArray(obj) || (typeof obj === 'object' && obj !== null)) obj[idx] = val;
         return null;
       }
 
@@ -595,6 +641,17 @@ class ScriptEvaluator {
         if (expr.op === 'and') return this.truthy(lv) ? this.evalExpr(expr.right) : lv;
         if (expr.op === 'or')  return this.truthy(lv) ? lv : this.evalExpr(expr.right);
         return false;
+      }
+
+      case 'array': return expr.elems.map(e => this.evalExpr(e));
+
+      case 'subscript': {
+        const obj = this.evalExpr(expr.obj);
+        const idx = this.evalExpr(expr.idx);
+        if (Array.isArray(obj)) return (idx >= 0 && idx < obj.length) ? obj[idx] : null;
+        if (typeof obj === 'string') return obj[idx] ?? null;
+        if (typeof obj === 'object' && obj !== null) return obj[idx] ?? null;
+        return null;
       }
 
       default: throw new Error(`Unknown expression: ${expr.type}`);
@@ -741,6 +798,9 @@ function buildScriptContext() {
   for (const [k, v] of Object.entries(state.scriptMemory ?? {})) {
     ctx[k] = v;
   }
+
+  // ── Verbosity flag (VERBOSE = 0 suppresses "Queued N×" output lines)
+  ctx.VERBOSE = 1;
 
   // ── Math helpers
   ctx.floor = Math.floor;
@@ -1065,7 +1125,7 @@ function scriptPlaceBuilding(type, arg, n, moduleType) {
       const t = { type: realType, resource, count: actualCount };
       if (moduleType) t.initModuleType = moduleType;
       placeQueue.push(t);
-      scriptOutput.push({ type: 'info', text: `Queued ${actualCount}× ${_displayName}` });
+      if (_scriptVerbose !== 0) scriptOutput.push({ type: 'info', text: `Queued ${actualCount}× ${_displayName}` });
       if (!placing) processNextPlacement();
     }
     return;
@@ -1201,12 +1261,13 @@ function scriptDoCraft(item, n) {
   }
 
   for (let i = 0; i < n; i++) state.craftQueue.push({ key });
-  scriptOutput.push({ type: 'info', text: `Queued ${n}× ${PLAYER_RECIPES[key].name}` });
+  if (_scriptVerbose !== 0) scriptOutput.push({ type: 'info', text: `Queued ${n}× ${PLAYER_RECIPES[key].name}` });
 }
 
 // ── Runner helpers ────────────────────────────────────────────
 
 function _executeScript(src) {
+  _scriptVerbose = 1;
   try {
     const tokens    = tokenize(src);
     const ast       = new ScriptParser(tokens).parseProgram();
@@ -1300,6 +1361,9 @@ function escapeHtml(s) {
 
 // ── Syntax highlighting ───────────────────────────────────────
 
+let _scriptVerbose = 1;      // reset to 1 before each script run; set via VERBOSE = 0/1 in scripts
+let _scriptVerboseUI = true; // UI toggle — filters "Queued N×" lines from the output panel
+
 const SH_KEYWORDS = new Set(['if','else','elif','for','in','and','or','not','while','break','continue','pass','return','True','False','None','def']);
 const SH_BUILTINS = new Set(['place','craft','print','research','limit','fortify','give','devmode','expand','floor','ceil','round','abs','min','max','sqrt','pow','range','len']);
 
@@ -1368,6 +1432,16 @@ function initScriptHighlighters() {
   }
 }
 
+function toggleScriptVerbose() {
+  _scriptVerboseUI = !_scriptVerboseUI;
+  const btn = document.getElementById('script-verbose-btn');
+  if (btn) {
+    btn.textContent = `Verbose: ${_scriptVerboseUI ? 'ON' : 'OFF'}`;
+    btn.style.opacity = _scriptVerboseUI ? '' : '0.5';
+  }
+  renderScript();
+}
+
 function renderScript() {
   const el = document.getElementById('script-output');
   if (!el) return;
@@ -1376,13 +1450,17 @@ function renderScript() {
     el.innerHTML = '<div class="script-empty">Run a script to see output</div>';
     return;
   }
-  const lines = scriptOutput.slice(-200);
-  el.innerHTML = lines.map(line => {
-    const cls = line.type === 'error' ? 'script-line-error'
-              : line.type === 'warn'  ? 'script-line-warn'
-              : 'script-line-info';
-    return `<div class="script-line ${cls}">${escapeHtml(line.text)}</div>`;
-  }).join('');
+  const lines = scriptOutput.slice(-200).filter(line =>
+    _scriptVerboseUI || line.type !== 'info' || !line.text.startsWith('Queued ')
+  );
+  el.innerHTML = lines.length
+    ? lines.map(line => {
+        const cls = line.type === 'error' ? 'script-line-error'
+                  : line.type === 'warn'  ? 'script-line-warn'
+                  : 'script-line-info';
+        return `<div class="script-line ${cls}">${escapeHtml(line.text)}</div>`;
+      }).join('')
+    : '<div class="script-empty">Run a script to see output</div>';
   if (atBottom) el.scrollTop = el.scrollHeight;
 }
 

@@ -809,7 +809,7 @@ button {
 #craft-recipes .btn-craft,
 #craft-recipes .btn-craft-cancel,
 #active-buildings .btn-toggle,
-#active-buildings .btn-removesmall {
+#active-buildings .btn-remove-building {
   transition: background 0s, color 0s, border-color 0s, opacity 0s;
 }
 
@@ -1315,7 +1315,7 @@ button {
 
 /* ── Place count input ──────────────────────────────────────── */
 .place-count {
-  width: 52px; padding: .25rem .4rem; font-size: .8rem;
+  width: 72px; padding: .25rem .4rem; font-size: .85rem;
   background: var(--surf3); color: var(--text);
   border: 1px solid var(--border); border-radius: 4px;
   text-align: center; font-family: var(--font);
@@ -1332,7 +1332,7 @@ button {
 }
 .buildings-search:focus { outline: none; border-color: var(--accent); }
 
-/* ── Add-copy button in building card ──────────────────────── */
+/* ── Add/Remove buttons in building card ────────────────────── */
 .building-add-row {
   display: flex; align-items: center; gap: .35rem; margin-top: .25rem;
 }
@@ -1343,13 +1343,20 @@ button {
   font-family: var(--font);
 }
 .btn-add-building:hover { background: var(--accent); color: #111; border-color: var(--accent); }
-.add-count-input {
-  width: 44px; padding: .15rem .3rem; font-size: .72rem;
+.btn-remove-building {
+  padding: .15rem .45rem; font-size: .72rem;
+  background: var(--surf3); border: 1px solid var(--border);
+  border-radius: 4px; color: var(--text); cursor: pointer;
+  font-family: var(--font);
+}
+.btn-remove-building:hover { background: var(--red); color: #fff; border-color: var(--red); }
+.add-count-input, .remove-count-input {
+  width: 72px; padding: .25rem .4rem; font-size: .85rem;
   background: var(--surf3); color: var(--text);
   border: 1px solid var(--border); border-radius: 4px;
   text-align: center; font-family: var(--font);
 }
-.add-count-input:focus { outline: none; border-color: var(--accent); }
+.add-count-input:focus, .remove-count-input:focus { outline: none; border-color: var(--accent); }
 
 /* ── Recipe icon picker ─────────────────────────────────────── */
 .recipe-picker { display: flex; flex-wrap: wrap; gap: 4px; margin: .2rem 0 .1rem; max-height: 130px; overflow-y: auto; }
@@ -1369,7 +1376,9 @@ button {
 #active-buildings .recipe-icon-btn,
 .placement-col .recipe-icon-btn { transition: none; }
 #active-buildings .btn-add-building,
-#active-buildings .add-count-input { transition: none; }
+#active-buildings .btn-remove-building,
+#active-buildings .add-count-input,
+#active-buildings .remove-count-input { transition: none; }
 
 /* ── Tech tree ──────────────────────────────────────────────── */
 .tech-tree-wrap {
@@ -1394,7 +1403,7 @@ button {
 .tech-node {
   background: linear-gradient(180deg, var(--surf2) 0%, var(--surf) 100%);
   border: 1px solid var(--border);
-  border-radius: 6px; padding: .9rem 1.2rem;
+  border-radius: 6px; padding: .63rem .84rem;
   cursor: pointer; user-select: none; min-width: 0;
   transition: border-color 0s;
   box-shadow: var(--shadow-sm);
@@ -1415,14 +1424,14 @@ button {
   background: linear-gradient(180deg, rgba(244,168,58,.04) 0%, var(--surf) 100%);
 }
 .tech-node.node-locked  { opacity: .4; cursor: default; border-style: dashed; }
-.tech-node-head { display: flex; align-items: center; gap: .35rem; }
-.tech-node-icon { font-size: 2.3rem; flex-shrink: 0; }
-.tech-node-name { font-size: 1.56rem; font-weight: 700; line-height: 1.2; color: var(--text2); }
-.tech-node-cost { font-size: 1.32rem; color: var(--dim); margin-top: .1rem; }
-.tech-node-badge { font-size: 1.28rem; color: var(--green); margin-top: .08rem; }
-.tech-node-desc  { font-size: 1.2rem; color: #555; margin-top: .18rem; line-height: 1.3; }
-.tech-node-unlocks { font-size: 1.2rem; color: #5a7a5a; margin-top: .08rem; }
-.tech-node-prereqs { font-size: 1.16rem; color: var(--dim); margin-bottom: .1rem; }
+.tech-node-head { display: flex; align-items: center; gap: .25rem; }
+.tech-node-icon { font-size: 1.6rem; flex-shrink: 0; }
+.tech-node-name { font-size: 1.09rem; font-weight: 700; line-height: 1.2; color: var(--text2); }
+.tech-node-cost { font-size: .92rem; color: var(--dim); margin-top: .07rem; }
+.tech-node-badge { font-size: .9rem; color: var(--green); margin-top: .06rem; }
+.tech-node-desc  { font-size: .84rem; color: #555; margin-top: .13rem; line-height: 1.3; }
+.tech-node-unlocks { font-size: .84rem; color: #5a7a5a; margin-top: .06rem; }
+.tech-node-prereqs { font-size: .81rem; color: var(--dim); margin-bottom: .07rem; }
 .tech-tree-svg {
   position: absolute; top: 0; left: 0;
   pointer-events: none; overflow: visible;
@@ -1462,7 +1471,7 @@ button {
 .recipe-icon-btn .item-icon { width: 34px; height: 34px; }
 .recipe-ingredient .item-icon { width: 20px; height: 20px; padding: 0; background: none; }
 .craft-icon .item-icon { width: 28px; height: 28px; vertical-align: text-bottom; }
-.tech-node-icon .item-icon, .tech-icon-img { width: 48px; height: 48px; padding: 0; background: none; }
+.tech-node-icon .item-icon, .tech-icon-img { width: 34px; height: 34px; padding: 0; background: none; }
 .research-name .item-icon { width: 20px; height: 20px; vertical-align: middle; padding: 0; background: none; }
 
 /* ── Start screen save list ─────────────────────────────────── */
