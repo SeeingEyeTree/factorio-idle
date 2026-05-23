@@ -51,6 +51,38 @@ const OFFSHORE_PUMP_WATER_PER_SEC = 1200;  // water produced per second per offs
 const BOILER_COAL_PER_SEC        = 0.45;   // coal consumed per second per boiler
 const BOILER_WATER_PER_SEC       = 6;      // water consumed per second per boiler
 const BOILER_STEAM_PER_SEC       = 60;     // steam produced per second per boiler
+const WALL_HP              = 350;      // HP per stone wall in perimeter
+
+// DPS values for tooltip labels (computed from stats at armor=0)
+const GUN_DPS_BASIC        = 60;       // 5×12 these are meaningless
+const GUN_DPS_PIERCING     = 100;      // 5×20
+const GUN_DPS_URANIUM      = 250;      // 5×50
+const LASER_SHOTS_PER_SEC  = 1.5;      // shots per second per laser turret
+const LASER_DMG_PER_SHOT   = 20;       // base damage per shot (before armor reduction)
+const LASER_ARMOR_MULT     = 0.2;      // armor reduction factor for laser (0.2 × armor subtracted)
+const LASER_DPS_PER_TURRET = LASER_SHOTS_PER_SEC * LASER_DMG_PER_SHOT; // 30 base DPS
+const LASER_KW_PER_TURRET  = LASER_SHOTS_PER_SEC * 800; // 1200 kW (800kJ/shot)
+const BUILDING_TOUGHNESS   = 2000;     // overflow damage to destroy 1 building
+const WALLS_PER_TILE       = 20;  // max stone walls per perimeter tile  → total = 20 * 4 * sideLength
+const TURRETS_PER_TILE     = 5;  // max turrets per perimeter tile
+const ARTILLERY_BASE_DAMAGE     = 3000;    // damage per artillery shell
+const ARTILLERY_FIRE_RATE       = 10;     // seconds between shots per artillery turret
+const ATOMIC_BOMB_DAMAGE        = 1e9;    // damage dealt by one atomic bomb to one section
+const ATOMIC_BOMBS_PER_SPIDER   = 5;      // bombs available per spidertron per wave
+const IRRADIATION_SCALING_RATE  = 0.001;  // how much each bomb use increases biter threat scaling
+const MAGAZINE_SIZE      = 50;  // bullets per magazine, all ammo types should be ten but I am ever magnesiums
+const WAVE_GRACE_PERIOD  =  2;  // seconds biters don't damage walls at wave start
+
+// ── Biter Scaling Constants (0→1 linear scale; >1 = rainbow exponential) ──
+const BITER_POINTS_PRE_RED    = 0.001;  // threat points gained per wave before red science
+const BITER_POINTS_POST_RED   = 0.002;  // threat points gained per wave after red science
+const BITER_POINTS_POST_GREEN = 0.004;  // threat points gained per wave after green science
+const BITER_POINTS_POST_BLUE  = 0.008;  // threat points gained per wave after blue science (pre-rainbow)
+const BITER_POINTS_POST_PURPLE = 135/3000; // threat points gained per wave after blue science with rainbow scaling
+const BITER_POINTS_POST_YELLOW = 190/3000; // threat points gained per wave after yellow/space science
+const BITER_POINTS_CAP_LINEAR = 1.0;    // linear phase cap; rainbow exponential kicks in above this
+const BITER_POINTS_EXP_BASE_INITIAL = 1.05;  // initial exponential base (per wave) after rainbow
+const BITER_POINTS_EXP_BASE_GROWTH  = 0.0002; // how much the base increases per wave after rainbow
 
 // ── Performance Profiler ─────────────────────────────────────
 const _prof = { enabled: false, samples: {}, WINDOW: 300 };
@@ -86,7 +118,8 @@ const MODULE_DATA = {
 };
 // Recipes whose output is a placeable building — productivity modules not allowed.
 // Add recipe output item keys here as needed (e.g., 'inserter', 'transportBelt').
-const PROD_MODULE_BLACKLIST = new Set([]); //
+const PROD_MODULE_BLACKLIST = new Set([]); // I don't care enough to filter what they can go into. 
+// You get a prod mod you get a prod mod eveyone gets a prod mod!
 
 // ── Chest Reward Definitions ──────────────────────────────────────
 function _anyBldg(s, types) {
@@ -152,45 +185,17 @@ const CHEST_REWARDS = {
   legendary: [],
 };
 
-const WALL_HP              = 350;      // HP per stone wall in perimeter
+
 // Gun turret: shotsPerSec × max(0, dmgPerShot×gMult − armor×armorMult) = effective DPS
 const GUN_TURRET_STATS = {
   firearmMagazine:   { shotsPerSec: 5, dmgPerShot: 5, armorMult: 1.0 },
   piercingRoundsMag: { shotsPerSec: 5, dmgPerShot: 8, armorMult: 0.6 },
   uraniumRoundsMag:  { shotsPerSec: 5, dmgPerShot: 24, armorMult: 0.1 },
 };
-// DPS values for tooltip labels (computed from stats at armor=0)
-const GUN_DPS_BASIC        = 60;       // 5×12
-const GUN_DPS_PIERCING     = 100;      // 5×20
-const GUN_DPS_URANIUM      = 250;      // 5×50
-const LASER_SHOTS_PER_SEC  = 1.5;      // shots per second per laser turret
-const LASER_DMG_PER_SHOT   = 20;       // base damage per shot (before armor reduction)
-const LASER_ARMOR_MULT     = 0.2;      // armor reduction factor for laser (0.2 × armor subtracted)
-const LASER_DPS_PER_TURRET = LASER_SHOTS_PER_SEC * LASER_DMG_PER_SHOT; // 30 base DPS
-const LASER_KW_PER_TURRET  = LASER_SHOTS_PER_SEC * 800; // 1200 kW (800kJ/shot)
-const BUILDING_TOUGHNESS   = 2000;     // overflow damage to destroy 1 building
-const WALLS_PER_TILE       = 20;  // max stone walls per perimeter tile  → total = 20 * 4 * sideLength
-const TURRETS_PER_TILE     = 5;  // max turrets per perimeter tile
-const ARTILLERY_BASE_DAMAGE     = 3000;    // damage per artillery shell
-const ARTILLERY_FIRE_RATE       = 1;     // seconds between shots per artillery turret
-const ATOMIC_BOMB_DAMAGE        = 1e9;    // damage dealt by one atomic bomb to one section
-const ATOMIC_BOMBS_PER_SPIDER   = 5;      // bombs available per spidertron per wave
-const IRRADIATION_SCALING_RATE  = 0.001;  // how much each bomb use increases biter threat scaling
-const MAGAZINE_SIZE      = 50;  // bullets per magazine, all ammo types
-const WAVE_GRACE_PERIOD  =  2;  // seconds biters don't damage walls at wave start
 
-// ── Biter Scaling Constants (0→1 linear scale; >1 = rainbow exponential) ──
-const BITER_POINTS_PRE_RED    = 0.001;  // threat points gained per wave before red science
-const BITER_POINTS_POST_RED   = 0.002;  // threat points gained per wave after red science
-const BITER_POINTS_POST_GREEN = 0.004;  // threat points gained per wave after green science
-const BITER_POINTS_POST_BLUE  = 0.008;  // threat points gained per wave after blue science (pre-rainbow)
-const BITER_POINTS_POST_PURPLE = 135/3000; // threat points gained per wave after blue science with rainbow scaling
-const BITER_POINTS_POST_YELLOW = 190/3000; // threat points gained per wave after yellow/space science
-const BITER_POINTS_CAP_LINEAR = 1.0;    // linear phase cap; rainbow exponential kicks in above this
-const BITER_POINTS_EXP_BASE_INITIAL = 1.05;  // initial exponential base (per wave) after rainbow
-const BITER_POINTS_EXP_BASE_GROWTH  = 0.0002; // how much the base increases per wave after rainbow
 
 // ── Biter Tier Table ──────────────────────────────────────────────────────
+// pretty sure the thresholds are the scaling values they are named wrong.
 const BITER_TIERS = [
   { threshold: 1/3000,   name: 'Death destroyer of worlds',   img: 'data/icon_imgs/Baby_Rabbit.jpeg' },
   { threshold: 5/3000,   name: 'Crouching Mantis Hidden Bug', img: 'data/icon_imgs/Crouching_Mantis_Hidden_Bug.jpeg' },
@@ -218,7 +223,7 @@ const PATCHES = {
   coal:      { name: 'Coal',       icon: '⬛', base:  75000 },
   stone:     { name: 'Stone',      icon: '⬜', base:  50000 },
   crudeOil:  { name: 'Crude Oil',  icon: '🖤', base: 0 },     // discovered by radar
-  uraniumOre: { name: 'Uranium Ore', icon: '💚', base: 0 },  // discovered by radar after Nuclear Power
+  uraniumOre: { name: 'Uranium Ore', icon: '💚', base: 0 },  
 };
 
 
@@ -250,6 +255,10 @@ const BUILDING_DEFS = {
   pumpjack:        { name: 'Pumpjack',                 icon: '🛢️',  kw: PUMPJACK_KW,          speed: PUMPJACK_SPEED,        isElectric: true,  hasRecipe: false, hasResource: true,  scriptAlias: 'pumpjack',      upgradeable: true  },
   nuclearReactor:  { name: 'Nuclear Reactor',          icon: '☢️',  kw: -NUCLEAR_REACTOR_KW,  speed: 1.0,                   isElectric: false, hasRecipe: false, hasResource: false, scriptAlias: 'reactor',       upgradeable: false },
 };
+
+const POWERED_BUILDINGS = new Set(
+  Object.entries(BUILDING_DEFS).filter(([, v]) => v.isElectric).map(([k]) => k)
+);
 
 // ── Theme Resolvers ───────────────────────────────────────────
 // Each resolver merges the base ITEMS/BUILDING_DEFS entry with the active theme's overrides.
@@ -325,7 +334,7 @@ const COST_LABEL = Object.fromEntries(
 );
 
 // low≈50k  medium≈75k  high≈100k total ore
-const DENSITY_MULT = { low: 0.67, medium: 1.0, high: 1.33 };
+const DENSITY_MULT = { low: 0.67, medium: 1.0, high: 1.33 }; // obsolete since it is always the same
 
 // Set of item keys that are consumed by BUILDING_COSTS (used for default limit detection)
 const BUILDING_ITEM_KEYS = new Set(
@@ -425,7 +434,7 @@ let currentPlacing  = null;
 let placeStartMs    = null;
 let _placeElapsedMs = 0;    // game-time ms spent on current placement item
 let placeRafId      = null;
-let selectedDensity   = 'medium';
+let selectedDensity   = 'medium'; // not used
 let selectedDifficulty = 'normal';
 let mouseHeld       = false;
 let biterWaveWarned = false;
@@ -486,10 +495,12 @@ const TUTORIAL_GOALS = [
       { text: () => `Craft 3 ${itemDisplay('ironGear').name}`,          check: s => (s.itemsProduced?.ironGear ?? 0) >= 3 },
       { text: () => `Craft 2 ${itemDisplay('stoneFurnaceItem').name}`,  check: s => (s.itemsProduced?.stoneFurnaceItem ?? 0) >= 2 },
     ],
+    glowTab: 'crafting',
+    glowCraft: ['ironGear','stoneFurnaceItem','burnerMinerItem'],
   },
   // 1
   {
-    text: () => `Great! Now go to the Buildings tab and place ${itemDisplay('burnerMinerItem').name} and ${itemDisplay('stoneFurnaceItem').name} on iron ore so they actually produce resources for you.`,
+    text: () => `Great! Now go to the Buildings tab and place ${itemDisplay('burnerMinerItem').name} and ${itemDisplay('stoneFurnaceItem').name} on ore deposits so they actually produce resources for you.`,
     check: s => {
       const ironMiners   = Object.values(s.buildings).filter(g => g.type==='miner' && g.resource==='ironOre').reduce((n,g)=>n+g.count,0);
       const ironFurnaces = Object.values(s.buildings).filter(g => g.type==='furnace' && g.recipe==='ironPlate').reduce((n,g)=>n+g.count,0);
@@ -525,7 +536,6 @@ const TUTORIAL_GOALS = [
       const copperFurnaces = Object.values(s.buildings).filter(g => (g.type==='furnace'||g.type==='steelFurnace'||g.type==='electricFurnace') && g.recipe==='copperPlate').reduce((n,g)=>n+g.count,0);
       return `${Math.min(copperMiners,5)}/5 copper miners · ${Math.min(copperFurnaces,4)}/4 copper furnaces`;
     },
-    glowTab: 'buildings',
   },
   // 4
   {
@@ -560,7 +570,6 @@ const TUTORIAL_GOALS = [
   {
     text: 'Research Gun Turret and Stone Wall technologies in the Research tab',
     check: s => !!s.research.done['gunTurret'] && !!s.research.done['stoneWallTech'],
-    glowTab: 'research',
   },
   // 6 — build defenses
   {
@@ -585,13 +594,11 @@ const TUTORIAL_GOALS = [
   {
     text: 'Research Logistics — reduces building placement time by 0.5 seconds',
     check: s => !!s.research.done['logistics'],
-    glowTab: 'research',
   },
   // 9 — green science (was goal 5)
   {
     text: 'Research the Logistic Science Pack (green science)',
     check: s => !!s.research.done['logisticSciencePack'],
-    glowTab: 'research',
     unlockTab: 'graph',
   },
   // 10 — concrete + expand
@@ -604,36 +611,36 @@ const TUTORIAL_GOALS = [
       if (!expanded) return `${c}/1000 concrete · then expand in Defense tab`;
       return `✓ 1000 concrete · ✓ perimeter expanded`;
     },
-    glowTab: 'research',
+    glowTab: 'defense',
   },
   // 11 — military science (was goal 6)
   {
     text: 'Research the Military Science Pack',
     check: s => !!s.research.done['militarySciencePack'],
-    glowTab: 'research',
   },
   // 12 — blue science with sub-goals
   {
-    text: 'Craft 200 blue science packs (Chemical Science Pack)',
+    text: 'Craft 200 BLUE 40 drinks. You will need to craft three new indtermediate items to make these.',
     check: s => (s.itemsProduced?.blueScience ?? 0) >= 200,
     progress: s => `${Math.min(Math.floor(s.itemsProduced?.blueScience ?? 0), 200)}/200 blue science`,
     subGoals: [
-      { text: 'Craft engine units',      check: s => (s.itemsProduced?.engineUnit ?? 0) > 0 },
+      { text: 'Craft Coffee Maker Motor',      check: s => (s.itemsProduced?.engineUnit ?? 0) > 0 },
       { text: 'Process sulfur',          check: s => (s.itemsProduced?.sulfur ?? 0) > 0 },
-      { text: 'Craft advanced circuits', check: s => (s.itemsProduced?.advancedCircuit ?? 0) > 0 },
+      { text: 'Craft UM 200', check: s => (s.itemsProduced?.advancedCircuit ?? 0) > 0 },
     ],
-    glowTab: 'research',
   },
   // 13 — laser turrets
+  /*
   {
     text: 'Research Laser Turrets and place 20 on your perimeter — they draw power but fire a continuous beam with no ammo cost',
     check: s => !!s.research.done['laserTurretTech'] && (s.perimeter?.laserTurrets ?? 0) >= 20,
     progress: s => `${Math.min(s.perimeter?.laserTurrets ?? 0, 20)}/20 laser turrets`,
     glowTab: 'research',
   },
+  */
   // 14 — construction robots
   {
-    text: 'Craft 100 construction robots — they speed up building placement dramatically',
+    text: 'Craft 100 drone swarms — they speed up building placement dramatically. If your playing the game correctly this will help remove your limitating factor.',
     check: s => (s.itemsProduced?.constructionRobotItem ?? 0) >= 100,
     progress: s => `${Math.min(Math.floor(s.itemsProduced?.constructionRobotItem ?? 0), 100)}/100 construction robots`,
     glowCraft: ['constructionRobotItem'],
@@ -646,7 +653,7 @@ const TUTORIAL_GOALS = [
     subGoals: [
       { text: 'Craft productivity modules', check: s => (s.itemsProduced?.productivityModule ?? 0) > 0 },
       { text: 'Craft rails',               check: s => (s.itemsProduced?.rail ?? 0) > 0 },
-      { text: 'Craft electric furnaces',   check: s => (s.itemsProduced?.electricFurnaceItem ?? 0) > 0 },
+      { text: 'Craft vacuum furnaces',   check: s => (s.itemsProduced?.electricFurnaceItem ?? 0) > 0 },
     ],
     glowTab: 'research',
   },
@@ -663,15 +670,15 @@ const TUTORIAL_GOALS = [
     glowTab: 'research',
   },
   // 17 — artillery
-  {
-    text: 'Research Artillery and add it to your perimeter — it kills the enemy before a waves even starts',
-    check: s => !!s.research.done['artillery'] && (s.perimeter?.artillery ?? 0) >= 1,
-    glowTab: 'research',
-  },
   // 18 — space + rainbow (was goal 10)
   {
-    text: 'Research Space Science and Rainbow Science to complete the tech tree',
+    text: 'Research Space Science and Rainbow Science to complete the tech tree. The enemy threat is currently capped. After you carft your first Zero-G can the threat will start scailing exponitially unitl you die, and OSHA always wins.',
     check: s => !!s.research.done['spaceSciencePack'] && !!s.research.done['rainbowSciencePack'],
+    glowTab: 'research',
+  },
+  {
+    text: 'Research PR howitzer and add it to your perimeter — it kills the catchus journlists befor they can get the scoupe.',
+    check: s => !!s.research.done['artillery'] && (s.perimeter?.artillery ?? 0) >= 1,
     glowTab: 'research',
   },
   // 19 — endgame weapons (not available in demo)
@@ -752,7 +759,7 @@ function artilleryDamageMult(level) {
 }
 
 function getArtilleryRangeTechData(level) {
-  const totalNeeded = Math.round(Math.pow(2, level - 1) * 200);
+  const totalNeeded = Math.round(Math.pow(2, level - 1) * 1000);
   const packs = level <= 3
     ? ['redScience','greenScience','blueScience','yellowScience']
     : ['rainbowScience'];
@@ -760,10 +767,8 @@ function getArtilleryRangeTechData(level) {
 }
 
 function getArtilleryDamageTechData(level) {
-  const totalNeeded = Math.round(Math.pow(2, level - 1) * 300);
-  const packs = level <= 3
-    ? ['redScience','greenScience','blueScience','yellowScience']
-    : ['rainbowScience'];
+  const totalNeeded = Math.round(Math.pow(2, level - 1) * 1000);
+  const packs = ['rainbowScience'];
   return { cost: Object.fromEntries(packs.map(p => [p, 1])), timePerPack: 60, totalNeeded };
 }
 
@@ -1529,40 +1534,68 @@ function getGamerModuleProdBonus() {
   return pts * 0.02;
 }
 
-function calcGroupModifiers(type, buildingCount, modules) {
+// ── Centralized building modifier calculation ─────────────────────────────
+// Single source of truth for ALL speed/productivity bonuses.
+// Both the tick loop and display code must use this function — never compute
+// modifiers inline at call sites. To add a new bonus source, add it here only.
+//
+// Returns:
+//   speedMult          — 1 + all additive speed bonuses, floored at 0.2
+//   prodBonus          — additive fraction added to output yield (0.10 = +10%)
+//   powerMult          — state.powerRatio for electric buildings, 1 for coal/burner
+//   yieldMult          — miningProdMult() for miners/pumpjacks, lab perk for lab, else 1
+//   effectiveSpeedMult — speedMult * powerMult (use this in tick + display arithmetic)
+//
+function getBuildingModifiers(type, buildingCount, modules) {
   const slotsPerBuilding = MODULE_SLOTS[type] ?? 0;
-  if (buildingCount === 0) return { speedMult: 1, prodBonus: 0 };
+  if (buildingCount === 0)
+    return { speedMult: 1, prodBonus: 0, powerMult: 1, yieldMult: 1, effectiveSpeedMult: 1 };
+
+  // ── (1) Module speed + prod bonuses ──────────────────────────────────────
+  let speedBonus = 0, moduleProdBonus = 0, usedSlots = 0;
   const totalSlots = buildingCount * slotsPerBuilding;
-  let speedBonus = 0, prodBonus = 0, usedSlots = 0;
   if (slotsPerBuilding > 0) {
     for (const [mtype, cnt] of Object.entries(modules ?? {})) {
-      if (!cnt || cnt <= 0) continue;
-      if (mtype === 'gamerModule') continue; // handled separately below
+      if (!cnt || cnt <= 0 || mtype === 'gamerModule') continue;
       const mod = MODULE_DATA[mtype];
       if (!mod) continue;
       const actual = Math.min(cnt, totalSlots - usedSlots);
       usedSlots += actual;
       const perBuilding = actual / buildingCount;
-      speedBonus += perBuilding * ((mod.speedBonus ?? 0) + (mod.speedPenalty ?? 0));
-      prodBonus  += perBuilding * (mod.prodBonus ?? 0);
+      speedBonus     += perBuilding * ((mod.speedBonus ?? 0) + (mod.speedPenalty ?? 0));
+      moduleProdBonus += perBuilding * (mod.prodBonus ?? 0);
     }
-    // Gamer module bonus
+    // ── (2) Gamer module ─────────────────────────────────────────────────
     const gamerCount = modules?.gamerModule ?? 0;
     if (gamerCount > 0) {
-      const gamerSpeedPerSlot = getGamerModuleSpeedBonus() / Math.max(1, slotsPerBuilding);
-      const gamerProdPerSlot  = getGamerModuleProdBonus()  / Math.max(1, slotsPerBuilding);
+      const gSpeed = getGamerModuleSpeedBonus() / Math.max(1, slotsPerBuilding);
+      const gProd  = getGamerModuleProdBonus()  / Math.max(1, slotsPerBuilding);
       const actual = Math.min(gamerCount, totalSlots - usedSlots);
-      speedBonus += (actual / buildingCount) * gamerSpeedPerSlot;
-      prodBonus  += (actual / buildingCount) * gamerProdPerSlot;
+      speedBonus      += (actual / buildingCount) * gSpeed;
+      moduleProdBonus += (actual / buildingCount) * gProd;
     }
   }
-  // Meta building upgrade speed bonus
-  const metaUpgrade = (metaState?.buildingUpgrades?.[type] ?? 0);
-  const metaSpeedBonus = state?.settings?.metaProgEnabled ? metaUpgrade * 0.25 : 0;
-  return {
-    speedMult: Math.max(0.2, 1 + speedBonus + metaSpeedBonus + chestSpeedBonus(type)),
-    prodBonus: prodBonus + chestProdBonus(type),
-  };
+
+  // ── (3) Meta building upgrade speed ──────────────────────────────────────
+  const metaSpeedBonus = state?.settings?.metaProgEnabled
+    ? (metaState?.buildingUpgrades?.[type] ?? 0) * 0.25 : 0;
+
+  // ── (4) Chest reward bonuses ──────────────────────────────────────────────
+  // add new bonus sources above this line ↑
+  const speedMult = Math.max(0.2, 1 + speedBonus + metaSpeedBonus + chestSpeedBonus(type));
+  const prodBonus = moduleProdBonus + chestProdBonus(type);
+
+  // ── Power ratio (electric vs coal/burner) ─────────────────────────────────
+  const powerMult = POWERED_BUILDINGS.has(type) ? (state.powerRatio ?? 1) : 1;
+
+  // ── Yield multiplier (mining research, lab perk) ──────────────────────────
+  let yieldMult = 1;
+  if (type === 'miner' || type === 'electricMiner' || type === 'pumpjack')
+    yieldMult = miningProdMult();
+  else if (type === 'lab')
+    yieldMult = hasMetaPerk('perk_lab_speed_1') ? 1.15 : 1;
+
+  return { speedMult, prodBonus, powerMult, yieldMult, effectiveSpeedMult: speedMult * powerMult };
 }
 
 // ── Tech Helpers ──────────────────────────────────────────────
@@ -1914,7 +1947,8 @@ function refundItem(key, amount) {
 
 // Rate snapshot state (module-level, not persisted)
 let rateTickCount = 0;
-const RATE_WINDOW_SECS = 5;
+const RATE_WINDOW_SECS  = 5;
+const RATE_WINDOW_TICKS = Math.round(RATE_WINDOW_SECS * 1000 / TICK_MS);
 
 // ── Game Loop ─────────────────────────────────────────────────
 
@@ -1984,10 +2018,11 @@ function tick() {
     const patch = state.patches[group.resource];
     if (!patch || patch.remaining <= 0) continue;
     const count = group.count;
-    gs.acc = (gs.acc ?? 0) + count * MINE_SPEED * (1 + chestSpeedBonus('miner')) * dt;
+    const modifiers = getBuildingModifiers('miner', count, gs.modules ?? {});
+    gs.acc = (gs.acc ?? 0) + count * MINE_SPEED * modifiers.speedMult * dt;
     if (gs.acc >= 1) {
       const n = Math.min(Math.floor(gs.acc), patch.remaining);
-      const produced = n * miningProdMult();
+      const produced = n * modifiers.yieldMult;
       recordProduced(group.resource, produced);
       patch.remaining -= n; gs.acc -= n;
       state.patchConsumed[group.resource] = (state.patchConsumed[group.resource] ?? 0) + n;
@@ -2008,8 +2043,8 @@ function tick() {
     const patch = state.patches[group.resource];
     if (!patch || patch.remaining <= 0) continue;
     const count = group.count;
-    const { speedMult } = calcGroupModifiers('electricMiner', count, gs.modules);
-    gs.acc = (gs.acc ?? 0) + count * ELECTRIC_MINER_SPEED * speedMult * dt * powerRatio;
+    const modifiers = getBuildingModifiers('electricMiner', count, gs.modules);
+    gs.acc = (gs.acc ?? 0) + count * ELECTRIC_MINER_SPEED * modifiers.effectiveSpeedMult * dt;
     if (gs.acc >= 1) {
       let n = Math.min(Math.floor(gs.acc), patch.remaining);
       if (group.resource === 'uraniumOre') {
@@ -2018,7 +2053,7 @@ function tick() {
         recordConsumed('sulfuricAcid', n);
         gs.acidStarved = false;
       }
-      const prod = group.resource === 'uraniumOre' ? 1 : miningProdMult();
+      const prod = group.resource === 'uraniumOre' ? 1 : modifiers.yieldMult;
       recordProduced(group.resource, n * prod);
       patch.remaining -= n; gs.acc -= n;
       state.patchConsumed[group.resource] = (state.patchConsumed[group.resource] ?? 0) + n;
@@ -2041,12 +2076,12 @@ function tick() {
     if (!recipe) { gs.active = false; gs.activeCount = 0; continue; }
     const count = group.count;
     const outputKey = Object.keys(recipe.outputs)[0];
-    const { speedMult, prodBonus } = calcGroupModifiers('furnace', count, gs.modules);
+    const modifiers = getBuildingModifiers('furnace', count, gs.modules);
     const inv = Math.floor(state.inventory[outputKey] ?? 0);
     const atLimit = inv >= gs.limit;
     const activeN = atLimit ? 0 : Math.min(count, howManyCanAfford(recipe.inputs, count));
     gs.activeCount = activeN;
-    gs.progress += activeN * speedMult / recipe.time * dt;
+    gs.progress += activeN * modifiers.effectiveSpeedMult / recipe.time * dt;
     gs.progress = Math.min(gs.progress, count * 4);
     const cycles = Math.floor(gs.progress);
     if (cycles > 0) {
@@ -2061,7 +2096,7 @@ function tick() {
           if (actual > 0) {
             for (const [k, v] of Object.entries(recipe.inputs)) recordConsumed(k, v * actual);
             for (const [k, v] of Object.entries(recipe.outputs)) {
-              const tot = v * actual * (1 + prodBonus);
+              const tot = v * actual * (1 + modifiers.prodBonus);
               gs.prodFrac[k] = (gs.prodFrac[k] ?? 0) + tot;
               const w = Math.floor(gs.prodFrac[k]); gs.prodFrac[k] -= w;
               if (w > 0) recordProduced(k, w);
@@ -2086,12 +2121,12 @@ function tick() {
     if (!recipe) { gs.active = false; gs.activeCount = 0; continue; }
     const count = group.count;
     const outputKey = Object.keys(recipe.outputs)[0];
-    const { speedMult, prodBonus } = calcGroupModifiers('steelFurnace', count, gs.modules);
+    const modifiers = getBuildingModifiers('steelFurnace', count, gs.modules);
     const inv = Math.floor(state.inventory[outputKey] ?? 0);
     const atLimit = inv >= gs.limit;
     const activeN = atLimit ? 0 : Math.min(count, howManyCanAfford(recipe.inputs, count));
     gs.activeCount = activeN;
-    gs.progress += activeN * speedMult * STEEL_FURNACE_SPEED / recipe.time * dt;
+    gs.progress += activeN * modifiers.effectiveSpeedMult * STEEL_FURNACE_SPEED / recipe.time * dt;
     gs.progress = Math.min(gs.progress, count * 4);
     const cycles = Math.floor(gs.progress);
     if (cycles > 0) {
@@ -2106,7 +2141,7 @@ function tick() {
           if (actual > 0) {
             for (const [k, v] of Object.entries(recipe.inputs)) recordConsumed(k, v * actual);
             for (const [k, v] of Object.entries(recipe.outputs)) {
-              const tot = v * actual * (1 + prodBonus);
+              const tot = v * actual * (1 + modifiers.prodBonus);
               gs.prodFrac[k] = (gs.prodFrac[k] ?? 0) + tot;
               const w = Math.floor(gs.prodFrac[k]); gs.prodFrac[k] -= w;
               if (w > 0) recordProduced(k, w);
@@ -2132,12 +2167,12 @@ function tick() {
     if (!recipe) { gs.active = false; gs.activeCount = 0; continue; }
     const count = group.count;
     const outputKey = Object.keys(recipe.outputs)[0];
-    const { speedMult, prodBonus } = calcGroupModifiers('assembly', count, gs.modules);
+    const modifiers = getBuildingModifiers('assembly', count, gs.modules);
     const inv = Math.floor(state.inventory[outputKey] ?? 0);
     const atLimit = inv >= gs.limit;
     const activeN = atLimit ? 0 : Math.min(count, howManyCanAfford(recipe.inputs, count));
     gs.activeCount = activeN;
-    gs.progress += activeN * speedMult * powerRatio * ASSEMBLY_SPEED / recipe.time * dt;
+    gs.progress += activeN * modifiers.effectiveSpeedMult * ASSEMBLY_SPEED / recipe.time * dt;
     gs.progress = Math.min(gs.progress, count * 4);
     const cycles = Math.floor(gs.progress);
     if (cycles > 0) {
@@ -2152,7 +2187,7 @@ function tick() {
           if (actual > 0) {
             for (const [k, v] of Object.entries(recipe.inputs)) recordConsumed(k, v * actual);
             for (const [k, v] of Object.entries(recipe.outputs)) {
-              const tot = v * actual * (1 + prodBonus);
+              const tot = v * actual * (1 + modifiers.prodBonus);
               gs.prodFrac[k] = (gs.prodFrac[k] ?? 0) + tot;
               const w = Math.floor(gs.prodFrac[k]); gs.prodFrac[k] -= w;
               if (w > 0) recordProduced(k, w);
@@ -2178,12 +2213,12 @@ function tick() {
     if (!recipe) { gs.active = false; gs.activeCount = 0; continue; }
     const count = group.count;
     const outputKey = Object.keys(recipe.outputs)[0];
-    const { speedMult, prodBonus } = calcGroupModifiers('assembly2', count, gs.modules);
+    const modifiers = getBuildingModifiers('assembly2', count, gs.modules);
     const inv = Math.floor(state.inventory[outputKey] ?? 0);
     const atLimit = inv >= gs.limit;
     const activeN = atLimit ? 0 : Math.min(count, howManyCanAfford(recipe.inputs, count));
     gs.activeCount = activeN;
-    gs.progress += activeN * speedMult * powerRatio * ASSEMBLY2_SPEED / recipe.time * dt;
+    gs.progress += activeN * modifiers.effectiveSpeedMult * ASSEMBLY2_SPEED / recipe.time * dt;
     gs.progress = Math.min(gs.progress, count * 4);
     const cycles = Math.floor(gs.progress);
     if (cycles > 0) {
@@ -2198,7 +2233,7 @@ function tick() {
           if (actual > 0) {
             for (const [k, v] of Object.entries(recipe.inputs)) recordConsumed(k, v * actual);
             for (const [k, v] of Object.entries(recipe.outputs)) {
-              const tot = v * actual * (1 + prodBonus);
+              const tot = v * actual * (1 + modifiers.prodBonus);
               gs.prodFrac[k] = (gs.prodFrac[k] ?? 0) + tot;
               const w = Math.floor(gs.prodFrac[k]); gs.prodFrac[k] -= w;
               if (w > 0) recordProduced(k, w);
@@ -2224,12 +2259,12 @@ function tick() {
     if (!recipe) { gs.active = false; gs.activeCount = 0; continue; }
     const count = group.count;
     const outputKey = Object.keys(recipe.outputs)[0];
-    const { speedMult, prodBonus } = calcGroupModifiers('assembly3', count, gs.modules);
+    const modifiers = getBuildingModifiers('assembly3', count, gs.modules);
     const inv = Math.floor(state.inventory[outputKey] ?? 0);
     const atLimit = inv >= gs.limit;
     const activeN = atLimit ? 0 : Math.min(count, howManyCanAfford(recipe.inputs, count));
     gs.activeCount = activeN;
-    gs.progress += activeN * speedMult * powerRatio * ASSEMBLY3_SPEED / recipe.time * dt;
+    gs.progress += activeN * modifiers.effectiveSpeedMult * ASSEMBLY3_SPEED / recipe.time * dt;
     gs.progress = Math.min(gs.progress, count * 4);
     const cycles = Math.floor(gs.progress);
     if (cycles > 0) {
@@ -2244,7 +2279,7 @@ function tick() {
           if (actual > 0) {
             for (const [k, v] of Object.entries(recipe.inputs)) recordConsumed(k, v * actual);
             for (const [k, v] of Object.entries(recipe.outputs)) {
-              const tot = v * actual * (1 + prodBonus);
+              const tot = v * actual * (1 + modifiers.prodBonus);
               gs.prodFrac[k] = (gs.prodFrac[k] ?? 0) + tot;
               const w = Math.floor(gs.prodFrac[k]); gs.prodFrac[k] -= w;
               if (w > 0) recordProduced(k, w);
@@ -2270,12 +2305,12 @@ function tick() {
     if (!recipe) { gs.active = false; gs.activeCount = 0; continue; }
     const count = group.count;
     const outputKey = Object.keys(recipe.outputs)[0];
-    const { speedMult, prodBonus } = calcGroupModifiers('electricFurnace', count, gs.modules);
+    const modifiers = getBuildingModifiers('electricFurnace', count, gs.modules);
     const inv = Math.floor(state.inventory[outputKey] ?? 0);
     const atLimit = inv >= gs.limit;
     const activeN = atLimit ? 0 : Math.min(count, howManyCanAfford(recipe.inputs, count));
     gs.activeCount = activeN;
-    gs.progress += activeN * speedMult * powerRatio * ELECTRIC_FURNACE_SPEED / recipe.time * dt;
+    gs.progress += activeN * modifiers.effectiveSpeedMult * ELECTRIC_FURNACE_SPEED / recipe.time * dt;
     gs.progress = Math.min(gs.progress, count * 4);
     const cycles = Math.floor(gs.progress);
     if (cycles > 0) {
@@ -2290,7 +2325,7 @@ function tick() {
           if (actual > 0) {
             for (const [k, v] of Object.entries(recipe.inputs)) recordConsumed(k, v * actual);
             for (const [k, v] of Object.entries(recipe.outputs)) {
-              const tot = v * actual * (1 + prodBonus);
+              const tot = v * actual * (1 + modifiers.prodBonus);
               gs.prodFrac[k] = (gs.prodFrac[k] ?? 0) + tot;
               const w = Math.floor(gs.prodFrac[k]); gs.prodFrac[k] -= w;
               if (w > 0) recordProduced(k, w);
@@ -2316,7 +2351,8 @@ function tick() {
     if (!patch || patch.remaining <= 0) { gs.starved = true; continue; }
     gs.starved = false;
     const count = group.count;
-    const extracted = Math.min(PUMPJACK_SPEED * miningProdMult() * count * dt * powerRatio, patch.remaining);
+    const modifiers = getBuildingModifiers('pumpjack', count, gs.modules ?? {});
+    const extracted = Math.min(PUMPJACK_SPEED * modifiers.effectiveSpeedMult * modifiers.yieldMult * count * dt, patch.remaining);
     patch.remaining -= extracted;
     state.patchConsumed[group.resource] = (state.patchConsumed[group.resource] ?? 0) + extracted;
     recordProduced(group.resource, extracted);
@@ -2334,12 +2370,12 @@ function tick() {
     if (!recipe) { gs.active = false; gs.activeCount = 0; continue; }
     const count = group.count;
     const outputKey = Object.keys(recipe.outputs)[0];
-    const { speedMult, prodBonus } = calcGroupModifiers('oilRefinery', count, gs.modules);
+    const modifiers = getBuildingModifiers('oilRefinery', count, gs.modules);
     const inv = Math.floor(state.inventory[outputKey] ?? 0);
     const atLimit = inv >= gs.limit;
     const activeN = atLimit ? 0 : Math.min(count, howManyCanAfford(recipe.inputs, count));
     gs.activeCount = activeN;
-    gs.progress += activeN * speedMult * powerRatio * OIL_REFINERY_SPEED / recipe.time * dt;
+    gs.progress += activeN * modifiers.effectiveSpeedMult * OIL_REFINERY_SPEED / recipe.time * dt;
     gs.progress = Math.min(gs.progress, count * 4);
     const cycles = Math.floor(gs.progress);
     if (cycles > 0) {
@@ -2354,7 +2390,7 @@ function tick() {
           if (actual > 0) {
             for (const [k, v] of Object.entries(recipe.inputs)) recordConsumed(k, v * actual);
             for (const [k, v] of Object.entries(recipe.outputs)) {
-              const tot = v * actual * (1 + prodBonus);
+              const tot = v * actual * (1 + modifiers.prodBonus);
               gs.prodFrac[k] = (gs.prodFrac[k] ?? 0) + tot;
               const w = Math.floor(gs.prodFrac[k]); gs.prodFrac[k] -= w;
               if (w > 0) recordProduced(k, w);
@@ -2380,12 +2416,12 @@ function tick() {
     if (!recipe) { gs.active = false; gs.activeCount = 0; continue; }
     const count = group.count;
     const outputKey = Object.keys(recipe.outputs)[0];
-    const { speedMult, prodBonus } = calcGroupModifiers('chemicalPlant', count, gs.modules);
+    const modifiers = getBuildingModifiers('chemicalPlant', count, gs.modules);
     const inv = Math.floor(state.inventory[outputKey] ?? 0);
     const atLimit = inv >= gs.limit;
     const activeN = atLimit ? 0 : Math.min(count, howManyCanAfford(recipe.inputs, count));
     gs.activeCount = activeN;
-    gs.progress += activeN * speedMult * powerRatio * CHEMICAL_PLANT_SPEED / recipe.time * dt;
+    gs.progress += activeN * modifiers.effectiveSpeedMult * CHEMICAL_PLANT_SPEED / recipe.time * dt;
     gs.progress = Math.min(gs.progress, count * 4);
     const cycles = Math.floor(gs.progress);
     if (cycles > 0) {
@@ -2400,7 +2436,7 @@ function tick() {
           if (actual > 0) {
             for (const [k, v] of Object.entries(recipe.inputs)) recordConsumed(k, v * actual);
             for (const [k, v] of Object.entries(recipe.outputs)) {
-              const tot = v * actual * (1 + prodBonus);
+              const tot = v * actual * (1 + modifiers.prodBonus);
               gs.prodFrac[k] = (gs.prodFrac[k] ?? 0) + tot;
               const w = Math.floor(gs.prodFrac[k]); gs.prodFrac[k] -= w;
               if (w > 0) recordProduced(k, w);
@@ -2426,12 +2462,12 @@ function tick() {
     if (!recipe) { gs.active = false; gs.activeCount = 0; continue; }
     const count = group.count;
     const outputKey = Object.keys(recipe.outputs)[0];
-    const { speedMult, prodBonus } = calcGroupModifiers('centrifuge', count, gs.modules);
+    const modifiers = getBuildingModifiers('centrifuge', count, gs.modules);
     const inv = Math.floor(state.inventory[outputKey] ?? 0);
     const atLimit = inv >= gs.limit;
     const activeN = atLimit ? 0 : Math.min(count, howManyCanAfford(recipe.inputs, count));
     gs.activeCount = activeN;
-    gs.progress += activeN * speedMult * powerRatio * CENTRIFUGE_SPEED / recipe.time * dt;
+    gs.progress += activeN * modifiers.effectiveSpeedMult * CENTRIFUGE_SPEED / recipe.time * dt;
     gs.progress = Math.min(gs.progress, count * 4);
     const cycles = Math.floor(gs.progress);
     if (cycles > 0) {
@@ -2467,7 +2503,7 @@ function tick() {
               }
               // Produce outputs: update inventory via prodFrac; track only net produced for stats
               for (const [k, v] of Object.entries(recipe.outputs)) {
-                const tot = v * actual * (1 + prodBonus);
+                const tot = v * actual * (1 + modifiers.prodBonus);
                 gs.prodFrac[k] = (gs.prodFrac[k] ?? 0) + tot;
                 const w = Math.floor(gs.prodFrac[k]); gs.prodFrac[k] -= w;
                 if (w > 0) {
@@ -2497,12 +2533,12 @@ function tick() {
     if (!recipe) { gs.active = false; gs.activeCount = 0; continue; }
     const count = group.count;
     const outputKey = Object.keys(recipe.outputs)[0];
-    const { speedMult, prodBonus } = calcGroupModifiers('rocketSilo', count, gs.modules);
+    const modifiers = getBuildingModifiers('rocketSilo', count, gs.modules);
     const inv = Math.floor(state.inventory[outputKey] ?? 0);
     const atLimit = inv >= gs.limit;
     const activeN = atLimit ? 0 : Math.min(count, howManyCanAfford(recipe.inputs, count));
     gs.activeCount = activeN;
-    gs.progress += activeN * speedMult * powerRatio * ROCKET_SILO_SPEED / recipe.time * dt;
+    gs.progress += activeN * modifiers.effectiveSpeedMult * ROCKET_SILO_SPEED / recipe.time * dt;
     gs.progress = Math.min(gs.progress, count * 4);
     const cycles = Math.floor(gs.progress);
     if (cycles > 0) {
@@ -2517,7 +2553,7 @@ function tick() {
           if (actual > 0) {
             for (const [k, v] of Object.entries(recipe.inputs)) recordConsumed(k, v * actual);
             for (const [k, v] of Object.entries(recipe.outputs)) {
-              const tot = v * actual * (1 + prodBonus);
+              const tot = v * actual * (1 + modifiers.prodBonus);
               gs.prodFrac[k] = (gs.prodFrac[k] ?? 0) + tot;
               const w = Math.floor(gs.prodFrac[k]); gs.prodFrac[k] -= w;
               if (w > 0) recordProduced(k, w);
@@ -2684,9 +2720,8 @@ function tick() {
       return t ? { cost: t.cost, timePerPack: t.timePerPack, totalNeeded: Math.max(...Object.values(t.cost)) } : null;
     })();
     if (gs.enabled && techData) {
-      const { speedMult: labSpeedMult } = calcGroupModifiers('lab', count, gs.modules);
-      const labPerkMult = hasMetaPerk('perk_lab_speed_1') ? 1.15 : 1;
-      gs.packAcc = (gs.packAcc ?? 0) + count * labSpeedMult * labPerkMult * powerRatio * dt / techData.timePerPack;
+      const modifiers = getBuildingModifiers('lab', count, gs.modules);
+      gs.packAcc = (gs.packAcc ?? 0) + count * modifiers.effectiveSpeedMult * modifiers.yieldMult * dt / techData.timePerPack;
       while (gs.packAcc >= 1) {
         const free = state.devFreeResearch && state.devMode;
         const hasAllPacks = free || Object.keys(techData.cost).every(pk => (state.inventory[pk] ?? 0) >= 1);
@@ -2736,7 +2771,7 @@ function tick() {
   // ── Rate snapshot: derive inventoryDelta from explicit produced/consumed counters ──
   const _tRate = _p0();
   rateTickCount++;
-  if (rateTickCount >= RATE_WINDOW_SECS * 10) { // 10 ticks/sec
+  if (rateTickCount >= RATE_WINDOW_TICKS) {
     rateTickCount = 0;
     const snap = state.rateSnapshot;
     const elapsed = RATE_WINDOW_SECS;
@@ -4234,11 +4269,10 @@ function partialRunMsg(recipe, activeN, count) {
   return bottleneck.length ? ` · Need: ${bottleneck.join(', ')}` : '';
 }
 
-function recipeRateStr(activeN, count, machineSpeed, speedMult, pRatio, recipe, outputKey, prodBonus) {
+function recipeRateStr(activeN, count, machineSpeed, modifiers, recipe, outputKey) {
   if (!recipe || !outputKey) return '';
-  const outAmt = recipe.outputs[outputKey] ?? 1;
-  const cyclesPerSec = machineSpeed * speedMult * pRatio / recipe.time;
-  const perCycle = outAmt * (1 + prodBonus);
+  const cyclesPerSec = machineSpeed * modifiers.effectiveSpeedMult / recipe.time;
+  const perCycle = (recipe.outputs[outputKey] ?? 1) * (1 + modifiers.prodBonus);
   const actual = activeN * cyclesPerSec * perCycle;
   const max    = count   * cyclesPerSec * perCycle;
   return `${actual.toFixed(2)}/s · max ${max.toFixed(2)}/s`;
@@ -4310,7 +4344,7 @@ function renderBuildings() {
                        : acidStarved  ? '⚗️ No Sulfuric Acid'
                        : atLimit      ? `⏸ Output limit (${gs.limit})`
                        : !hasPatch    ? 'Patch depleted'
-                                      : `${(count * speed * (type === 'electricMiner' ? calcGroupModifiers('electricMiner', count, gs.modules).speedMult : 1) * pRatio).toFixed(2)}/sec${brownStr}`;
+                                      : `${(count * speed * (type === 'electricMiner' ? getBuildingModifiers('electricMiner', count, gs.modules).effectiveSpeedMult : 1)).toFixed(2)}/sec${brownStr}`;
       const meta = type === 'miner'
         ? `${itemDisplay('coal').name}: ${(count * COAL_PER_MINER).toFixed(4)}/sec`
         : `${ELECTRIC_MINER_KW * count} kW`;
@@ -4331,8 +4365,8 @@ function renderBuildings() {
                        : activeN === count ? `Smelting (${activeN}/${count})`
                        : activeN > 0  ? `Smelting (${activeN}/${count})${partialRunMsg(recipe, activeN, count)}`
                                       : waitMsg;
-      const { speedMult, prodBonus } = calcGroupModifiers('furnace', count, gs.modules);
-      const rateStr = recipeRateStr(activeN, count, 1, speedMult, 1, recipe, outputKey, prodBonus);
+      const modifiers = getBuildingModifiers('furnace', count, gs.modules);
+      const rateStr = recipeRateStr(activeN, count, 1, modifiers, recipe, outputKey);
       return buildingCard('furnace', count,
         `${itemDisplay('coal').name}: ${(count * COAL_PER_FURNACE).toFixed(4)}/sec · ${rateStr}`,
         statusTxt, gs.enabled && !gs.starved && activeN > 0, -1, key,
@@ -4352,8 +4386,8 @@ function renderBuildings() {
                        : activeN === count ? `Smelting (${activeN}/${count})`
                        : activeN > 0  ? `Smelting (${activeN}/${count})${partialRunMsg(recipe, activeN, count)}`
                                       : waitMsg;
-      const { speedMult, prodBonus } = calcGroupModifiers('steelFurnace', count, gs.modules);
-      const rateStr = recipeRateStr(activeN, count, STEEL_FURNACE_SPEED, speedMult, 1, recipe, outputKey, prodBonus);
+      const modifiers = getBuildingModifiers('steelFurnace', count, gs.modules);
+      const rateStr = recipeRateStr(activeN, count, STEEL_FURNACE_SPEED, modifiers, recipe, outputKey);
       return buildingCard('steelFurnace', count,
         `${itemDisplay('coal').name}: ${(count * COAL_PER_STEEL_FURNACE).toFixed(4)}/sec · ${rateStr}`,
         statusTxt, gs.enabled && !gs.starved && activeN > 0, -1, key,
@@ -4373,9 +4407,8 @@ function renderBuildings() {
                        : activeN === count ? `Crafting (${activeN}/${count})${brownStr}`
                        : activeN > 0  ? `Crafting (${activeN}/${count})${brownStr}${partialRunMsg(recipe, activeN, count)}`
                                       : `${waitMsg}${brownStr}`;
-      const { speedMult, prodBonus } = calcGroupModifiers('assembly', count, gs.modules);
-      const pRatio = state.powerRatio ?? 1;
-      const rateStr = recipeRateStr(activeN, count, ASSEMBLY_SPEED, speedMult, pRatio, recipe, outputKey, prodBonus);
+      const modifiers = getBuildingModifiers('assembly', count, gs.modules);
+      const rateStr = recipeRateStr(activeN, count, ASSEMBLY_SPEED, modifiers, recipe, outputKey);
       return buildingCard('assembly', count,
         `${ASSEMBLY_KW * count} kW · ${rateStr}`,
         statusTxt, gs.enabled && activeN > 0, -1, key,
@@ -4395,9 +4428,8 @@ function renderBuildings() {
                        : activeN === count ? `Crafting (${activeN}/${count})${brownStr}`
                        : activeN > 0  ? `Crafting (${activeN}/${count})${brownStr}${partialRunMsg(recipe, activeN, count)}`
                                       : `${waitMsg}${brownStr}`;
-      const { speedMult: sm2, prodBonus: pb2 } = calcGroupModifiers('assembly2', count, gs.modules);
-      const pRatio2 = state.powerRatio ?? 1;
-      const rateStr = recipeRateStr(activeN, count, ASSEMBLY2_SPEED, sm2, pRatio2, recipe, outputKey, pb2);
+      const modifiers = getBuildingModifiers('assembly2', count, gs.modules);
+      const rateStr = recipeRateStr(activeN, count, ASSEMBLY2_SPEED, modifiers, recipe, outputKey);
       return buildingCard('assembly2', count,
         `${ASSEMBLY2_KW * count} kW · ${rateStr}`,
         statusTxt, gs.enabled && activeN > 0, -1, key,
@@ -4503,8 +4535,8 @@ function renderBuildings() {
                        : activeN === count ? `Smelting (${activeN}/${count})${brownStr}`
                        : activeN > 0  ? `Smelting (${activeN}/${count})${brownStr}${partialRunMsg(recipe, activeN, count)}`
                                       : `${waitMsg}${brownStr}`;
-      const { speedMult: smEF, prodBonus: pbEF } = calcGroupModifiers('electricFurnace', count, gs.modules);
-      const rateStr = recipeRateStr(activeN, count, ELECTRIC_FURNACE_SPEED, smEF, state.powerRatio ?? 1, recipe, outputKey, pbEF);
+      const modifiers = getBuildingModifiers('electricFurnace', count, gs.modules);
+      const rateStr = recipeRateStr(activeN, count, ELECTRIC_FURNACE_SPEED, modifiers, recipe, outputKey);
       return buildingCard('electricFurnace', count,
         `${ELECTRIC_FURNACE_KW * count} kW · ${rateStr}`,
         statusTxt2, gs.enabled && activeN > 0, -1, key,
@@ -4524,8 +4556,8 @@ function renderBuildings() {
                        : activeN === count ? `Crafting (${activeN}/${count})${brownStr}`
                        : activeN > 0  ? `Crafting (${activeN}/${count})${brownStr}${partialRunMsg(recipe, activeN, count)}`
                                       : `${waitMsg}${brownStr}`;
-      const { speedMult: sm3, prodBonus: pb3 } = calcGroupModifiers('assembly3', count, gs.modules);
-      const rateStr = recipeRateStr(activeN, count, ASSEMBLY3_SPEED, sm3, state.powerRatio ?? 1, recipe, outputKey, pb3);
+      const modifiers = getBuildingModifiers('assembly3', count, gs.modules);
+      const rateStr = recipeRateStr(activeN, count, ASSEMBLY3_SPEED, modifiers, recipe, outputKey);
       return buildingCard('assembly3', count,
         `${ASSEMBLY3_KW * count} kW · ${rateStr}`,
         statusTxt2, gs.enabled && activeN > 0, -1, key,
@@ -4560,8 +4592,8 @@ function renderBuildings() {
                        : activeN === count ? `Processing (${activeN}/${count})${brownStr}`
                        : activeN > 0  ? `Processing (${activeN}/${count})${brownStr}${partialRunMsg(recipe, activeN, count)}`
                                       : `${waitMsg}${brownStr}`;
-      const { speedMult: smOR, prodBonus: pbOR } = calcGroupModifiers('oilRefinery', count, gs.modules);
-      const rateStr = recipeRateStr(activeN, count, OIL_REFINERY_SPEED, smOR, state.powerRatio ?? 1, recipe, outputKey, pbOR);
+      const modifiers = getBuildingModifiers('oilRefinery', count, gs.modules);
+      const rateStr = recipeRateStr(activeN, count, OIL_REFINERY_SPEED, modifiers, recipe, outputKey);
       return buildingCard('oilRefinery', count,
         `${OIL_REFINERY_KW * count} kW · ${rateStr}`,
         statusTxt2, gs.enabled && activeN > 0, -1, key,
@@ -4581,8 +4613,8 @@ function renderBuildings() {
                        : activeN === count ? `Processing (${activeN}/${count})${brownStr}`
                        : activeN > 0  ? `Processing (${activeN}/${count})${brownStr}${partialRunMsg(recipe, activeN, count)}`
                                       : `${waitMsg}${brownStr}`;
-      const { speedMult: smCP, prodBonus: pbCP } = calcGroupModifiers('chemicalPlant', count, gs.modules);
-      const rateStr = recipeRateStr(activeN, count, CHEMICAL_PLANT_SPEED, smCP, state.powerRatio ?? 1, recipe, outputKey, pbCP);
+      const modifiers = getBuildingModifiers('chemicalPlant', count, gs.modules);
+      const rateStr = recipeRateStr(activeN, count, CHEMICAL_PLANT_SPEED, modifiers, recipe, outputKey);
       return buildingCard('chemicalPlant', count,
         `${CHEMICAL_PLANT_KW * count} kW · ${rateStr}`,
         statusTxt2, gs.enabled && activeN > 0, -1, key,
@@ -4602,8 +4634,8 @@ function renderBuildings() {
                        : activeN === count ? `Processing (${activeN}/${count})${brownStr}`
                        : activeN > 0  ? `Processing (${activeN}/${count})${brownStr}${partialRunMsg(recipe, activeN, count)}`
                                       : `${waitMsg}${brownStr}`;
-      const { speedMult: smCen, prodBonus: pbCen } = calcGroupModifiers('centrifuge', count, gs.modules);
-      const rateStr = recipeRateStr(activeN, count, CENTRIFUGE_SPEED, smCen, state.powerRatio ?? 1, recipe, outputKey, pbCen);
+      const modifiers = getBuildingModifiers('centrifuge', count, gs.modules);
+      const rateStr = recipeRateStr(activeN, count, CENTRIFUGE_SPEED, modifiers, recipe, outputKey);
       return buildingCard('centrifuge', count,
         `${CENTRIFUGE_KW * count} kW · ${rateStr}`,
         statusTxt2, gs.enabled && activeN > 0, -1, key,
@@ -4623,8 +4655,8 @@ function renderBuildings() {
                        : activeN === count ? `Building (${activeN}/${count})${brownStr}`
                        : activeN > 0  ? `Building (${activeN}/${count})${brownStr}${partialRunMsg(recipe, activeN, count)}`
                                       : `${waitMsg}${brownStr}`;
-      const { speedMult: smRS, prodBonus: pbRS } = calcGroupModifiers('rocketSilo', count, gs.modules);
-      const rateStr = recipeRateStr(activeN, count, ROCKET_SILO_SPEED, smRS, state.powerRatio ?? 1, recipe, outputKey, pbRS);
+      const modifiers = getBuildingModifiers('rocketSilo', count, gs.modules);
+      const rateStr = recipeRateStr(activeN, count, ROCKET_SILO_SPEED, modifiers, recipe, outputKey);
       return buildingCard('rocketSilo', count,
         `${ROCKET_SILO_KW * count} kW · ${rateStr}`,
         statusTxt2, gs.enabled && activeN > 0, -1, key,
@@ -5332,7 +5364,7 @@ function getBiterWaveStats() {
   return {
     count: Math.max(1, Math.round(pts * 300)),
     hp:    Math.max(1, Math.round(pts * 3000)),
-    armor: Math.floor(pts * 4),
+    armor: Math.floor(pts * 12),
     dps:   pts * 400,
   };
 }
@@ -7809,9 +7841,8 @@ function _refreshLabPopup() {
 
   let etaRow = '';
   if (techData && count > 0) {
-    const { speedMult } = calcGroupModifiers('lab', count, gs?.modules);
-    const labPerkMult = hasMetaPerk('perk_lab_speed_1') ? 1.15 : 1;
-    const packsPerSec = count * speedMult * labPerkMult / techData.timePerPack;
+    const modifiers = getBuildingModifiers('lab', count, gs?.modules ?? {});
+    const packsPerSec = count * modifiers.effectiveSpeedMult * modifiers.yieldMult / techData.timePerPack;
     const remaining = Math.max(0, techData.totalNeeded - (res.totalConsumed ?? 0));
     const etaSecs = packsPerSec > 0 ? remaining / packsPerSec : Infinity;
     const etaStr = !isFinite(etaSecs) ? '∞'

@@ -13,4 +13,7 @@ contextBridge.exposeInMainWorld('fileAPI', {
   saveMeta:       (json)           => ipcRenderer.invoke('save-meta', json),
   loadMeta:       ()               => ipcRenderer.invoke('load-meta'),
   savePerf:       (text, filename) => ipcRenderer.invoke('save-perf', text, filename),
+  windowMinimize: ()               => ipcRenderer.send('window-minimize'),
+  windowMaximize: ()               => ipcRenderer.send('window-maximize'),
+  windowClose:    ()               => ipcRenderer.send('window-close'),
 });

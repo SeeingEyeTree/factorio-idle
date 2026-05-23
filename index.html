@@ -8,6 +8,15 @@
 </head>
 <body>
 
+<div id="titlebar">
+  <span id="titlebar-title">CAFF-INFINIT</span>
+  <div id="titlebar-controls">
+    <button id="tb-min" onclick="window.fileAPI.windowMinimize()">&#x2013;</button>
+    <button id="tb-max" onclick="window.fileAPI.windowMaximize()">&#x25A1;</button>
+    <button id="tb-close" onclick="window.fileAPI.windowClose()">&#x2715;</button>
+  </div>
+</div>
+
 <!-- ── Start Screen ─────────────────────────────────────── -->
 <div id="start-screen">
   <div class="start-content">
@@ -15,7 +24,7 @@
     <p class="subtitle">Exponential Line Go Up</p>
     <button class="btn-primary" style="margin-bottom:1.5rem" onclick="openNewGameModal()">New Game</button>
     <button class="btn-secondary" style="margin-bottom:1rem" onclick="showMetaScreen()">⭐ Meta Progression</button>
-    <a href="https://discord.gg/ayKz3FN8" target="_blank" style="display:block;margin-bottom:1rem;color:#5865F2;font-size:.9rem;text-decoration:none;opacity:.85">💬 Join the Discord</a>
+    <a href="https://discord.gg/TRBeRfMwk6" target="_blank" style="display:block;margin-bottom:1rem;color:#5865F2;font-size:.9rem;text-decoration:none;opacity:.85">💬 Join the Discord</a>
     <div class="save-panel">
       <div class="save-panel-header">
         <span class="save-panel-title">Saves</span>

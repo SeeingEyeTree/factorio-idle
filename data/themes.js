@@ -8,8 +8,7 @@
 
 const THEMES = {
 
-  // ── Factorio theme ────────────────────────────────────────────
-  // Only entries that differ from what ITEMS / BUILDING_DEFS already has.
+
     caffactory: {
     items: {
 
@@ -106,7 +105,7 @@ const THEMES = {
       burnerMinerItem:     { name: 'The MINES',           img: 'data/icon_imgs/caffactory/burner_mining_drill.png' },
       electricMinerItem:   { name: 'No Safety Mining',          img: 'data/icon_imgs/caffactory/electric_mining_drill.png' },
       boilerItem:          { name: 'Coffee Boiler',              img: 'data/icon_imgs/caffactory/coffee_boiler.png' },
-      steamEngineItem:     { name: 'Steam Generator',            img: 'data/icon_imgs/caffactory/steam_engine.png' },
+      steamEngineItem:     { name: 'Coffee Generator',            img: 'data/icon_imgs/caffactory/steam_engine.png' },
       solarPanelItem:      { name: 'Open-Plan Skylight',         img: 'data/icon_imgs/caffactory/skylight.png' },
       accumulatorItem:     { name: 'Power Bank',                 img: 'data/icon_imgs/caffactory/power_bank.png' },
       offshorePumpItem:    { name: 'Water Cooler',               img: 'data/icon_imgs/caffactory/water_cooler.png' },
@@ -198,9 +197,9 @@ const THEMES = {
       assembly:      { name: 'Junior Intern Pod' },
       assembly2:     { name: 'Mid-Level Intern Pod' },
       assembly3:     { name: 'Senior Intern Pod' },
-      lab:           { name: 'Dedicated Drinker' },
+      lab:           { name: 'Unpaid Intern' },
       boiler:        { name: 'Coffee Boiler' },
-      steamEngine:   { name: 'Steam Generator' },
+      steamEngine:   { name: 'Coffee Generator' },
       offshoreP:     { name: 'Water Cooler' },
       radar:         { name: 'Surveillance Tower' },
       solarPanel:    { name: 'Open-Plan Skylight' },
@@ -216,7 +215,8 @@ const THEMES = {
     sprites: {},
 
   },
-
+  // ── Factorio theme ────────────────────────────────────────────
+  // Only entries that differ from what ITEMS / BUILDING_DEFS already has.
 
   classic: {
     items: {

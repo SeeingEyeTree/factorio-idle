@@ -2,6 +2,8 @@ const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const fs   = require('fs');
 const path = require('path');
 
+const APP_ICON = path.join(__dirname, 'data', 'icon_imgs', 'caffactory', 'Caf_logo.png');
+
 function getSavesDir() {
   const dir = path.join(app.getPath('userData'), 'saves');
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -15,6 +17,8 @@ function createWindow() {
     minWidth: 900,
     minHeight: 600,
     title: 'Caff-Infinit',
+    icon: APP_ICON,
+    frame: false,
     autoHideMenuBar: true,
     show: false,
     webPreferences: {
@@ -109,6 +113,14 @@ function registerIpcHandlers() {
     if (result.canceled || !result.filePaths.length) return null;
     return fs.readFileSync(result.filePaths[0], 'utf8');
   });
+
+  // Window controls for frameless mode
+  ipcMain.on('window-minimize', () => BrowserWindow.getFocusedWindow()?.minimize());
+  ipcMain.on('window-maximize', () => {
+    const w = BrowserWindow.getFocusedWindow();
+    if (w) w.isMaximized() ? w.unmaximize() : w.maximize();
+  });
+  ipcMain.on('window-close',    () => BrowserWindow.getFocusedWindow()?.close());
 
   ipcMain.handle('save-meta', (_, json) => {
     const p = path.join(app.getPath('userData'), 'meta.json');
