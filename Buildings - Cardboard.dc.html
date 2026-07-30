@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Permanent+Marker&family=Patrick+Hand&display=swap" rel="stylesheet">
+<style>
+  body { margin: 0; }
+  @keyframes toastPop { 0% { transform:translateX(-50%) rotate(-3deg) scale(.8); opacity:0 } 100% { transform:translateX(-50%) rotate(-3deg) scale(1); opacity:1 } }
+</style>
+</helmet>
+
+<div style="min-height:100vh; box-sizing:border-box; background-color:#c8a877; background-image:repeating-linear-gradient(90deg, rgba(90,60,28,.13) 0 1px, rgba(255,238,205,.06) 1px 2px, transparent 2px 9px), radial-gradient(circle at 18% 25%, rgba(120,85,40,.10), transparent 42%), radial-gradient(circle at 85% 70%, rgba(120,85,40,.08), transparent 45%); color:#3a2c1a; font-family:'Patrick Hand',cursive; padding-bottom:50px">
+
+  <!-- toast -->
+  <sc-if value="{{ hasToast }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed; top:18px; left:50%; z-index:50; transform:translateX(-50%) rotate(-3deg); background:#fff7c4; border:1px solid #d8c47a; box-shadow:2px 4px 10px rgba(0,0,0,.22); padding:9px 18px; font-size:16px; color:#3a2c1a; border-radius:2px; animation:toastPop .18s ease-out; pointer-events:none">{{ toast }}</div>
+  </sc-if>
+
+  <div style="max-width:1180px; margin:0 auto; padding:0 22px">
+
+    <!-- packing tape across top -->
+    <div style="position:relative; height:0">
+      <div style="position:absolute; top:14px; left:-30px; width:220px; height:40px; background:rgba(214,196,150,.5); border-left:1px dashed rgba(120,95,50,.4); border-right:1px dashed rgba(120,95,50,.4); transform:rotate(-4deg); box-shadow:0 1px 3px rgba(0,0,0,.12)"></div>
+    </div>
+
+    <!-- header -->
+    <div style="position:relative; display:flex; align-items:center; justify-content:space-between; border-bottom:2px solid rgba(58,44,26,.45); padding:22px 4px 14px">
+      <div style="font-family:'Permanent Marker',cursive; font-size:28px; white-space:nowrap; color:#241a0e; transform:rotate(-1.5deg); text-shadow:0 1px 0 rgba(255,240,210,.3)">CAFF-INFINIT</div>
+      <div style="display:flex; align-items:center; gap:10px">
+        <div style="font-family:'Permanent Marker',cursive; font-size:13px; color:#b23b2a; border:2px solid #b23b2a; border-radius:4px; padding:4px 9px; transform:rotate(3deg); opacity:.9">WAVE 1:24!</div>
+        <button style="font-family:'Patrick Hand',cursive; font-size:16px; color:#241a0e; background:rgba(255,245,220,.35); border:2px solid #3a2c1a; border-radius:5px; padding:5px 13px; cursor:pointer; transform:rotate(-1deg)">⏸ Pause</button>
+        <button style="font-family:'Patrick Hand',cursive; font-size:16px; color:#241a0e; background:rgba(255,245,220,.35); border:2px solid #3a2c1a; border-radius:5px; padding:5px 13px; cursor:pointer; transform:rotate(1deg)">Save</button>
+        <button style="font-family:'Patrick Hand',cursive; font-size:16px; color:#241a0e; background:rgba(255,245,220,.35); border:2px solid #3a2c1a; border-radius:5px; padding:5px 13px; cursor:pointer">Save As</button>
+      </div>
+    </div>
+
+    <!-- resource scribbles -->
+    <div style="display:flex; gap:26px; align-items:center; padding:13px 4px; border-bottom:2px dashed rgba(58,44,26,.35); flex-wrap:wrap">
+      <button onClick="{{ togglePower }}" title="click to simulate low power" style="display:flex; align-items:center; gap:7px; cursor:pointer; background:rgba(255,245,220,.4); border:2px solid {{ powerColor }}; border-radius:6px; padding:4px 11px; font-family:'Patrick Hand',cursive; color:{{ powerColor }}">
+        <span style="font-size:17px">⚡</span><span style="font-size:16px">{{ powerWord }} <strong style="font-family:'Permanent Marker',cursive; font-size:14px">{{ powerPct }}</strong></span>
+      </button>
+      <div style="display:flex; align-items:center; gap:8px"><span style="font-size:17px">💧</span><span style="font-size:16px">Water <strong style="font-family:'Permanent Marker',cursive; font-size:14px">84%</strong></span></div>
+      <div style="display:flex; align-items:center; gap:8px"><span style="font-size:17px">♨️</span><span style="font-size:16px">Steam <strong style="font-family:'Permanent Marker',cursive; font-size:14px">61%</strong></span></div>
+      <div style="display:flex; align-items:center; gap:8px"><span style="font-size:17px">🔋</span><span style="font-size:16px">Accu <strong style="font-family:'Permanent Marker',cursive; font-size:14px">45%</strong></span></div>
+      <span style="font-size:13px; color:#8a7654; margin-left:auto">↑ tap the power chip to test the low-power swap</span>
+    </div>
+
+    <!-- tabs -->
+    <div style="display:flex; gap:16px; padding:13px 4px 4px; flex-wrap:wrap; align-items:center">
+      <span style="font-size:17px; color:#5a4a30">🏠 Base</span>
+      <span style="font-size:17px; color:#5a4a30">🎒 Inventory</span>
+      <span style="font-size:17px; color:#5a4a30">🔧 Crafting</span>
+      <span style="position:relative; font-family:'Permanent Marker',cursive; font-size:17px; color:#241a0e; padding:2px 6px">🏭 Buildings
+        <span style="position:absolute; inset:-6px -10px; border:2.5px solid #b23b2a; border-radius:50%; transform:rotate(-3deg); opacity:.85"></span>
+      </span>
+      <span style="font-size:17px; color:#5a4a30">🔬 Research</span>
+      <span style="font-size:17px; color:#5a4a30">🛡️ Defense</span>
+      <span style="font-size:17px; color:#5a4a30">📖 Recipes</span>
+    </div>
+
+    <!-- main -->
+    <div style="display:grid; grid-template-columns:1fr 310px; gap:22px; margin-top:18px; align-items:start">
+
+      <!-- LEFT: flip-through catalog booklet -->
+      <div>
+        <!-- booklet flip header -->
+        <div style="display:flex; align-items:center; gap:14px; margin-bottom:14px">
+          <button onClick="{{ prev }}" style="width:46px; height:46px; flex:none; border:2.5px solid #3a2c1a; border-radius:50%; background:#e9dbb8; cursor:pointer; font-family:'Permanent Marker',cursive; font-size:22px; color:#241a0e; box-shadow:2px 2px 0 rgba(58,44,26,.2)" style-hover="background:#f3ecd6">‹</button>
+          <div style="flex:1; text-align:center">
+            <div style="font-family:'Permanent Marker',cursive; font-size:19px; color:#241a0e">📚 The Parts Catalog</div>
+            <div style="font-size:15px; color:#7a6440; margin-top:1px">{{ pageTitle }} · page {{ pageNum }} of {{ pageTotal }}</div>
+          </div>
+          <button onClick="{{ next }}" style="width:46px; height:46px; flex:none; border:2.5px solid #3a2c1a; border-radius:50%; background:#e9dbb8; cursor:pointer; font-family:'Permanent Marker',cursive; font-size:22px; color:#241a0e; box-shadow:2px 2px 0 rgba(58,44,26,.2)" style-hover="background:#f3ecd6">›</button>
+        </div>
+
+        <!-- booklet page -->
+        <div style="position:relative; background:#efe2c0; border:1.5px solid #9a7c4a; border-radius:4px; padding:18px; box-shadow:inset 0 0 0 1px rgba(255,255,255,.25), 5px 7px 0 rgba(58,44,26,.14)">
+
+          <div style="font-family:'Permanent Marker',cursive; font-size:15px; color:#241a0e; margin-bottom:14px; transform:rotate(-.4deg)">📦 {{ pageTitle }}</div>
+
+          <sc-for list="{{ cards }}" as="b" hint-placeholder-count="3">
+            <div style="position:relative; background:#e9dbb8; border:1.5px solid #8a6c3e; border-radius:3px; padding:13px 15px; margin-bottom:14px; box-shadow:2px 3px 0 rgba(58,44,26,.18)">
+              <sc-if value="{{ b.featured }}" hint-placeholder-val="{{ false }}">
+                <div style="position:absolute; top:-11px; right:-7px; font-family:'Permanent Marker',cursive; font-size:12px; color:#b23b2a; border:2.5px solid #b23b2a; border-radius:5px; padding:3px 9px; transform:rotate(6deg); background:rgba(243,236,214,.9)">⭐ STAFF PICK</div>
+              </sc-if>
+              <div style="display:flex; gap:12px; align-items:center">
+                <div style="width:50px; height:50px; flex:none; border:2px solid #3a2c1a; border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:26px; background:#f3ecd6">{{ b.icon }}</div>
+                <div style="flex:1; min-width:0">
+                  <div style="font-family:'Permanent Marker',cursive; font-size:17px; color:#241a0e">{{ b.name }}</div>
+                  <div style="font-size:14px; color:#5a4a30; line-height:1.3">{{ b.desc }}</div>
+                  <div style="display:flex; align-items:center; gap:7px; margin-top:3px">
+                    <span style="color:#d98a1f; font-size:15px; letter-spacing:1px">{{ b.starsStr }}</span>
+                    <span style="font-size:12px; color:#8a7654; white-space:nowrap">{{ b.ratingLine }}</span>
+                  </div>
+                  <div style="font-size:13px; color:#b23b2a; margin-top:2px">{{ b.cost }}</div>
+                </div>
+                <button onClick="{{ b.place }}" style="align-self:center; font-family:'Permanent Marker',cursive; font-size:14px; color:#f3ecd6; background:#3a6b34; border:2px solid #244a20; border-radius:6px; padding:8px 16px; cursor:pointer" style-hover="background:#4a8a42">PLACE</button>
+              </div>
+            </div>
+          </sc-for>
+
+          <!-- reviews for the featured pick -->
+          <div style="margin-top:20px; border-top:2px dashed rgba(58,44,26,.35); padding-top:14px">
+            <div style="font-family:'Permanent Marker',cursive; font-size:16px; color:#241a0e; margin-bottom:11px">⭐ Reviews — {{ featuredIcon }} {{ featuredName }}</div>
+
+            <sc-if value="{{ hasReviews }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex; flex-wrap:wrap; gap:12px; margin-bottom:14px">
+                <sc-for list="{{ featuredReviews }}" as="r" hint-placeholder-count="2">
+                  <div style="position:relative; width:228px; background:#f6efd5; border:1px solid #cdb888; border-radius:2px; padding:11px 13px 12px; box-shadow:1px 2px 4px rgba(0,0,0,.14); transform:rotate({{ r.rot }})">
+                    <div style="position:absolute; top:-8px; left:50%; margin-left:-26px; width:52px; height:16px; background:rgba(214,196,150,.65); box-shadow:0 1px 2px rgba(0,0,0,.12)"></div>
+                    <div style="color:#d98a1f; font-size:14px; letter-spacing:1px">{{ r.starsStr }}</div>
+                    <div style="font-size:15px; color:#3a2c1a; line-height:1.35; margin:4px 0 6px">{{ r.text }}</div>
+                    <div style="font-family:'Permanent Marker',cursive; font-size:12px; color:#7a6440">— {{ r.name }}</div>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-if>
+
+            <!-- leave a review -->
+            <div style="background:#f3ecd6; border:2px dashed #9a7c4a; border-radius:6px; padding:13px 15px">
+              <div style="font-family:'Permanent Marker',cursive; font-size:15px; color:#241a0e; margin-bottom:7px">✎ Leave a review <span style="font-family:'Patrick Hand',cursive; font-size:13px; color:#8a7654">(just for fun!)</span></div>
+              <div style="display:flex; align-items:center; gap:9px; margin-bottom:9px">
+                <span style="font-size:14px; color:#5a4a30">your rating:</span>
+                <div style="display:flex; gap:1px">
+                  <sc-for list="{{ starPicker }}" as="s" hint-placeholder-count="5">
+                    <button onClick="{{ s.set }}" style="background:none; border:none; cursor:pointer; font-size:24px; color:#d98a1f; padding:0 1px; line-height:1">{{ s.char }}</button>
+                  </sc-for>
+                </div>
+              </div>
+              <div style="display:flex; gap:9px; flex-wrap:wrap">
+                <input ref="{{ nameRef }}" placeholder="your name (optional)" style="width:150px; background:#fffdf2; border:2px solid #3a2c1a; border-radius:5px; padding:6px 9px; font-family:'Patrick Hand',cursive; font-size:15px; color:#3a2c1a; box-sizing:border-box">
+                <input ref="{{ textRef }}" placeholder="write your hot take…" style="flex:1; min-width:160px; background:#fffdf2; border:2px solid #3a2c1a; border-radius:5px; padding:6px 9px; font-family:'Patrick Hand',cursive; font-size:15px; color:#3a2c1a; box-sizing:border-box">
+                <button onClick="{{ submitReview }}" style="font-family:'Permanent Marker',cursive; font-size:14px; color:#f3ecd6; background:#b23b2a; border:2px solid #7e271b; border-radius:6px; padding:7px 15px; cursor:pointer; white-space:nowrap" style-hover="background:#c84936">PIN IT 📌</button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- RIGHT: quick-place shelf -->
+      <div style="position:relative; background:#dccb9a; border:1.5px solid #8a6c3e; border-radius:4px; padding:14px; box-shadow:inset 0 0 0 1px rgba(255,255,255,.18), 4px 6px 0 rgba(58,44,26,.14)">
+        <div style="position:absolute; top:-9px; right:18px; width:88px; height:22px; background:rgba(214,196,150,.7); transform:rotate(5deg); box-shadow:0 1px 2px rgba(0,0,0,.12)"></div>
+        <div style="font-family:'Permanent Marker',cursive; font-size:16px; color:{{ powerColor }}; margin-bottom:3px; line-height:1.2">{{ quickTitle }}</div>
+        <div style="font-size:13px; color:#7a6440; margin-bottom:11px">{{ quickHint }}</div>
+
+        <sc-if value="{{ powerLow }}" hint-placeholder-val="{{ false }}">
+          <div style="background:rgba(178,59,42,.12); border:2px dashed #b23b2a; border-radius:5px; padding:7px 10px; font-size:14px; color:#b23b2a; margin-bottom:11px; line-height:1.3">⚠ Power dipped below 100%! Slap down a generator.</div>
+        </sc-if>
+
+        <sc-for list="{{ quickList }}" as="q" hint-placeholder-count="4">
+          <div style="display:flex; align-items:center; gap:10px; background:#e9dbb8; border:1.5px solid #8a6c3e; border-radius:3px; padding:9px 11px; margin-bottom:9px; box-shadow:1px 2px 0 rgba(58,44,26,.16)">
+            <div style="width:38px; height:38px; flex:none; border:2px solid #3a2c1a; border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:20px; background:#f3ecd6">{{ q.icon }}</div>
+            <div style="flex:1; min-width:0">
+              <div style="font-size:15px; color:#241a0e; line-height:1.15">{{ q.name }}</div>
+              <div style="font-size:12px; color:#8a7654">{{ q.cost }}</div>
+            </div>
+            <button onClick="{{ q.place }}" style="font-family:'Permanent Marker',cursive; font-size:12px; color:#f3ecd6; background:#3a6b34; border:2px solid #244a20; border-radius:5px; padding:6px 11px; cursor:pointer" style-hover="background:#4a8a42">PLACE</button>
+          </div>
+        </sc-for>
+      </div>
+
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  nameRef = React.createRef();
+  textRef = React.createRef();
+
+  state = {
+    page: 0,
+    powerOk: true,
+    draftStars: 5,
+    toast: '',
+    recents: ['miner', 'furnace', 'assembly', 'lab'],
+    reviews: {
+      miner: [
+        { name: 'OreLord', stars: 5, text: 'mines like a champ. just feed it coal and forget about it' },
+        { name: 'PatientPete', stars: 3, text: '0.25/sec is reeeally testing my patience' }
+      ],
+      steelFurnace: [
+        { name: 'HotStuff', stars: 5, text: 'twice as fast, twice as nice. never going back' }
+      ],
+      solarPanel: [
+        { name: 'SunChaser', stars: 5, text: 'FREE power!! solar gang rise up' },
+        { name: 'NightOwl', stars: 2, text: 'does absolutely nothing at 3am when the biters show up >:(' }
+      ],
+      assembly: [
+        { name: 'LazyEngineer', stars: 5, text: "haven't hand-crafted in 40 hours. bless this machine" }
+      ],
+      oilRefinery: [
+        { name: 'SlickRick', stars: 4, text: 'big, loud, smells like money' }
+      ],
+      lab: [
+        { name: 'NerdAlert', stars: 5, text: 'eats my science packs faster than i can make them' }
+      ]
+    }
+  };
+
+  BUILD = {
+    miner:           { icon: '⛏️', name: 'Mining Drill',     desc: 'mines 0.25/sec, eats coal',     cost: 'cost: 1 burner drill' },
+    electricDrill:   { icon: '⚡', name: 'Electric Drill',    desc: 'mines faster, needs power',      cost: 'cost: 1 electric drill' },
+    furnace:         { icon: '🔥', name: 'Stone Furnace',     desc: 'ore turns into plates',          cost: 'cost: 1 stone furnace' },
+    steelFurnace:    { icon: '🟧', name: 'Steel Furnace',     desc: 'smelts 2× faster, still coal',   cost: 'cost: 1 steel furnace' },
+    electricFurnace: { icon: '⚡', name: 'Electric Furnace',  desc: '2× speed, no coal needed',       cost: 'cost: 1 electric furnace' },
+    offshoreP:       { icon: '💧', name: 'Offshore Pump',     desc: 'pumps water, no fuel',           cost: 'cost: 1 offshore pump' },
+    boiler:          { icon: '♨️', name: 'Boiler',            desc: 'coal + water → steam',           cost: 'cost: 1 boiler' },
+    steamEngine:     { icon: '⚙️', name: 'Steam Engine',      desc: 'steam → electricity',            cost: 'cost: 1 steam engine' },
+    solarPanel:      { icon: '☀️', name: 'Solar Panel',       desc: 'free power in daylight',         cost: 'cost: 1 solar panel' },
+    accumulator:     { icon: '🔋', name: 'Accumulator',       desc: 'stores 5 MJ for the night',      cost: 'cost: 1 accumulator' },
+    assembly:        { icon: '🏭', name: 'Assembly Machine',  desc: 'auto-crafts stuff, 75kW',        cost: 'cost: 1 assembly mk1' },
+    pumpjack:        { icon: '🛢️', name: 'Pumpjack',          desc: 'extracts crude oil',             cost: 'cost: 1 pumpjack' },
+    oilRefinery:     { icon: '🏗️', name: 'Oil Refinery',      desc: 'crude oil → fuels',              cost: 'cost: 1 oil refinery' },
+    chemicalPlant:   { icon: '🧫', name: 'Chemical Plant',    desc: 'cooks up chemicals',             cost: 'cost: 1 chemical plant' },
+    lab:             { icon: '🔬', name: 'Lab',               desc: 'eats science packs',             cost: 'cost: 1 lab' },
+    radar:           { icon: '📡', name: 'Radar',             desc: 'explores the map',               cost: 'cost: 1 radar' }
+  };
+
+  RATING = {
+    miner: { r: 4.6, c: 23 }, electricDrill: { r: 4.8, c: 11 },
+    furnace: { r: 4.3, c: 31 }, steelFurnace: { r: 4.9, c: 14 }, electricFurnace: { r: 4.7, c: 9 },
+    offshoreP: { r: 4.1, c: 6 }, boiler: { r: 4.4, c: 12 }, steamEngine: { r: 4.6, c: 15 },
+    solarPanel: { r: 4.2, c: 28 }, accumulator: { r: 4.5, c: 8 }, assembly: { r: 4.8, c: 42 },
+    pumpjack: { r: 4.0, c: 7 }, oilRefinery: { r: 4.3, c: 10 }, chemicalPlant: { r: 4.2, c: 9 },
+    lab: { r: 4.9, c: 33 }, radar: { r: 3.9, c: 5 }
+  };
+
+  PAGES = [
+    { title: 'MINING',      keys: ['miner', 'electricDrill'],                                  featured: 'miner' },
+    { title: 'FURNACES',    keys: ['furnace', 'steelFurnace', 'electricFurnace'],              featured: 'steelFurnace' },
+    { title: 'POWER',       keys: ['offshoreP', 'boiler', 'steamEngine', 'solarPanel', 'accumulator'], featured: 'solarPanel' },
+    { title: 'PRODUCTION',  keys: ['assembly'],                                                featured: 'assembly' },
+    { title: 'OIL & CHEM',  keys: ['pumpjack', 'oilRefinery', 'chemicalPlant'],                featured: 'oilRefinery' },
+    { title: 'RESEARCH',    keys: ['lab', 'radar'],                                            featured: 'lab' }
+  ];
+
+  POWERKEYS = ['boiler', 'steamEngine', 'solarPanel', 'offshoreP'];
+
+  _stars(n) { var f = Math.round(n); return '★★★★★'.slice(0, f) + '☆☆☆☆☆'.slice(0, 5 - f); }
+
+  _toast(msg, ms) {
+    this.setState({ toast: msg });
+    clearTimeout(this._tt);
+    this._tt = setTimeout(() => this.setState({ toast: '' }), ms || 1800);
+  }
+
+  place(key) {
+    var b = this.BUILD[key];
+    var rec = this.state.recents.filter(k => k !== key);
+    rec.unshift(key);
+    rec = rec.slice(0, 4);
+    this.setState({ recents: rec });
+    this._toast('📦 ' + b.name + ' added to the build queue!');
+  }
+
+  prev() { var n = this.PAGES.length; this.setState(s => ({ page: (s.page - 1 + n) % n, draftStars: 5 })); }
+  next() { var n = this.PAGES.length; this.setState(s => ({ page: (s.page + 1) % n, draftStars: 5 })); }
+  togglePower() { this.setState(s => ({ powerOk: !s.powerOk })); }
+  setStars(n) { this.setState({ draftStars: n }); }
+
+  submitReview() {
+    var t = this.textRef.current ? this.textRef.current.value.trim() : '';
+    if (!t) { this._toast('✍ write something first!', 1500); return; }
+    var nm = (this.nameRef.current && this.nameRef.current.value.trim()) ? this.nameRef.current.value.trim() : 'Anonymous';
+    var fk = this.PAGES[this.state.page].featured;
+    var rv = Object.assign({}, this.state.reviews);
+    var arr = (rv[fk] || []).slice();
+    arr.unshift({ name: nm, stars: this.state.draftStars, text: t });
+    rv[fk] = arr;
+    if (this.textRef.current) this.textRef.current.value = '';
+    if (this.nameRef.current) this.nameRef.current.value = '';
+    this.setState({ reviews: rv, draftStars: 5 });
+    this._toast('📌 review pinned. thanks!');
+  }
+
+  renderVals() {
+    var self = this, s = this.state;
+    var pg = this.PAGES[s.page];
+
+    var cards = pg.keys.map(function (k) {
+      var b = self.BUILD[k], rt = self.RATING[k] || { r: 4.5, c: 7 };
+      return {
+        key: k, icon: b.icon, name: b.name, desc: b.desc, cost: b.cost,
+        starsStr: self._stars(rt.r), ratingLine: rt.r.toFixed(1) + ' · ' + rt.c + ' reviews',
+        featured: k === pg.featured, place: function () { self.place(k); }
+      };
+    });
+
+    var fk = pg.featured, fb = this.BUILD[fk];
+    var freviews = (s.reviews[fk] || []).map(function (rv, i) {
+      return { name: rv.name, text: rv.text, starsStr: self._stars(rv.stars), rot: (i % 2 ? '1.4deg' : '-1.3deg') };
+    });
+
+    var quickKeys = s.powerOk ? s.recents : this.POWERKEYS;
+    var quick = quickKeys.map(function (k) {
+      var b = self.BUILD[k];
+      return { key: k, icon: b.icon, name: b.name, cost: b.cost, place: function () { self.place(k); } };
+    });
+
+    var starPicker = [1, 2, 3, 4, 5].map(function (n) {
+      return { char: n <= s.draftStars ? '★' : '☆', set: function () { self.setStars(n); } };
+    });
+
+    return {
+      pageTitle: pg.title, pageNum: s.page + 1, pageTotal: this.PAGES.length,
+      cards: cards,
+      featuredName: fb.name, featuredIcon: fb.icon, featuredReviews: freviews, hasReviews: freviews.length > 0,
+      quickTitle: s.powerOk ? '📋 Last 4 Placed' : '⚡ Power Low — Generators!',
+      quickHint: s.powerOk ? 'tap to re-place a recent build' : 'build one to climb back to 100%',
+      quickList: quick, powerLow: !s.powerOk,
+      powerPct: s.powerOk ? '100%' : '63%',
+      powerWord: s.powerOk ? 'Power' : 'Power LOW',
+      powerColor: s.powerOk ? '#3a6b34' : '#b23b2a',
+      starPicker: starPicker,
+      nameRef: this.nameRef, textRef: this.textRef,
+      toast: s.toast, hasToast: !!s.toast,
+      prev: function () { self.prev(); }, next: function () { self.next(); },
+      togglePower: function () { self.togglePower(); }, submitReview: function () { self.submitReview(); }
+    };
+  }
+}
+</script>
+</body>
+</html>

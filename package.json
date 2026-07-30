@@ -5,8 +5,9 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
+    "test": "node --test \"tests/**/*.test.js\"",
     "compress-images": "node compress-images.js",
-    "dist": "electron-packager . \"Caff-Infinit\" --platform=win32 --arch=x64 --out=dist --overwrite --ignore=\"node_modules|dist|example_imgs|\\.claude|caffactory_rebrand\\.xlsx|temp_python_scripts|examples|icon_imgs/caffactory/regen|icon_imgs/caffactory/Old|icon_imgs/caffactory/normalized\""
+    "dist": "electron-packager . \"Caff-Infinit\" --platform=win32 --arch=x64 --out=dist --overwrite --ignore=\"node_modules|dist|tests|example_imgs|\\.claude|caffactory_rebrand\\.xlsx|temp_python_scripts|examples|icon_imgs/caffactory/regen|icon_imgs/caffactory/Old|icon_imgs/caffactory/normalized\""
   },
   "devDependencies": {
     "electron": "^34.0.0",

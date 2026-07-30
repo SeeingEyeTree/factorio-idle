@@ -8318,5 +8318,35 @@ document.addEventListener('DOMContentLoaded', async () => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'r') e.preventDefault();
   });
 
+  // ── Place-button description tooltip ──────────────────────
+  {
+    const tip = document.createElement('div');
+    tip.id = 'place-desc-tooltip';
+    tip.style.display = 'none';
+    document.body.appendChild(tip);
+
+    const bldTab = document.getElementById('tab-buildings');
+    bldTab.addEventListener('mouseover', e => {
+      const btn = e.target.closest('.btn-place');
+      if (!btn) return;
+      const p = btn.closest('.card-body')?.querySelector('p:not(.card-cost)');
+      if (!p) return;
+      const text = p.textContent.trim();
+      if (!text) return;
+      tip.textContent = text;
+      tip.style.display = 'block';
+      const r = btn.getBoundingClientRect();
+      const tipH = tip.offsetHeight;
+      const topAbove = r.top - tipH - 8;
+      tip.style.left = Math.max(4, r.left) + 'px';
+      tip.style.top = (topAbove < 4 ? r.bottom + 8 : topAbove) + 'px';
+    });
+
+    bldTab.addEventListener('mouseout', e => {
+      const btn = e.target.closest('.btn-place');
+      if (btn && !btn.contains(e.relatedTarget)) tip.style.display = 'none';
+    });
+  }
+
   refreshSaveList();
 });

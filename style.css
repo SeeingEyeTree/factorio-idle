@@ -624,7 +624,18 @@ button {
 }
 @media (max-width: 680px) { .buildings-layout { grid-template-columns: 1fr; } }
 
-.placement-col, .active-col { display: flex; flex-direction: column; gap: .6rem; }
+.placement-col, .active-col {
+  display: flex; flex-direction: column; gap: .6rem;
+  max-height: calc(100vh - 165px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border2) transparent;
+}
+.placement-col::-webkit-scrollbar, .active-col::-webkit-scrollbar { width: 5px; }
+.placement-col::-webkit-scrollbar-track, .active-col::-webkit-scrollbar-track { background: transparent; }
+.placement-col::-webkit-scrollbar-thumb, .active-col::-webkit-scrollbar-thumb {
+  background: var(--border2); border-radius: 3px;
+}
 .active-col-header { display: flex; align-items: center; justify-content: space-between; }
 
 .placement-status {
@@ -644,11 +655,14 @@ button {
 .buildable-card {
   display: flex; align-items: center; gap: .85rem;
   padding: .9rem 1rem;
-  background: linear-gradient(180deg, var(--surf2) 0%, var(--surf) 100%);
+  background:
+    linear-gradient(180deg, rgba(30,36,45,.91) 0%, rgba(22,27,34,.91) 100%),
+    url('data/icon_imgs/caffactory/buildingbackground_cropped.png') center / cover no-repeat;
   border: 1px solid var(--border);
   border-radius: 6px;
   box-shadow: var(--shadow-sm);
   transition: border-color .15s, box-shadow .15s;
+  overflow: hidden;
 }
 .buildable-card:hover { border-color: var(--border2); box-shadow: var(--shadow); }
 
@@ -658,8 +672,9 @@ button {
   font-size: 3.5rem; line-height: 1;
 }
 .card-icon .item-icon { width: 140px; height: 140px; padding: 3px; }
-.card-body h4       { font-size: .88rem; margin-bottom: .25rem; font-weight: 700; color: var(--text2); }
+.card-body h4       { font-size: 1.1rem; margin-bottom: .25rem; font-weight: 700; color: var(--text2); }
 .card-body p        { font-size: .73rem; color: var(--dim); margin-bottom: .4rem; }
+.card-body p:not(.card-cost) { display: none; }
 .card-cost          { font-size: .7rem; color: var(--accent); margin-bottom: .65rem !important; }
 .btn-place.cant-afford { background: var(--surf2); color: var(--dim); cursor: not-allowed; box-shadow: none; }
 
@@ -2214,3 +2229,19 @@ button {
 .chest-choice-name     { font-size: 1rem; font-weight: 700; color: var(--text2); margin-bottom: 6px; }
 .chest-choice-level    { font-size: .82rem; color: var(--text2); margin-bottom: 5px; }
 .chest-choice-effect   { font-size: .88rem; color: var(--accent); font-weight: 600; }
+
+/* ── Place Button Description Tooltip ───────────────────── */
+#place-desc-tooltip {
+  position: fixed;
+  background: var(--surf2);
+  color: var(--text2);
+  border: 1px solid var(--border2);
+  border-radius: 5px;
+  padding: .4rem .7rem;
+  font-size: .73rem;
+  max-width: 300px;
+  z-index: 9999;
+  pointer-events: none;
+  box-shadow: 0 3px 10px rgba(0,0,0,.5);
+  line-height: 1.4;
+}
