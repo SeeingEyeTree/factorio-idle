@@ -31,7 +31,7 @@ const ELECTRIC_FURNACE_SPEED = 2.0;
 const ELECTRIC_FURNACE_KW  = 180;
 const SOLAR_PANEL_KW       = 60;
 const ACCUMULATOR_CAPACITY = 5000; // kJ per accumulator
-const PUMPJACK_SPEED       = 1.0;  // crude oil units/sec per pumpjack
+const PUMPJACK_SPEED       = 2.0;  // crude oil units/sec per pumpjack
 const PUMPJACK_KW          = 90;
 const OIL_REFINERY_SPEED   = 1.0;
 const OIL_REFINERY_KW      = 420;
@@ -310,18 +310,18 @@ const BUILDING_COSTS = {
   radar:         { radarItem: 1 },
   lab:           { labItem: 1 },
   electricMiner: { electricMinerItem: 1 },
-  steelFurnace:  { steelFurnaceItem: 1 },
-  assembly2:     { assemblyMachine2Item: 1 },
+  steelFurnace:  {},
+  assembly2:     {},
   solarPanel:    { solarPanelItem: 1 },
   accumulator:   { accumulatorItem: 1 },
   pumpjack:      { pumpjackItem: 1 },
   oilRefinery:   { oilRefineryItem: 1 },
   chemicalPlant: { chemicalPlantItem: 1 },
-  electricFurnace: { electricFurnaceItem: 1 },
-  assembly3:     { assemblyMachine3Item: 1 },
+  electricFurnace: {},
+  assembly3:     {},
   centrifuge:    { centrifugeItem: 1 },
   rocketSilo:    { rocketSiloItem: 1 },
-  nuclearReactor: { nuclearReactorItem: 4, offshorePumpItem: 4, pipe: 180, heatPipeItem: 68, heatExchangerItem: 48, steamTurbineItem: 84 },
+  nuclearReactor: { steel: 500, advancedCircuit: 200, concrete: 300, pipe: 200, processingUnit: 20, offshorePumpItem: 4 },
 };
 
 const COST_LABEL = Object.fromEntries(
@@ -373,6 +373,7 @@ function defaultMetaState() {
     weightedKills: 0,
     saveBlacklist: [],
     buildingUpgrades: {},
+    chestUpgrades: {},
     skillPerks: {},
     perks: {
       quickStart: false,
@@ -395,6 +396,7 @@ function _applyMetaParsed(parsed) {
     perks: { ...def.perks, ...(parsed.perks ?? {}) },
     gamerModule: { ...def.gamerModule, ...(parsed.gamerModule ?? {}) },
     buildingUpgrades: { ...(parsed.buildingUpgrades ?? {}) },
+    chestUpgrades:    { ...(parsed.chestUpgrades    ?? {}) },
     skillPerks: { ...(parsed.skillPerks ?? {}) },
     saveBlacklist: Array.isArray(parsed.saveBlacklist) ? parsed.saveBlacklist : [],
   };
@@ -653,7 +655,7 @@ const TUTORIAL_GOALS = [
     subGoals: [
       { text: 'Craft productivity modules', check: s => (s.itemsProduced?.productivityModule ?? 0) > 0 },
       { text: 'Craft rails',               check: s => (s.itemsProduced?.rail ?? 0) > 0 },
-      { text: 'Craft vacuum furnaces',   check: s => (s.itemsProduced?.electricFurnaceItem ?? 0) > 0 },
+      { text: 'Craft heat pipes',          check: s => (s.itemsProduced?.heatPipeItem ?? 0) > 0 },
     ],
     glowTab: 'research',
   },
@@ -792,7 +794,7 @@ function miningProdMult() {
 }
 
 function chestSpeedBonus(buildingType) {
-  const u = state?.chestUpgrades ?? {};
+  const u = metaState?.chestUpgrades ?? {};
   if (['miner','electricMiner'].includes(buildingType))          return (u.speed_miners      ?? 0) * 0.01;
   if (['furnace','steelFurnace','electricFurnace'].includes(buildingType)) return (u.speed_furnaces  ?? 0) * 0.01;
   if (['assembly','assembly2','assembly3'].includes(buildingType)) return (u.speed_assemblers ?? 0) * 0.01;
@@ -805,7 +807,7 @@ function chestSpeedBonus(buildingType) {
 }
 
 function chestProdBonus(buildingType) {
-  const u = state?.chestUpgrades ?? {};
+  const u = metaState?.chestUpgrades ?? {};
   if (['furnace','steelFurnace','electricFurnace'].includes(buildingType)) return (u.prod_furnaces    ?? 0) * 0.004;
   if (['assembly','assembly2','assembly3'].includes(buildingType)) return (u.prod_assemblers ?? 0) * 0.004;
   if (buildingType === 'oilRefinery')   return (u.prod_oilRefinery ?? 0) * 0.004;
@@ -984,8 +986,10 @@ function createState(settings) {
       artilleryDamageLevel: 0,
       infiniteAutoStart:    null,
     },
-    craftQueue:  [],
-    craftActive: null,
+    craftQueue:          [],
+    craftActive:         null,
+    craftReservations:   {},
+    pendingPlacements:   [],
     tutorial: { goalIndex: 0 },
     scriptMemory: {},
     starredItems: ['coal', 'ironOre', 'ironPlate'],
@@ -1004,9 +1008,6 @@ function createState(settings) {
     rateSnapshot: { time: 0, produced: {}, consumed: {} },
     saveCreatedAt: Date.now(),
     _deathHandled: false,
-    chests:        { common: 0, rare: 0, legendary: 0 },
-    chestUpgrades: {},
-    chestHighPriority: [],
   };
 
   // Apply Quick Start perks (new skill perk system)
@@ -1100,7 +1101,7 @@ function applyStateFromEnvelope(envelope) {
   if (state.biterThreatPoints == null || !isFinite(state.biterThreatPoints)) state.biterThreatPoints = 15/3000;
   // Migrate old saves: biterThreatPoints was in 0–500 scale, now 0–1.
   // Skip if rainbow is done — rainbow legitimately pushes points above 5.
-  if (state.biterThreatPoints > 5 && !state.research?.done?.rainbowScience) {
+  if (state.biterThreatPoints > 5 && !state.research?.done?.rainbowSciencePack) {
     state.biterThreatPoints = state.biterThreatPoints / 500;
   }
   if (state.biterWavesAfterRainbow == null) state.biterWavesAfterRainbow = 0;
@@ -1157,23 +1158,13 @@ function applyStateFromEnvelope(envelope) {
     }
     delete state.craftJobs;
   }
-  if (!state.craftQueue)  state.craftQueue  = [];
-  if (state.craftActive === undefined) state.craftActive = null;
+  if (!state.craftQueue)           state.craftQueue           = [];
+  if (state.craftActive === undefined) state.craftActive       = null;
+  if (!state.craftReservations)    state.craftReservations    = {};
+  if (!state.pendingPlacements)    state.pendingPlacements    = [];
   if (!state.scriptMemory) state.scriptMemory = {};
   if (!state.starredItems) state.starredItems = [];
   if (state.allPaused == null) state.allPaused = false;
-  if (!state.chests)        state.chests        = { common: 0, rare: 0, legendary: 0 };
-  if (!state.chestUpgrades) state.chestUpgrades = {};
-  if (!Array.isArray(state.chestHighPriority)) state.chestHighPriority = [];
-  if (state.settings?.autoOpenCommon == null) state.settings.autoOpenCommon = false;
-  if (state.settings?.autoOpenRare   == null) state.settings.autoOpenRare   = false;
-  if (!state.chestFinds) {
-    state.chestFinds = {
-      common:    Array(state.chests?.common    ?? 0).fill(0),
-      rare:      Array(state.chests?.rare      ?? 0).fill(0),
-      legendary: Array(state.chests?.legendary ?? 0).fill(0),
-    };
-  }
   if (state.settings?.artilleryPaused      == null) state.settings.artilleryPaused      = false;
   if (state.settings?.autoSendArtilleryKill == null) state.settings.autoSendArtilleryKill = false;
   if (state.settings?.autoSendInstant       == null) state.settings.autoSendInstant       = false;
@@ -1707,6 +1698,19 @@ function completeResearch(key) {
   state.research.current = null;
   state.research.totalConsumed = 0;
   getGS('lab').packAcc = 0;
+
+  // Auto-upgrade existing buildings in queue when a tech provides upgradeBuildings
+  const tech = TECHNOLOGIES[key];
+  if (tech?.upgradeBuildings) {
+    for (const [from, to] of Object.entries(tech.upgradeBuildings)) {
+      let count = 0;
+      for (const entry of state.buildQueue) {
+        if (entry.type === from) { entry.type = to; count++; }
+      }
+      if (count > 0) notify(`⬆️ Upgraded ${count} ${BUILDING_DEFS[from]?.name ?? from} → ${BUILDING_DEFS[to]?.name ?? to}`, 'info');
+    }
+  }
+
   notify(`✅ Researched: ${techDisplay(key).name}!`, 'info');
   flashResearchTab();
   updatePlaceButtonStates();
@@ -1863,20 +1867,6 @@ function addPatchFind(resource, amount, nodes) {
 
 function revealChunk() {
   state.chunksRevealed = (state.chunksRevealed ?? 0) + 1;
-
-  // Chest drops: guaranteed common on 10th chunk, random thereafter
-  if (!state.chestFinds) state.chestFinds = { common: [], rare: [], legendary: [] };
-  const _ci = state.chunksRevealed;
-  const _chestNotif = state.settings.chestNotifications !== false;
-  if (_ci === 10) {
-    state.chestFinds.common.push(_ci);
-    if (_chestNotif) notify('📦 Found a Common Chest! (guaranteed first chest)', 'info');
-  } else {
-    const chestRoll = Math.random();
-    if      (chestRoll < 1/1000) { state.chestFinds.legendary.push(_ci); if (_chestNotif) notify('🟡 Found a Legendary Chest!', 'success'); }
-    else if (chestRoll < 1/500)  { state.chestFinds.rare.push(_ci);      if (_chestNotif) notify('🟣 Found a Rare Chest!', 'info'); }
-    else if (chestRoll < (hasMetaPerk('perk_chest_drop_rate') ? 21/2000 : 1/100)) { state.chestFinds.common.push(_ci); if (_chestNotif) notify('📦 Found a Common Chest!', 'info'); }
-  }
 
   const mult = DENSITY_MULT[state.settings.density] ?? 1.0;
   // ~15% chance to find crude oil (harvestable only with Oil Gathering tech)
@@ -2741,11 +2731,33 @@ function tick() {
   }
   _p1('labs', _tLab);
 
-  // ── Hand Crafting (unified queue) ──
+  } // end if (!state.allPaused)
+
+  // ── Hand Crafting (unified queue) — runs regardless of allPaused ──
   if (!state.craftActive && state.craftQueue.length > 0) {
-    const { key } = state.craftQueue.shift();
-    const recipe = PLAYER_RECIPES[key];
-    if (recipe) state.craftActive = { key, progress: 0 };
+    const item = state.craftQueue[0];
+    const recipe = PLAYER_RECIPES[item.key];
+    if (!recipe) {
+      state.craftQueue.shift(); // unknown recipe — discard
+    } else if (item.deferred) {
+      // Auto-craft-to-place entries: deduct inputs at start time (not at queue
+      // time) so that earlier crafts in the chain can produce their outputs first.
+      if (canAfford(recipe.inputs)) {
+        state.craftQueue.shift();
+        for (const [k, v] of Object.entries(recipe.inputs)) {
+          recordConsumed(k, v);
+          // Release the reservation now that the material is actually consumed.
+          if (state.craftReservations?.[k] > 0) {
+            state.craftReservations[k] = Math.max(0, state.craftReservations[k] - v);
+          }
+        }
+        state.craftActive = { key: item.key, progress: 0 };
+      }
+      // else: prerequisites not yet produced; wait until next tick
+    } else {
+      state.craftQueue.shift();
+      state.craftActive = { key: item.key, progress: 0 };
+    }
   }
   if (state.craftActive) {
     const recipe = PLAYER_RECIPES[state.craftActive.key];
@@ -2755,13 +2767,12 @@ function tick() {
         for (const [item, amt] of Object.entries(recipe.outputs))
           recordProduced(item, amt);
         state.craftActive = null;
+        _tryProcessPendingPlacements();
       }
     } else {
       state.craftActive = null;
     }
   }
-
-  } // end if (!state.allPaused)
 
   // ── Mark seen items ──
   for (const [k, v] of Object.entries(state.inventory)) {
@@ -2927,38 +2938,8 @@ function tick() {
     }
   }
 
-  // Auto-open chests if setting is on
-  tickAutoOpenChests();
-
   _lastTickTime = Date.now();
   _p1('tick_total', _tTick);
-}
-
-// Opens all chests of a tier automatically (silently drains; notifications already fire per-chest)
-function tickAutoOpenChests() {
-  const s = state.settings;
-  if (!s) return;
-  const tiers = [];
-  if (s.autoOpenCommon && chestAvailCount('common') > 0) tiers.push('common');
-  if (s.autoOpenRare   && chestAvailCount('rare')   > 0) tiers.push('rare');
-  for (const tier of tiers) {
-    while (chestAvailCount(tier) > 0) {
-      const eligible = getEligibleRewards(tier);
-      if (eligible.length === 0) break;
-      const shuffled = eligible.slice().sort(() => Math.random() - 0.5);
-      const choices  = shuffled.slice(0, Math.min(3, shuffled.length));
-      const highPrio = state.chestHighPriority ?? [];
-      const hiMatches = choices.filter(r => highPrio.includes(r.id));
-      const pick = hiMatches.length > 0
-        ? hiMatches[Math.floor(Math.random() * hiMatches.length)]
-        : choices[0];
-      const tierLabel = tier === 'rare' ? '🟣 Rare' : '📦 Common';
-      notify(`${tierLabel} chest auto-opened: ${pick.name} (Level ${(state.chestUpgrades?.[pick.id] ?? 0) + 1})`, 'info');
-      popAvailChest(tier);
-      state.chestUpgrades[pick.id] = (state.chestUpgrades[pick.id] ?? 0) + 1;
-      _chestSectionHtml = '';
-    }
-  }
 }
 
 // ── Render Loop (decoupled from simulation tick) ──────────────
@@ -3002,7 +2983,21 @@ function maxDrillsForResource(/*resource*/) {
   return Infinity;
 }
 
+function resolveEffectiveBuildingType(type) {
+  const done = state.research?.done ?? {};
+  if (type === 'assembly') {
+    if (done.automation3) return 'assembly3';
+    if (done.automation2) return 'assembly2';
+  }
+  if (type === 'furnace') {
+    if (done.electricFurnaceTech) return 'electricFurnace';
+    if (done.advancedMaterialProcessing) return 'steelFurnace';
+  }
+  return type;
+}
+
 function placeBuilding(type, triggerEl, ev) {
+  type = resolveEffectiveBuildingType(type);
   if (!isUnlocked('building', type)) { notify(`Research required to place this building.`, 'warning'); return; }
 
   const countEl = triggerEl?.closest('.place-row')?.querySelector('.place-count');
@@ -3018,18 +3013,10 @@ function placeBuilding(type, triggerEl, ev) {
   else if (type === 'pumpjack')      resource = 'crudeOil';
   else if (BUILDING_DEFS[type]?.hasRecipe) recipe = pr[type] ?? '';
 
+  // Direct placements (items already in inventory)
   let actualCount = 0;
   for (let i = 0; i < count; i++) {
-    if (!canAfford(costs)) {
-      if (i === 0) {
-        const missing = Object.entries(costs)
-          .filter(([k, n]) => (state.inventory[k] ?? 0) < n)
-          .map(([k, n]) => `${itemDisplay(k).name}: need ${fmtNum(n)}, have ${fmtNum(Math.floor(state.inventory[k] ?? 0))}`)
-          .join(' · ');
-        notify(missing ? `Missing: ${missing}` : `Need ${COST_LABEL[type]} — craft it first`, 'warning');
-      }
-      break;
-    }
+    if (!canAfford(costs)) break;
     spend(costs);
     actualCount++;
   }
@@ -3046,6 +3033,47 @@ function placeBuilding(type, triggerEl, ev) {
       const btn = triggerEl.closest('.btn-place') ?? triggerEl;
       btn.classList.add('btn-active-flash');
       setTimeout(() => btn.classList.remove('btn-active-flash'), 250);
+    }
+  }
+
+  // Auto-craft fallback for remaining buildings
+  const leftover = count - actualCount;
+  if (leftover > 0 && Object.keys(costs).length > 0) {
+    const result = computeAutoCraftsForPlace(costs, leftover);
+    if (result) {
+      if (result.craftTime >= 60) {
+        notify(`⚠️ Auto-crafting ${result.feasibleCount} ${BUILDING_DEFS[type]?.name ?? type} will take ~${Math.ceil(result.craftTime)}s`, 'warning');
+      }
+      // Reserve raw materials so a subsequent placeBuilding call doesn't re-plan the same materials.
+      // Reservations are released as each deferred craft actually starts and calls recordConsumed.
+      state.craftReservations = state.craftReservations ?? {};
+      for (const k of Object.keys(result.startInv)) {
+        const consumed = (result.startInv[k] ?? 0) - (result.finalInv[k] ?? 0);
+        if (consumed > 0) {
+          state.craftReservations[k] = (state.craftReservations[k] ?? 0) + consumed;
+        }
+      }
+      // Queue all needed crafts; inputs are deducted at craft-start time (deferred)
+      // so that intermediate items produced by earlier steps are available when needed.
+      for (const c of result.crafts) {
+        if (!PLAYER_RECIPES[c.key]) continue;
+        for (let i = 0; i < c.count; i++) {
+          state.craftQueue.push({ key: c.key, deferred: true });
+        }
+      }
+      // Register pending placements (processed after crafts complete)
+      for (let i = 0; i < result.feasibleCount; i++) {
+        state.pendingPlacements.push({ type, resource, recipe, frontOfQueue });
+      }
+      if (actualCount === 0 && result.craftTime < 60) {
+        notify(`⚙️ Crafting ${result.feasibleCount} ${BUILDING_DEFS[type]?.name ?? type}…`, 'info');
+      }
+    } else if (actualCount === 0) {
+      const missing = Object.entries(costs)
+        .filter(([k, n]) => (state.inventory[k] ?? 0) < n)
+        .map(([k, n]) => `${itemDisplay(k).name}: need ${fmtNum(n)}, have ${fmtNum(Math.floor(state.inventory[k] ?? 0))}`)
+        .join(' · ');
+      notify(missing ? `Missing: ${missing}` : `Need ${COST_LABEL[type]} — craft it first`, 'warning');
     }
   }
 }
@@ -3165,6 +3193,96 @@ function manualMine(resource) {
 }
 
 // ── Crafting Actions ──────────────────────────────────────────
+
+// Recursive helper: computes hand-craft plan to obtain `qty` of `itemKey`.
+// `inv` is a virtual inventory (cloned at each level — not mutated by caller).
+// Returns { plan: [{key, count}], inv } with ordered craft steps, or null if impossible.
+function _craftPlan(itemKey, qty, inv, depth) {
+  if (depth > 8) return null;
+  inv = { ...inv };
+  const have = inv[itemKey] ?? 0;
+  if (have >= qty) {
+    inv[itemKey] = have - qty;
+    return { plan: [], inv };
+  }
+  const recipe = PLAYER_RECIPES[itemKey];
+  if (!recipe) return null;
+  const need    = qty - have;
+  inv[itemKey]  = 0;
+  const outAmt  = Object.values(recipe.outputs)[0] ?? 1;
+  const batches = Math.ceil(need / outAmt);
+  const plan    = [];
+  let curInv    = inv;
+  for (const [ingKey, ingAmt] of Object.entries(recipe.inputs)) {
+    const r = _craftPlan(ingKey, ingAmt * batches, curInv, depth + 1);
+    if (r === null) return null;
+    plan.push(...r.plan);
+    curInv = r.inv;
+  }
+  curInv = { ...curInv };
+  curInv[itemKey] = (curInv[itemKey] ?? 0) + (outAmt * batches - need);
+  plan.push({ key: itemKey, count: batches });
+  return { plan, inv: curInv };
+}
+
+// Returns {crafts:[{key,count}], feasibleCount, craftTime, startInv, finalInv} or null.
+// Starts from inventory minus already-reserved materials so concurrent placeBuilding
+// calls cannot double-queue crafts for the same raw materials.
+function computeAutoCraftsForPlace(costs, count) {
+  const reservations = state.craftReservations ?? {};
+  // Effective available inventory = actual inventory minus what is reserved for pending crafts.
+  let inv = {};
+  for (const k of Object.keys(state.inventory)) {
+    const avail = (state.inventory[k] ?? 0) - (reservations[k] ?? 0);
+    if (avail > 0) inv[k] = avail;
+  }
+  const startInv = { ...inv };
+
+  const allCrafts = [];
+  let feasible = 0;
+  for (let i = 0; i < count; i++) {
+    let ok = true;
+    const batchPlans = [];
+    let workInv = { ...inv };
+    for (const [costItem, costAmt] of Object.entries(costs)) {
+      const have = workInv[costItem] ?? 0;
+      if (have >= costAmt) { workInv[costItem] = have - costAmt; continue; }
+      const deficit = costAmt - have;
+      workInv[costItem] = 0;
+      const result = _craftPlan(costItem, deficit, workInv, 0);
+      if (result === null) { ok = false; break; }
+      batchPlans.push(...result.plan);
+      workInv = result.inv;
+    }
+    if (!ok) break;
+    allCrafts.push(...batchPlans);
+    inv = workInv;
+    feasible++;
+  }
+  if (feasible === 0) return null;
+  const craftTime = allCrafts.reduce((s, c) => s + (PLAYER_RECIPES[c.key]?.time ?? 0) * c.count, 0);
+  return { crafts: allCrafts, feasibleCount: feasible, craftTime, startInv, finalInv: inv };
+}
+
+// Called after each hand-craft completes — process any pending auto-craft placements.
+function _tryProcessPendingPlacements() {
+  if (!state.pendingPlacements?.length) return;
+  const pr = state.placementRecipes ?? defaultPlacementRecipes();
+  let placed = false;
+  state.pendingPlacements = state.pendingPlacements.filter(p => {
+    const costs = BUILDING_COSTS[p.type];
+    if (!canAfford(costs)) return true; // keep waiting
+    spend(costs);
+    const entry = { type: p.type, count: 1 };
+    if (p.resource != null) entry.resource = p.resource;
+    else if (p.recipe != null) entry.recipe = p.recipe;
+    if (p.frontOfQueue) _placeEnqueueFront(entry);
+    else placeQueue.push(entry);
+    placed = true;
+    return false;
+  });
+  if (placed) { updatePlacementUI(); if (!placing) processNextPlacement(); }
+}
 
 function queueCraft(key, shiftHeld) {
   const n = shiftHeld ? 5 : 1;
@@ -3373,7 +3491,7 @@ function updateTabVisibility() {
       panel.classList.add('hidden');
       document.getElementById('tab-mining')?.classList.remove('hidden');
       btn.classList.remove('active');
-      document.querySelector('.tab-btn[onclick*="mining"]')?.classList.add('active');
+      document.querySelector('.side-nav-btn[onclick*="mining"]')?.classList.add('active');
     }
   };
 
@@ -3394,7 +3512,7 @@ function updateTabVisibility() {
   showTab('graph',    graphVisible);
 
   // Apply glow to the tab button the current goal wants to highlight (only before Military Science Pack goal)
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('tutorial-glow'));
+  document.querySelectorAll('.side-nav-btn').forEach(b => b.classList.remove('tutorial-glow'));
   if (tut && _tutGlowOn && goal?.glowTab && idx < 13) {
     document.querySelector(`[data-tab="${goal.glowTab}"]`)?.classList.add('tutorial-glow');
   }
@@ -3463,7 +3581,7 @@ function renderUI() {
   const active = document.querySelector('.tab-panel:not(.hidden)');
   if (!active) return;
   if (active.id === 'tab-inventory') { const _t = _p0(); renderInventory(); _p1('render_inventory', _t); }
-  if (active.id === 'tab-mining')    { const _t = _p0(); renderMining(); renderChestSection(); _p1('render_mining',    _t); }
+  if (active.id === 'tab-mining')    { const _t = _p0(); renderMining(); _p1('render_mining',    _t); }
   if (active.id === 'tab-crafting')  { const _t = _p0(); renderCrafting();  _p1('render_crafting',  _t); }
   if (active.id === 'tab-buildings') { const _t = _p0(); renderBuildings(); _p1('render_buildings',  _t); }
   if (active.id === 'tab-research')  { const _t = _p0(); renderResearch();  _p1('render_research',   _t); }
@@ -3520,7 +3638,6 @@ function renderPower() {
   const accCharge = state.accumulatorCharge ?? 0;
   const accPct    = accMax > 0 ? (accCharge / accMax * 100).toFixed(1) : '0';
   const accLine   = accCount > 0 ? `
-    <div class="fluid-sep">·</div>
     <div class="fluid-cell">
       <span class="fluid-icon">🔋</span>
       <div class="fluid-track"><div class="fluid-fill acc-fill" style="width:${accPct}%"></div></div>
@@ -3533,18 +3650,15 @@ function renderPower() {
       <div class="fluid-track"><div class="fluid-fill water-fill" style="width:${waterPct}%"></div></div>
       <span class="fluid-val">${Math.floor(state.water).toLocaleString()} / ${(effectiveWaterMax() / 1000).toFixed(0)}k</span>
     </div>
-    <div class="fluid-sep">·</div>
     <div class="fluid-cell">
       <span class="fluid-icon">♨️</span>
       <div class="fluid-track"><div class="fluid-fill steam-fill" style="width:${steamPct}%"></div></div>
       <span class="fluid-val">${Math.floor(state.steam).toLocaleString()} / ${(effectiveSteamMax() / 1000).toFixed(0)}k</span>
     </div>
-    <div class="fluid-sep">·</div>
     <div class="fluid-cell power-cell">
       <span class="fluid-icon">⚡</span>
       <span class="fluid-val ${pClass}">${pwText}</span>
     </div>${accLine}
-    <div class="fluid-sep">·</div>
     <div class="fluid-cell">
       <span class="fluid-icon">🏆</span>
       <span class="fluid-val">${(state?.pendingPoints ?? 0).toFixed(2)} pts</span>
@@ -3553,234 +3667,9 @@ function renderPower() {
 
 // ── Chest System ──────────────────────────────────────────────
 
-let _chestChoices          = [];
-let _chestTierOpen         = null;
-let _chestSectionHtml      = '';
-let _chestSectionWired     = false;
-let _chestModalWired       = false;
-
 let _waveSimCache    = null;  // cached result of simulateNextWaveOutcome()
 let _waveSimAge      = 999;   // seconds since last sim; force immediate run on first tick
 
-function _maxChestChunk() {
-  if (!state.settings?.biters) return Infinity;
-  return Math.pow(state.perimeter?.sideLength ?? 14, 2);
-}
-function chestAvailCount(tier) {
-  const max = _maxChestChunk();
-  return (state.chestFinds?.[tier] ?? []).filter(ci => ci < max).length;
-}
-function chestLockedCount(tier) {
-  const max = _maxChestChunk();
-  return (state.chestFinds?.[tier] ?? []).filter(ci => ci >= max).length;
-}
-function chestNextUnlockSideLen(tier) {
-  const max = _maxChestChunk();
-  const locked = (state.chestFinds?.[tier] ?? []).filter(ci => ci >= max);
-  if (!locked.length) return null;
-  return Math.floor(Math.sqrt(Math.min(...locked))) + 1;
-}
-function popAvailChest(tier) {
-  const max = _maxChestChunk();
-  const finds = state.chestFinds?.[tier];
-  if (!finds) return false;
-  const idx = finds.findIndex(ci => ci < max);
-  if (idx === -1) return false;
-  finds.splice(idx, 1);
-  return true;
-}
-
-function getEligibleRewards(tier) {
-  const pool = CHEST_REWARDS[tier] ?? [];
-  const upgrades = state.chestUpgrades ?? {};
-  return pool.filter(r => r.eligible(state) && (upgrades[r.id] ?? 0) < r.maxLevel);
-}
-
-function openChest(tier, autoMode = false) {
-  if (chestAvailCount(tier) <= 0) return;
-
-  if (tier === 'legendary') {
-    popAvailChest('legendary');
-    notify("No legendary rewards in the demo :(", 'info');
-    _chestSectionHtml = '';
-    renderChestSection();
-    return;
-  }
-
-  const eligible = getEligibleRewards(tier);
-  if (eligible.length === 0) {
-    notify('All upgrades at max level!', 'info');
-    return;
-  }
-
-  const shuffled = eligible.slice().sort(() => Math.random() - 0.5);
-  _chestChoices  = shuffled.slice(0, Math.min(3, shuffled.length));
-  _chestTierOpen = tier;
-
-  if (autoMode) {
-    const highPrio  = state.chestHighPriority ?? [];
-    const hiMatches = _chestChoices.filter(r => highPrio.includes(r.id));
-    const pick      = hiMatches.length > 0
-      ? hiMatches[Math.floor(Math.random() * hiMatches.length)]
-      : _chestChoices[0];
-    const tierLabel = tier === 'rare' ? '🟣 Rare' : '📦 Common';
-    notify(`${tierLabel} chest auto-opened: ${pick.name} (Level ${(state.chestUpgrades?.[pick.id] ?? 0) + 1})`, 'info');
-    pickChestReward(_chestChoices.indexOf(pick));
-    return;
-  }
-
-  const modal = document.getElementById('chest-open-modal');
-  if (!modal) return;
-  modal.querySelector('.chest-modal-tier').textContent =
-    tier === 'common' ? '📦 Common Chest' : '🟣 Rare Chest';
-
-  const highPrio = state.chestHighPriority ?? [];
-  modal.querySelector('.chest-modal-choices').innerHTML = _chestChoices.map((r, i) => {
-    const cur    = state.chestUpgrades?.[r.id] ?? 0;
-    const isPrio = highPrio.includes(r.id);
-    return `<button class="chest-choice-card" data-action="pick-reward" data-idx="${i}">
-      <div class="chest-choice-name">${r.name}${isPrio ? ' ⭐' : ''}</div>
-      <div class="chest-choice-level">Level ${cur} → ${cur + 1} / ${r.maxLevel}</div>
-      <div class="chest-choice-effect">${r.desc(cur + 1)}</div>
-    </button>`;
-  }).join('');
-  modal.classList.remove('hidden');
-
-  if (!_chestModalWired) {
-    _chestModalWired = true;
-    modal.addEventListener('click', e => {
-      const btn = e.target.closest('[data-action="pick-reward"]');
-      if (!btn) return;
-      pickChestReward(Number(btn.dataset.idx));
-    });
-  }
-}
-
-function pickChestReward(idx) {
-  const reward = _chestChoices[idx];
-  if (!reward) return;
-  popAvailChest(_chestTierOpen);
-  state.chestUpgrades[reward.id] = (state.chestUpgrades[reward.id] ?? 0) + 1;
-  _chestChoices  = [];
-  _chestTierOpen = null;
-  document.getElementById('chest-open-modal')?.classList.add('hidden');
-  _chestSectionHtml = '';
-  renderChestSection();
-}
-
-
-function renderChestSection() {
-  if (mouseHeld) return;
-  const el = document.getElementById('chest-section');
-  if (!el) return;
-
-  const upgrades = state.chestUpgrades ?? {};
-  const highPrio = state.chestHighPriority ?? [];
-
-  const cAvail = chestAvailCount('common');
-  const rAvail = chestAvailCount('rare');
-  const lAvail = chestAvailCount('legendary');
-  const cLocked = chestLockedCount('common');
-  const rLocked = chestLockedCount('rare');
-  const lLocked = chestLockedCount('legendary');
-  const totalChests   = cAvail + rAvail + lAvail + cLocked + rLocked + lLocked;
-  const totalUpgrades = Object.values(upgrades).reduce((s, v) => s + v, 0);
-  if (totalChests === 0 && totalUpgrades === 0) {
-    if (_chestSectionHtml !== '') { _chestSectionHtml = ''; el.innerHTML = ''; }
-    return;
-  }
-
-  const autoCommon = state.settings?.autoOpenCommon ?? false;
-  const autoRare   = state.settings?.autoOpenRare   ?? false;
-  const mkLockedNote = (tier, locked) => {
-    if (locked <= 0) return '';
-    const need = chestNextUnlockSideLen(tier);
-    return `<div class="chest-locked-note">${locked} locked — next unlocks at side length ${need}</div>`;
-  };
-  const chestControls = `
-    <div class="chest-controls">
-      <div class="chest-tier-row">
-        <span class="chest-tier-label">📦 Common</span>
-        <span class="chest-count">${cAvail}</span>
-        <button class="btn-sm" data-action="open-chest" data-tier="common" ${cAvail <= 0 ? 'disabled' : ''}>Open</button>
-        <button class="btn-sm${autoCommon ? ' btn-primary' : ''}" data-action="toggle-auto" data-tier="common">Auto: ${autoCommon ? 'ON' : 'OFF'}</button>
-      </div>
-      ${mkLockedNote('common', cLocked)}
-      <div class="chest-tier-row">
-        <span class="chest-tier-label">🟣 Rare</span>
-        <span class="chest-count">${rAvail}</span>
-        <button class="btn-sm" data-action="open-chest" data-tier="rare" ${rAvail <= 0 ? 'disabled' : ''}>Open</button>
-        <button class="btn-sm${autoRare ? ' btn-primary' : ''}" data-action="toggle-auto" data-tier="rare">Auto: ${autoRare ? 'ON' : 'OFF'}</button>
-      </div>
-      ${mkLockedNote('rare', rLocked)}
-      <div class="chest-tier-row">
-        <span class="chest-tier-label">🟡 Legendary</span>
-        <span class="chest-count">${lAvail}</span>
-        <button class="btn-sm" data-action="open-chest" data-tier="legendary" ${lAvail <= 0 ? 'disabled' : ''}>Open</button>
-      </div>
-      ${mkLockedNote('legendary', lLocked)}
-    </div>`;
-
-  const mkRewardTierHtml = (tierRewards, tierClass) => {
-    const visible = tierRewards.filter(r => (upgrades[r.id] ?? 0) > 0 || r.eligible(state));
-    if (visible.length === 0) return '';
-    return visible.map(r => {
-      const lvl    = upgrades[r.id] ?? 0;
-      const maxed  = lvl >= r.maxLevel;
-      const isPrio = highPrio.includes(r.id);
-      return `<div class="chest-reward-card ${tierClass}${maxed ? ' maxed' : ''}">
-        <div class="chest-reward-name">${r.name}</div>
-        <div class="chest-reward-level">${lvl} / ${r.maxLevel}</div>
-        <div class="chest-reward-effect">${lvl > 0 ? r.desc(lvl) : '—'}</div>
-        ${!maxed ? `<button class="btn-sm${isPrio ? ' btn-primary' : ''}" data-action="toggle-priority" data-id="${r.id}">${isPrio ? '⭐ High Priority' : '☆ Set Priority'}</button>` : ''}
-      </div>`;
-    }).join('');
-  };
-  const commonCards = mkRewardTierHtml(CHEST_REWARDS.common, '');
-  const rareCards   = mkRewardTierHtml(CHEST_REWARDS.rare,   'rare-tier');
-  const rewardCards = (commonCards || rareCards) ? `
-    <div class="chest-rewards-header">Upgrades</div>
-    ${commonCards ? `<div class="chest-rewards-tier-label">📦 Common</div><div class="chest-rewards-grid">${commonCards}</div>` : ''}
-    ${rareCards   ? `<div class="chest-rewards-tier-label rare">🟣 Rare</div><div class="chest-rewards-grid">${rareCards}</div>` : ''}
-  ` : '';
-
-  const newHtml = `
-    <h3 class="section-label">🎁 Chests</h3>
-    ${chestControls}
-    ${rewardCards}
-  `;
-
-  if (newHtml !== _chestSectionHtml) {
-    _chestSectionHtml = newHtml;
-    el.innerHTML = newHtml;
-  }
-
-  if (!_chestSectionWired) {
-    _chestSectionWired = true;
-    el.addEventListener('click', e => {
-      const btn = e.target.closest('[data-action]');
-      if (!btn || btn.disabled) return;
-      const action = btn.dataset.action;
-      if (action === 'open-chest') {
-        openChest(btn.dataset.tier, !!btn.dataset.auto);
-      } else if (action === 'toggle-auto') {
-        const tier = btn.dataset.tier;
-        if (tier === 'common') state.settings.autoOpenCommon = !state.settings.autoOpenCommon;
-        if (tier === 'rare')   state.settings.autoOpenRare   = !state.settings.autoOpenRare;
-        _chestSectionHtml = '';
-        renderChestSection();
-      } else if (action === 'toggle-priority') {
-        const id  = btn.dataset.id;
-        const arr = state.chestHighPriority ?? [];
-        const idx = arr.indexOf(id);
-        if (idx >= 0) arr.splice(idx, 1); else arr.push(id);
-        state.chestHighPriority = arr;
-        _chestSectionHtml = '';
-        renderChestSection();
-      }
-    });
-  }
-}
 
 function renderMining() {
   if (mouseHeld) return;
@@ -3862,10 +3751,10 @@ function renderCrafting() {
         const total    = queued + (isActive ? 1 : 0);
         const progress = isActive ? state.craftActive.progress : 0;
         const canStart = canAfford(recipe.inputs);
-        const inputStr = Object.entries(recipe.inputs).map(([k, v]) => `${v}×${itemDisplay(k).name}`).join(' + ');
         const outKey   = Object.keys(recipe.outputs)[0];
         const outIcon  = itemIcon(outKey);
-        const outStr   = Object.entries(recipe.outputs).map(([k, v]) => `→ ${v}×${itemDisplay(k).name}`).join(' ');
+        const outAmt   = recipe.outputs[outKey] ?? 1;
+        const outLabel = outAmt > 1 ? `×${outAmt} ` : '';
 
         const statusLine = isActive
           ? `<div class="craft-queue-count">Crafting… <span class="craft-q-num">${queued} queued</span></div>`
@@ -3881,8 +3770,7 @@ function renderCrafting() {
           TUTORIAL_GOALS[state.tutorial?.goalIndex]?.glowCraft?.includes(key))
           ? ' tutorial-glow' : '';
         return `<div class="craft-card ${isActive ? 'craft-active' : ''}${tutGlowClass}">
-          <div class="craft-header"><span class="craft-icon">${outIcon}</span><span class="craft-name">${itemDisplay(outKey).name}</span></div>
-          <div class="craft-recipe-line">${inputStr} ${outStr} · ${recipe.time}s</div>
+          <div class="craft-header"><span class="craft-icon">${outIcon}</span><span class="craft-name">${outLabel}${itemDisplay(outKey).name}</span><span class="craft-time-label">${recipe.time}s</span></div>
           ${statusLine}
           <div class="mini-bar craft-bar"><div class="mini-fill ${isActive ? 'fill-active' : ''}" style="width:${(progress * 100).toFixed(1)}%"></div></div>
           <div class="craft-actions">
@@ -4110,7 +3998,7 @@ function _showWaveWarningPopup() {
   if (!popup) return;
   const interval = biterInterval();
   const secs = Math.ceil(interval - state.biterTimer);
-  const waveNum = (state.biterWaveCount ?? 0) + 1;
+  const waveNum = (state.biterWaveNumber ?? 0) + 1;
   const tier = getBiterEnemyTier();
   const tierName = tier?.name ?? 'Biters';
 
@@ -5302,7 +5190,7 @@ function perimeterMaxWalls() {
 }
 
 function perimeterMaxTurrets() {
-  return perimeterTiles() * (TURRETS_PER_TILE + (state?.chestUpgrades?.turretsPerTile ?? 0));
+  return perimeterTiles() * (TURRETS_PER_TILE + (metaState?.chestUpgrades?.turretsPerTile ?? 0));
 }
 
 function perimeterMaxArtillery() {
@@ -5375,8 +5263,8 @@ function calcDefenseDPS(waveArmor, laserRatio = 1) {
   const gMult = gunDamageMult(state.research?.gunDamageLevel ?? 0);
   const lMult = laserDamageMult(state.research?.laserDamageLevel ?? 0);
 
-  const fireRateMult = 1 + (state.chestUpgrades?.turretFireRate ?? 0) * 0.01;
-  const dmgMult      = 1 + (state.chestUpgrades?.turretDamage   ?? 0) * 0.01;
+  const fireRateMult = 1 + (metaState.chestUpgrades?.turretFireRate ?? 0) * 0.01;
+  const dmgMult      = 1 + (metaState.chestUpgrades?.turretDamage   ?? 0) * 0.01;
 
   const stats = GUN_TURRET_STATS[ammoType] ?? GUN_TURRET_STATS.firearmMagazine;
   const effectiveDmg    = Math.max(0, stats.dmgPerShot * gMult * dmgMult - waveArmor * stats.armorMult);
@@ -5560,7 +5448,7 @@ function tickActiveWave(dt) {
   w.waveTimer += dt;
 
   const p            = state.perimeter;
-  const fireRateMult = 1 + (state.chestUpgrades?.turretFireRate ?? 0) * 0.01;
+  const fireRateMult = 1 + (metaState.chestUpgrades?.turretFireRate ?? 0) * 0.01;
   const { totalDPS, stats } = calcDefenseDPS(w.armor, state.powerRatio ?? 1);
 
   // Biter DPS scales with remaining HP fraction
@@ -5894,8 +5782,8 @@ function renderPerimeter() {
   // Ammo/power estimates for wave prediction using simulated kill time
   const actualKillTimeSec     = totalDPS > 0 ? nextBiterHP / totalDPS : null;
   const simKillTimeSec        = sim?.killTime != null ? parseFloat(sim.killTime) : actualKillTimeSec;
-  const fireRateMult          = 1 + (state.chestUpgrades?.turretFireRate ?? 0) * 0.01;
-  const dmgMult               = 1 + (state.chestUpgrades?.turretDamage   ?? 0) * 0.01;
+  const fireRateMult          = 1 + (metaState.chestUpgrades?.turretFireRate ?? 0) * 0.01;
+  const dmgMult               = 1 + (metaState.chestUpgrades?.turretDamage   ?? 0) * 0.01;
   const previewAmmoEst        = actualKillTimeSec != null ? Math.ceil(p.gunTurrets * (gunStats?.shotsPerSec ?? 5) * fireRateMult * actualKillTimeSec / MAGAZINE_SIZE) : null;
   const laserTotalKj       = p.laserTurrets > 0 && simKillTimeSec != null
     ? p.laserTurrets * LASER_KW_PER_TURRET * simKillTimeSec
@@ -6260,6 +6148,7 @@ function showBiterPopup(tierData) {
 
 function renderBiterIndicator() {
   const el = document.getElementById('biter-indicator');
+  if (!el) return;
   if (!state.settings.biters) { el.classList.add('hidden'); return; }
   el.classList.remove('hidden');
   if (!state.biterActivated) {
@@ -6268,7 +6157,9 @@ function renderBiterIndicator() {
   } else {
     const secs     = Math.ceil(biterInterval() - (state.biterTimer ?? 0));
     const tierName = getBiterEnemyTier()?.name ?? 'Enemies';
-    el.textContent = `⚠ ${tierName}: ${secs}s`;
+    const sim      = _waveSimCache;
+    const outcome  = !sim ? '' : sim.survived ? ' · ✅ Hold' : ` · ❌ ${sim.buildingsAtRisk} at risk`;
+    el.textContent = `⚠ ${tierName}: ${secs}s${outcome}`;
     el.classList.toggle('biter-warning', secs <= 30);
   }
 }
@@ -6649,8 +6540,17 @@ function toggleBitersField(enabled) {
 
 function updatePlaceButtonStates() {
   document.querySelectorAll('.btn-place[data-type]').forEach(btn => {
-    const type = btn.dataset.type;
-    btn.classList.toggle('cant-afford', !canAfford(BUILDING_COSTS[type] ?? {}));
+    const type  = btn.dataset.type;
+    const costs = BUILDING_COSTS[type] ?? {};
+    if (canAfford(costs)) {
+      btn.classList.remove('cant-afford', 'can-craft');
+    } else if (computeAutoCraftsForPlace(costs, 1) !== null) {
+      btn.classList.remove('cant-afford');
+      btn.classList.add('can-craft');
+    } else {
+      btn.classList.remove('can-craft');
+      btn.classList.add('cant-afford');
+    }
   });
   // Hide/show locked building cards
   document.querySelectorAll('.buildable-card[data-requires-tech]').forEach(card => {
@@ -6660,11 +6560,6 @@ function updatePlaceButtonStates() {
   // Show Electric tab on drill combo card when research done
   const elecTab = document.getElementById('drill-tab-electric');
   if (elecTab) elecTab.style.display = state.research?.done?.electricMiningDrill ? '' : 'none';
-  // Show Mk2/Mk3 tabs on assembler combo card when research done
-  const mk2Tab = document.getElementById('asm-tab-assembly2');
-  const mk3Tab = document.getElementById('asm-tab-assembly3');
-  if (mk2Tab) mk2Tab.style.display = state.research?.done?.automation2 ? '' : 'none';
-  if (mk3Tab) mk3Tab.style.display = state.research?.done?.automation3 ? '' : 'none';
   // Hide entire sections where every card is locked
   document.querySelectorAll('.build-section').forEach(section => {
     const body = section.querySelector('.build-section-body');
@@ -6679,7 +6574,6 @@ function updatePlaceButtonStates() {
 
 const _collapsedSections = {};
 let _drillTab    = 'miner';
-let _assemblyTab = 'assembly';
 
 function toggleBuildSection(id) {
   _collapsedSections[id] = !_collapsedSections[id];
@@ -6693,12 +6587,6 @@ function setDrillTab(type) {
   _drillTab = type;
   renderDrillCard();
   document.querySelectorAll('.drill-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.type === type));
-}
-
-function setAssemblyTab(type) {
-  _assemblyTab = type;
-  renderAssemblyCard();
-  document.querySelectorAll('.asm-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.type === type));
 }
 
 function renderDrillCard() {
@@ -6731,28 +6619,23 @@ function renderDrillCard() {
 function renderAssemblyCard() {
   const el = document.getElementById('asm-card-content');
   if (!el) return;
-  // Fall back to highest unlocked type if current tab not researched
-  const done = state.research?.done ?? {};
-  if (_assemblyTab === 'assembly3' && !done.automation3) _assemblyTab = done.automation2 ? 'assembly2' : 'assembly';
-  if (_assemblyTab === 'assembly2' && !done.automation2) _assemblyTab = 'assembly';
-  const type = _assemblyTab;
-  // Update h4 and card icon to reflect current tab
-  const asmCard = document.getElementById('asm-card-content')?.closest('.buildable-card');
+  const type = resolveEffectiveBuildingType('assembly');
+  const asmCard = el.closest('.buildable-card');
   const asmH4   = asmCard?.querySelector('h4');
   if (asmH4) asmH4.textContent = buildingDisplay(type).name;
   const asmIcon = asmCard?.querySelector('.card-icon');
   if (asmIcon) { const k = getBuildingItemKey(type); if (k) asmIcon.innerHTML = itemIcon(k); }
   const statsMap = {
-    assembly:  `<p>Auto-crafts intermediate and building items · 75 kW · speed ×0.5</p><p class="card-cost">Cost: 1 × ${itemDisplay('assemblyMachine1Item').name}</p>`,
-    assembly2: `<p>Auto-crafts items · 150 kW · speed ×0.75</p><p class="card-cost">Cost: 1 × ${itemDisplay('assemblyMachine2Item').name}</p>`,
-    assembly3: `<p>Auto-crafts items · 375 kW · speed ×1.25</p><p class="card-cost">Cost: 1 × ${itemDisplay('assemblyMachine3Item').name}</p>`,
+    assembly:  `<p>Auto-crafts items · 75 kW · speed ×0.5</p><p class="card-cost">Cost: 1 × ${itemDisplay('assemblyMachine1Item').name}</p>`,
+    assembly2: `<p>Auto-crafts items · 150 kW · speed ×0.75 (upgraded)</p><p class="card-cost">Free — upgrade applied by research</p>`,
+    assembly3: `<p>Auto-crafts items · 375 kW · speed ×1.25 (upgraded)</p><p class="card-cost">Free — upgrade applied by research</p>`,
   };
-  el.innerHTML = `${statsMap[type]}
+  el.innerHTML = `${statsMap[type] ?? statsMap.assembly}
     <input class="picker-search" type="text" placeholder="Search recipes…" oninput="onPickerSearch('${type}', this.value)">
     <div class="recipe-picker-host" data-ptype="${type}"></div>
     <div class="place-row">
       <input type="text" class="place-count" value="1">
-      <button class="btn-place" data-type="${type}" onclick="placeBuilding('${type}',this,event)">Place</button>
+      <button class="btn-place" data-type="assembly" onclick="placeBuilding('assembly',this,event)">Place</button>
     </div>`;
   renderAllPlacementPickers();
   updatePlaceButtonStates();
@@ -6849,7 +6732,7 @@ function showGame() {
 
 function switchTab(tab, el) {
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.side-nav-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-' + tab).classList.remove('hidden');
   el.classList.add('active');
   if (tab === 'research') document.getElementById('tab-btn-research')?.classList.remove('tab-alert');
@@ -7030,11 +6913,11 @@ const META_TYPE_NAMES = Object.fromEntries(
 );
 
 const META_BUILDING_ITEM_KEY = {
-  stoneFurnace: 'stoneFurnaceItem', steelFurnace: 'steelFurnaceItem', electricFurnace: 'electricFurnaceItem',
-  assembly: 'assemblyMachine1Item', assembly2: 'assemblyMachine2Item', assembly3: 'assemblyMachine3Item',
+  stoneFurnace: 'stoneFurnaceItem', steelFurnace: null, electricFurnace: null,
+  assembly: 'assemblyMachine1Item', assembly2: null, assembly3: null,
   lab: 'labItem', boiler: 'boilerItem', radar: 'radarItem',
   pumpjack: 'pumpjackItem', oilRefinery: 'oilRefineryItem', chemicalPlant: 'chemicalPlantItem',
-  centrifuge: 'centrifugeItem', nuclearReactor: 'nuclearReactorItem',
+  centrifuge: 'centrifugeItem', nuclearReactor: null,
 };
 
 const META_SKILL_PERKS = [
@@ -7125,6 +7008,23 @@ function buyMetaBuildingUpgrade(type) {
   renderMetaProgression('meta-screen-content');
 }
 
+function buyChestUpgrade(id) {
+  const allRewards = [...CHEST_REWARDS.common, ...CHEST_REWARDS.rare];
+  const reward = allRewards.find(r => r.id === id);
+  if (!reward) return;
+  const level = metaState.chestUpgrades?.[id] ?? 0;
+  if (level >= reward.maxLevel) return;
+  const isRare = CHEST_REWARDS.rare.some(r => r.id === id);
+  const cost = isRare ? 2 : 1;
+  if ((metaState.totalPoints ?? 0) < cost) { notify('Not enough meta points.', 'warning'); return; }
+  metaState.totalPoints -= cost;
+  if (!metaState.chestUpgrades) metaState.chestUpgrades = {};
+  metaState.chestUpgrades[id] = level + 1;
+  saveMetaState();
+  lastMetaHtml = '';
+  renderMetaProgression('meta-screen-content');
+}
+
 function buyMetaPerk(perkKey) {
   if (metaState.perks?.[perkKey]) return;
   const cost = 10;
@@ -7161,6 +7061,7 @@ function renderMetaProgression(containerId = 'meta-screen-content') {
 
   const tabs = [
     { key: 'buildings', label: '🏭 Buildings' },
+    { key: 'upgrades',  label: '⚡ Upgrades' },
     { key: 'skills',    label: '🌟 Perks' },
   ];
 
@@ -7189,6 +7090,32 @@ function renderMetaProgression(containerId = 'meta-screen-content') {
       <div class="meta-section-title">🏭 Building Upgrades</div>
       <p class="meta-bldg-desc">Each building can be upgraded twice. Level 1 costs 2 pts, Level 2 costs 5 pts. Each upgrade adds <strong>+25% speed</strong> and reduces <strong>−25% energy use</strong> for that building type.</p>
       ${rows}
+    </div>`;
+
+  } else if (metaSubTab === 'upgrades') {
+    const upgrades = metaState.chestUpgrades ?? {};
+    const mkRow = (r, isRare) => {
+      const lvl  = upgrades[r.id] ?? 0;
+      const maxed = lvl >= r.maxLevel;
+      const cost  = isRare ? 2 : 1;
+      const canAfford = !maxed && spendable >= cost;
+      return `<div class="meta-building-row">
+        <div class="meta-building-info">
+          <strong>${r.name}</strong>
+          <span>${maxed ? `✅ Max (${r.desc(lvl)})` : (lvl > 0 ? `Lv ${lvl}/${r.maxLevel} · ${r.desc(lvl)}` : `Lv 0/${r.maxLevel}`)}</span>
+        </div>
+        ${!maxed ? `<button class="btn-sm${canAfford ? '' : ' cant-afford'}" onclick="buyChestUpgrade('${r.id}')">${cost} pt${cost !== 1 ? 's' : ''}</button>` : ''}
+      </div>`;
+    };
+    const commonRows = CHEST_REWARDS.common.map(r => mkRow(r, false)).join('');
+    const rareRows   = CHEST_REWARDS.rare.map(r => mkRow(r, true)).join('');
+    content = `<div class="meta-section">
+      <div class="meta-section-title">⚡ Production Upgrades</div>
+      <p class="meta-bldg-desc">Permanent upgrades that apply from the start of every run. Common upgrades cost 1 pt/level, Rare upgrades cost 2 pts/level.</p>
+      <div class="meta-section-title" style="font-size:.85rem;margin-top:.75rem">Common</div>
+      ${commonRows}
+      <div class="meta-section-title" style="font-size:.85rem;margin-top:.75rem">Rare</div>
+      ${rareRows}
     </div>`;
 
   } else if (metaSubTab === 'skills') {
@@ -8345,6 +8272,44 @@ document.addEventListener('DOMContentLoaded', async () => {
     bldTab.addEventListener('mouseout', e => {
       const btn = e.target.closest('.btn-place');
       if (btn && !btn.contains(e.relatedTarget)) tip.style.display = 'none';
+    });
+  }
+
+  // ── Craft-button ingredient tooltip ───────────────────────────
+  {
+    const ctip = document.createElement('div');
+    ctip.id = 'craft-ing-tooltip';
+    ctip.style.display = 'none';
+    document.body.appendChild(ctip);
+
+    const craftTab = document.getElementById('tab-crafting');
+    craftTab.addEventListener('mouseover', e => {
+      const btn = e.target.closest('.btn-craft');
+      if (!btn) return;
+      const key = btn.dataset.craft;
+      if (!key) return;
+      const recipe = PLAYER_RECIPES[key];
+      if (!recipe) return;
+      const iconsHtml = Object.entries(recipe.inputs).map(([k, v]) => {
+        const have    = state?.inventory?.[k] ?? 0;
+        const enough  = have >= v;
+        const haveStr = have >= 1000 ? fmtNum(Math.floor(have)) : Math.floor(have).toString();
+        return `<span class="ctip-ing${enough ? '' : ' ctip-missing'}" title="${v}× ${itemDisplay(k).name} · have ${haveStr}">
+          <span class="ctip-amt">${v}×</span>${itemIcon(k)}
+        </span>`;
+      }).join('');
+      ctip.innerHTML = `<div class="ctip-icons">${iconsHtml}</div>`;
+      ctip.style.display = 'block';
+      const r   = btn.getBoundingClientRect();
+      const tipH = ctip.offsetHeight;
+      const tipW = ctip.offsetWidth;
+      const top  = r.top - tipH - 8;
+      ctip.style.left = `${Math.max(4, Math.min(r.left, window.innerWidth - tipW - 8))}px`;
+      ctip.style.top  = `${top < 4 ? r.bottom + 8 : top}px`;
+    });
+    craftTab.addEventListener('mouseout', e => {
+      if (!e.target.closest('.btn-craft') || !e.relatedTarget?.closest?.('.btn-craft'))
+        ctip.style.display = 'none';
     });
   }
 

@@ -8,15 +8,6 @@
 </head>
 <body>
 
-<div id="titlebar">
-  <span id="titlebar-title">CAFF-INFINIT</span>
-  <div id="titlebar-controls">
-    <button id="tb-min" onclick="window.fileAPI.windowMinimize()">&#x2013;</button>
-    <button id="tb-max" onclick="window.fileAPI.windowMaximize()">&#x25A1;</button>
-    <button id="tb-close" onclick="window.fileAPI.windowClose()">&#x2715;</button>
-  </div>
-</div>
-
 <!-- ── Start Screen ─────────────────────────────────────── -->
 <div id="start-screen">
   <div class="start-content">
@@ -127,37 +118,28 @@
 
 <!-- ── Game Screen ──────────────────────────────────────── -->
 <div id="game-screen" class="hidden">
+  <div class="game-layout">
 
-  <header class="game-header">
-    <span class="header-title">CAFF-INFINIT</span>
-    <div class="header-right">
-      <span id="biter-indicator" class="biter-indicator hidden"></span>
-      <span id="save-filename" class="save-filename"></span>
-      <button id="pause-btn" class="btn-save" onclick="toggleGamePaused()">⏸ Pause</button>
-      <button class="btn-save" onclick="saveGame()">Save</button>
-      <button class="btn-save-as" onclick="saveGameAs()">Save As</button>
-    </div>
-  </header>
+    <nav class="side-nav">
+      <div class="power-bar" id="power-bar"></div>
+      <div id="biter-indicator" class="biter-indicator hidden"></div>
+      <button class="side-nav-btn active"  onclick="switchTab('mining', this)"    data-tab="mining"><span class="side-nav-icon">🏠</span><span class="side-nav-label">Base</span></button>
+      <button class="side-nav-btn"        onclick="switchTab('inventory', this)"  data-tab="inventory"><span class="side-nav-icon">🎒</span><span class="side-nav-label">Inventory</span></button>
+      <button class="side-nav-btn"        onclick="switchTab('crafting', this)"   data-tab="crafting"><span class="side-nav-icon">🔧</span><span class="side-nav-label">Crafting</span></button>
+      <button class="side-nav-btn"        onclick="switchTab('buildings', this)"  data-tab="buildings"><span class="side-nav-icon">🏭</span><span class="side-nav-label">Buildings</span></button>
+      <button class="side-nav-btn" id="tab-btn-research" onclick="switchTab('research', this)" data-tab="research"><span class="side-nav-icon">🔬</span><span class="side-nav-label">Research</span></button>
+      <button class="side-nav-btn"        onclick="switchTab('defense', this)"    data-tab="defense"><span class="side-nav-icon">🛡️</span><span class="side-nav-label">Defense</span></button>
+      <button class="side-nav-btn"        onclick="switchTab('recipes', this)"    data-tab="recipes"><span class="side-nav-icon">📖</span><span class="side-nav-label">Recipes</span></button>
+      <button class="side-nav-btn"        onclick="switchTab('graph', this)"      data-tab="graph"><span class="side-nav-icon">📈</span><span class="side-nav-label">Graph</span></button>
+      <button class="side-nav-btn"        onclick="switchTab('script', this)"     data-tab="script"><span class="side-nav-icon">📜</span><span class="side-nav-label">Script</span></button>
+      <button class="side-nav-btn"        onclick="switchTab('settings', this)"   data-tab="settings"><span class="side-nav-icon">⚙</span><span class="side-nav-label">Settings</span></button>
+    </nav>
 
-  <div class="power-bar" id="power-bar"></div>
+    <div class="game-main">
+      <div id="starred-bar" class="starred-bar hidden"></div>
 
-  <div id="starred-bar" class="starred-bar hidden"></div>
-
-  <div id="dev-panel" class="dev-panel hidden"></div>
-
-  <nav class="tab-nav">
-    <button class="tab-btn active"  onclick="switchTab('mining', this)"    data-tab="mining">🏠 Base</button>
-    <button class="tab-btn"        onclick="switchTab('inventory', this)"  data-tab="inventory">🎒 Inventory</button>
-    <button class="tab-btn"        onclick="switchTab('crafting', this)"   data-tab="crafting">🔧 Crafting</button>
-    <button class="tab-btn"        onclick="switchTab('buildings', this)"  data-tab="buildings">🏭 Buildings</button>
-    <button class="tab-btn" id="tab-btn-research" onclick="switchTab('research', this)" data-tab="research">🔬 Research</button>
-    <button class="tab-btn"        onclick="switchTab('defense', this)"    data-tab="defense">🛡️ Defense</button>
-    <button class="tab-btn"        onclick="switchTab('recipes', this)"    data-tab="recipes">📖 Recipes</button>
-    <button class="tab-btn"        onclick="switchTab('graph', this)"      data-tab="graph">📈 Graph</button>
-    <button class="tab-btn"        onclick="switchTab('script', this)"     data-tab="script">📜 Script</button>
-    <button class="tab-btn"        onclick="switchTab('settings', this)"   data-tab="settings">⚙ Settings</button>
-  </nav>
-  <div id="tutorial-goal-bar" style="display:none"></div>
+      <div id="dev-panel" class="dev-panel hidden"></div>
+      <div id="tutorial-goal-bar" style="display:none"></div>
 
   <main class="tab-content">
 
@@ -205,7 +187,6 @@
       </div>
       <div id="base-right-col">
         <div id="tutorial-goal-panel"></div>
-        <div id="chest-section"></div>
       </div>
       </div>
       <h3 class="section-label">Resource Patches</h3>
@@ -287,38 +268,12 @@
                 <span class="card-icon">🔥</span>
                 <div class="card-body">
                   <h4>Stone Furnace</h4>
-                  <p data-desc="Smelts ores into plates at 3.2 sec/item · requires {coal} to operate">Smelts ores into plates at 3.2 sec/item · requires coal to operate</p>
+                  <p data-desc="Smelts ores into plates · upgrades automatically via research">Smelts ores into plates · upgrades automatically via research</p>
                   <p class="card-cost">Cost: 1 × Stone Furnace</p>
                   <div class="recipe-picker-host" data-ptype="furnace"></div>
                   <div class="place-row">
                     <input type="text" class="place-count" value="1">
                     <button class="btn-place" data-type="furnace" onclick="placeBuilding('furnace',this,event)">Place</button>
-                  </div>
-                </div>
-              </div>
-              <div class="buildable-card" data-btype="steelFurnace" data-requires-tech="advancedMaterialProcessing">
-                <span class="card-icon">🟧</span>
-                <div class="card-body">
-                  <h4>Steel Furnace</h4>
-                  <p data-desc="Smelts at 2× speed · requires {coal} to operate">Smelts at 2× speed · requires coal to operate</p>
-                  <p class="card-cost">Cost: 1 × Steel Furnace</p>
-                  <div class="recipe-picker-host" data-ptype="steelFurnace"></div>
-                  <div class="place-row">
-                    <input type="text" class="place-count" value="1">
-                    <button class="btn-place" data-type="steelFurnace" onclick="placeBuilding('steelFurnace',this,event)">Place</button>
-                  </div>
-                </div>
-              </div>
-              <div class="buildable-card" data-btype="electricFurnace" data-requires-tech="electricFurnaceTech">
-                <span class="card-icon">⚡</span>
-                <div class="card-body">
-                  <h4>Electric Furnace</h4>
-                  <p data-desc="Smelts at 2× speed · 180 kW · no {coal} needed">Smelts at 2× speed · 180 kW · no coal needed</p>
-                  <p class="card-cost">Cost: 1 × Electric Furnace</p>
-                  <div class="recipe-picker-host" data-ptype="electricFurnace"></div>
-                  <div class="place-row">
-                    <input type="text" class="place-count" value="1">
-                    <button class="btn-place" data-type="electricFurnace" onclick="placeBuilding('electricFurnace',this,event)">Place</button>
                   </div>
                 </div>
               </div>
@@ -396,7 +351,7 @@
                 <div class="card-body">
                   <h4>Nuclear Reactor</h4>
                   <p data-desc="Burns {uraniumFuelCell} to generate 488.88 MW · 1 fuel cell per 50s per reactor">Burns uranium fuel cells to generate 488.88 MW · 1 fuel cell per 50s per reactor</p>
-                  <p class="card-cost">Cost: 4 × Nuclear Reactor + 4 × Offshore Pump + 180 × Pipe + 68 × Heat Pipe + 48 × Heat Exchanger + 84 × Steam Turbine</p>
+                  <p class="card-cost">Cost: 500 × Steel + 200 × Advanced Circuit + 300 × Concrete + 200 × Pipe + 20 × Processing Unit + 4 × Offshore Pump</p>
                   <div class="place-row">
                     <input type="text" class="place-count" value="1">
                     <button class="btn-place" data-type="nuclearReactor" onclick="placeBuilding('nuclearReactor',this,event)">Place</button>
@@ -417,13 +372,8 @@
                 <span class="card-icon">🏭</span>
                 <div class="card-body">
                   <h4>Assembly Machine</h4>
-                  <div class="build-tab-row">
-                    <button class="build-tab-btn asm-tab-btn active" id="asm-tab-assembly" data-type="assembly" onclick="setAssemblyTab('assembly')">Mk1</button>
-                    <button class="build-tab-btn asm-tab-btn" id="asm-tab-assembly2" data-type="assembly2" onclick="setAssemblyTab('assembly2')" style="display:none">Mk2</button>
-                    <button class="build-tab-btn asm-tab-btn" id="asm-tab-assembly3" data-type="assembly3" onclick="setAssemblyTab('assembly3')" style="display:none">Mk3</button>
-                  </div>
                   <div id="asm-card-content">
-                    <p>Auto-crafts intermediate and building items · 75 kW · speed ×0.5</p>
+                    <p>Auto-crafts intermediate and building items · upgrades automatically via research</p>
                     <p class="card-cost">Cost: 1 × Assembly Machine Mk1</p>
                     <input class="picker-search" type="text" placeholder="Search recipes…" oninput="onPickerSearch('assembly', this.value)">
                     <div class="recipe-picker-host" data-ptype="assembly"></div>
@@ -607,6 +557,17 @@
           <div class="settings-group">
             <div class="settings-row">
               <div>
+                <div class="settings-row-label">Save File</div>
+                <div class="settings-row-desc"><span id="save-filename" class="save-filename"></span></div>
+              </div>
+              <div style="display:flex;align-items:center;gap:.5rem">
+                <button id="pause-btn" class="btn-save" onclick="toggleGamePaused()">⏸ Pause</button>
+                <button class="btn-save" onclick="saveGame()">Save</button>
+                <button class="btn-save-as" onclick="saveGameAs()">Save As</button>
+              </div>
+            </div>
+            <div class="settings-row">
+              <div>
                 <div class="settings-row-label">Radar Discovery Notifications</div>
                 <div class="settings-row-desc">Show a notification when the radar finds a new resource patch.</div>
               </div>
@@ -623,16 +584,6 @@
               <div class="toggle-row">
                 <input type="checkbox" id="settings-wave-warning" class="sr-only" checked onchange="setWaveWarning(this.checked)">
                 <label for="settings-wave-warning" class="toggle"></label>
-              </div>
-            </div>
-            <div class="settings-row">
-              <div>
-                <div class="settings-row-label">Chest Drop Notifications</div>
-                <div class="settings-row-desc">Show a notification when a chest drops from chunk exploration.</div>
-              </div>
-              <div class="toggle-row">
-                <input type="checkbox" id="settings-chest-notif" class="sr-only" checked onchange="setChestNotifications(this.checked)">
-                <label for="settings-chest-notif" class="toggle"></label>
               </div>
             </div>
             <div class="settings-row">
@@ -834,16 +785,10 @@
       </div>
     </section>
 
-    <div id="chest-open-modal" class="hidden chest-modal-overlay">
-      <div class="chest-modal">
-        <div class="chest-modal-tier"></div>
-        <div class="chest-modal-prompt">Choose an upgrade:</div>
-        <div class="chest-modal-choices"></div>
-        <button class="btn-sm" onclick="document.getElementById('chest-open-modal').classList.add('hidden')">Cancel</button>
-      </div>
-    </div>
   </main>
-</div>
+    </div><!-- .game-main -->
+  </div><!-- .game-layout -->
+</div><!-- #game-screen -->
 
 <div id="biter-encounter-popup" class="hidden biter-popup">
   <img class="biter-popup-img" src="" alt="Biter" width="128" height="128">

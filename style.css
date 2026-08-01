@@ -42,46 +42,8 @@ body {
   min-height: 100vh;
   font-size: 14px;
   line-height: 1.4;
-  padding-top: 32px;
 }
 
-/* ── Custom Titlebar ─────────────────────────────────────────── */
-
-#titlebar {
-  position: fixed; top: 0; left: 0; right: 0;
-  height: 32px;
-  background: #0a0d13;
-  border-bottom: 1px solid var(--border);
-  display: flex; align-items: center; justify-content: space-between;
-  z-index: 10000;
-  -webkit-app-region: drag;
-  user-select: none;
-}
-
-#titlebar-title {
-  font-size: .7rem;
-  font-weight: 600;
-  letter-spacing: .1em;
-  color: var(--dim);
-  padding-left: 1rem;
-}
-
-#titlebar-controls {
-  display: flex;
-  -webkit-app-region: no-drag;
-}
-
-#titlebar-controls button {
-  width: 46px; height: 32px;
-  border: none; background: transparent;
-  color: var(--dim); font-size: .8rem;
-  cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  transition: background .12s, color .12s;
-}
-
-#titlebar-controls button:hover { background: rgba(255,255,255,.08); color: var(--text2); }
-#tb-close:hover { background: #c42b1c !important; color: #fff !important; }
 
 .hidden { display: none !important; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
@@ -92,7 +54,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: calc(100vh - 32px);
+  min-height: 100vh;
   background:
     radial-gradient(ellipse at 50% 35%, rgba(244,168,58,.07) 0%, transparent 60%),
     radial-gradient(ellipse at 50% 40%, #192030 0%, #080c11 100%);
@@ -316,44 +278,129 @@ button {
 
 /* ── Game Layout ────────────────────────────────────────────── */
 
-#game-screen { display: flex; flex-direction: column; min-height: calc(100vh - 32px); }
+#game-screen { display: flex; flex-direction: column; min-height: 100vh; }
 
-.game-header {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: .5rem 1.25rem;
-  background: linear-gradient(180deg, #1e2530 0%, #171d26 100%);
+.game-layout {
+  display: flex;
+  flex-direction: row-reverse;
+  flex: 1;
+  min-height: 100vh;
+}
+
+.game-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* ── Side Navigation ─────────────────────────────────────────── */
+
+.side-nav {
+  width: 150px;
+  background: linear-gradient(180deg, #1a2030 0%, #141923 100%);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  flex-shrink: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.side-nav::-webkit-scrollbar { display: none; }
+
+/* Power bar inside the side-nav — vertical layout */
+.side-nav .power-bar {
+  display: flex;
+  flex-direction: column;
+  padding: .5rem .55rem;
+  gap: .25rem;
   border-bottom: 1px solid var(--border);
-  box-shadow: 0 2px 8px rgba(0,0,0,.5);
-  position: relative;
-  z-index: 10;
+  border-right: none;
+  font-size: .67rem;
+  background: rgba(0,0,0,.25);
+  flex-shrink: 0;
 }
-/* Amber accent line at very top of header */
-.game-header::before {
-  content: '';
-  position: absolute; top: 0; left: 0; right: 0; height: 2px;
-  background: linear-gradient(90deg, transparent, var(--accent), transparent);
-  opacity: .6;
+.side-nav .fluid-cell {
+  display: flex;
+  align-items: center;
+  gap: .3rem;
+  width: 100%;
+  min-width: 0;
+}
+.side-nav .fluid-track {
+  flex: 1;
+  min-width: 0;
+}
+.side-nav .fluid-sep { display: none; }
+.side-nav .fluid-val { font-size: .65rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.side-nav .fluid-icon { font-size: .8rem; flex-shrink: 0; }
+.side-nav .power-cell { margin-left: 0; }
+
+/* Biter indicator inside side-nav */
+.side-nav .biter-indicator {
+  font-size: .65rem;
+  font-weight: 700;
+  padding: .25rem .55rem;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  white-space: normal;
+  line-height: 1.3;
 }
 
-.header-title {
-  font-weight: 900;
-  letter-spacing: .15em;
-  text-transform: uppercase;
-  color: var(--accent);
-  font-size: .9rem;
-  text-shadow: 0 0 16px rgba(244,168,58,.3);
+.side-nav-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: .65rem .25rem;
+  background: transparent;
+  color: var(--dim);
+  border: none;
+  border-right: 2px solid transparent;
+  cursor: pointer;
+  transition: color .15s, border-color .15s, background .15s;
+  gap: .2rem;
+  text-align: center;
 }
-.header-right { display: flex; align-items: center; gap: .75rem; }
+.side-nav-btn:hover { color: var(--text2); background: rgba(255,255,255,.04); }
+.side-nav-btn.active {
+  color: var(--accent);
+  border-right-color: var(--accent);
+  background: rgba(244,168,58,.07);
+  text-shadow: 0 0 12px rgba(244,168,58,.3);
+}
+
+.side-nav-icon { font-size: 1.2rem; line-height: 1; }
+.side-nav-label { font-size: .52rem; text-transform: uppercase; letter-spacing: .05em; line-height: 1.2; }
+
+.side-nav-btn.tab-alert { position: relative; }
+.side-nav-btn.tab-alert::after {
+  content: '';
+  position: absolute;
+  top: 6px; right: 6px;
+  width: 7px; height: 7px;
+  background: var(--green);
+  border-radius: 50%;
+  box-shadow: 0 0 6px var(--green);
+}
+
+/* ── Biter indicator strip ───────────────────────────────────── */
 
 .biter-indicator {
   font-size: .72rem;
   font-weight: 700;
+  padding: .22rem 1.25rem;
+  color: var(--dim2);
+  border-bottom: 1px solid var(--border);
+  background: rgba(0,0,0,.15);
+}
+.biter-indicator.biter-warning {
   color: var(--red);
-  background: rgba(224,64,64,.12);
-  border: 1px solid rgba(224,64,64,.35);
-  border-radius: 4px;
-  padding: .22rem .6rem;
-  text-shadow: 0 0 8px rgba(224,64,64,.4);
+  background: rgba(224,64,64,.08);
+  border-bottom-color: rgba(224,64,64,.3);
+  text-shadow: 0 0 8px rgba(224,64,64,.3);
 }
 
 /* ── Inventory Bar ──────────────────────────────────────────── */
@@ -394,6 +441,7 @@ button {
   font-size: .72rem;
   flex-wrap: wrap;
   box-shadow: 0 1px 0 rgba(255,255,255,.02) inset;
+  flex-shrink: 0;
 }
 
 .fluid-cell {
@@ -426,41 +474,7 @@ button {
 
 /* ── Tabs ───────────────────────────────────────────────────── */
 
-.tab-nav {
-  display: flex;
-  padding: 0 1.25rem;
-  background: linear-gradient(180deg, #1a2030 0%, #141923 100%);
-  border-bottom: 1px solid var(--border);
-  gap: .1rem;
-}
-.tab-btn {
-  padding: .6rem 1.2rem;
-  background: transparent;
-  color: var(--dim);
-  font-size: .85rem; font-weight: 600;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-  letter-spacing: .03em;
-  transition: color .15s, border-color .15s;
-}
-.tab-btn:hover { color: var(--text2); }
-.tab-btn.tab-alert { position: relative; }
-.tab-btn.tab-alert::after {
-  content: '';
-  position: absolute;
-  top: 6px; right: 6px;
-  width: 7px; height: 7px;
-  background: var(--green);
-  border-radius: 50%;
-  box-shadow: 0 0 6px var(--green);
-}
-.tab-btn.active {
-  color: var(--accent);
-  border-bottom-color: var(--accent);
-  text-shadow: 0 0 12px rgba(244,168,58,.3);
-}
-
-.tab-content { padding: 1.25rem; flex: 1; }
+.tab-content { padding: 1.25rem; flex: 1; overflow-y: auto; }
 .tab-panel { display: block; }
 
 .section-label {
@@ -514,11 +528,10 @@ button {
   background: linear-gradient(180deg, rgba(76,175,80,.06) 0%, var(--surf) 100%);
 }
 
-.craft-header { display: flex; align-items: center; gap: .5rem; }
-.craft-icon   { font-size: 1.4rem; }
-.craft-name   { font-weight: 700; font-size: .88rem; color: var(--text2); }
-
-.craft-recipe-line { font-size: .7rem; color: var(--dim); }
+.craft-header { display: flex; align-items: center; gap: .55rem; }
+.craft-icon   { font-size: 2rem; flex-shrink: 0; }
+.craft-name   { font-weight: 700; font-size: .92rem; color: var(--text2); flex: 1; }
+.craft-time-label { font-size: .68rem; color: var(--dim); white-space: nowrap; }
 
 .craft-queue-count       { font-size: .72rem; color: var(--green); }
 .craft-queue-count.waiting { color: var(--dim); }
@@ -626,7 +639,7 @@ button {
 
 .placement-col, .active-col {
   display: flex; flex-direction: column; gap: .6rem;
-  max-height: calc(100vh - 165px);
+  max-height: calc(100vh - 80px);
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--border2) transparent;
@@ -677,6 +690,15 @@ button {
 .card-body p:not(.card-cost) { display: none; }
 .card-cost          { font-size: .7rem; color: var(--accent); margin-bottom: .65rem !important; }
 .btn-place.cant-afford { background: var(--surf2); color: var(--dim); cursor: not-allowed; box-shadow: none; }
+.btn-place.can-craft {
+  background: linear-gradient(180deg, #f9b94a 0%, var(--accent2) 100%);
+  color: #111;
+  box-shadow: 0 2px 8px rgba(244,168,58,.3);
+}
+.btn-place.can-craft:hover {
+  background: linear-gradient(180deg, #ffc55e 0%, #f0a030 100%);
+  box-shadow: 0 2px 12px rgba(244,168,58,.45);
+}
 
 /* ── Collapsible build sections ──────────────────────────────── */
 .build-section { display: flex; flex-direction: column; gap: 0; }
@@ -1437,7 +1459,7 @@ button {
 /* ── Tech tree ──────────────────────────────────────────────── */
 .tech-tree-wrap {
   overflow-x: auto; overflow-y: auto;
-  width: 100%; max-height: calc(100vh - 220px);
+  width: 100%; max-height: calc(100vh - 120px);
   border: 1px solid var(--border); border-radius: 6px;
   margin-top: .35rem;
   background: var(--bg);
@@ -1524,7 +1546,7 @@ button {
 }
 .recipe-icon-btn .item-icon { width: 34px; height: 34px; }
 .recipe-ingredient .item-icon { width: 20px; height: 20px; padding: 0; background: none; }
-.craft-icon .item-icon { width: 28px; height: 28px; vertical-align: text-bottom; }
+.craft-icon .item-icon { width: 36px; height: 36px; vertical-align: middle; }
 .tech-node-icon .item-icon, .tech-icon-img { width: 34px; height: 34px; padding: 0; background: none; }
 .research-name .item-icon { width: 20px; height: 20px; vertical-align: middle; padding: 0; background: none; }
 
@@ -1888,8 +1910,8 @@ button {
 .starred-bar {
   display: flex;
   flex-wrap: wrap;
-  gap: .35rem .75rem;
-  padding: .35rem .75rem;
+  gap: .4rem .85rem;
+  padding: .5rem .85rem;
   background: var(--surf2);
   border-bottom: 1px solid var(--border);
   align-items: center;
@@ -1898,20 +1920,20 @@ button {
 .starred-item {
   display: flex;
   align-items: center;
-  gap: .3rem;
-  padding: .15rem .4rem;
+  gap: .35rem;
+  padding: .2rem .55rem;
   background: var(--surf3);
   border: 1px solid var(--border);
   border-radius: 4px;
-  font-size: .82rem;
+  font-size: .88rem;
   white-space: nowrap;
 }
 
-.starred-icon { font-size: .9rem; }
+.starred-icon { font-size: 1.1rem; }
 
 .starred-name {
   color: var(--dim2);
-  font-size: .78rem;
+  font-size: .82rem;
 }
 
 .starred-count {
@@ -2245,3 +2267,25 @@ button {
   box-shadow: 0 3px 10px rgba(0,0,0,.5);
   line-height: 1.4;
 }
+
+#craft-ing-tooltip {
+  position: fixed;
+  background: var(--surf2);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  padding: .45rem .55rem;
+  z-index: 9999;
+  pointer-events: none;
+  box-shadow: 0 3px 10px rgba(0,0,0,.55);
+}
+.ctip-icons { display: flex; gap: .35rem; align-items: center; }
+.ctip-ing {
+  display: flex; flex-direction: column; align-items: center; gap: .15rem;
+  padding: .3rem .35rem;
+  border-radius: 4px;
+  background: rgba(255,255,255,.05);
+  min-width: 40px;
+}
+.ctip-ing.ctip-missing { background: rgba(220,50,50,.28); }
+.ctip-amt { font-size: .65rem; color: var(--dim); font-weight: 700; line-height: 1; }
+.ctip-ing .item-icon { width: 30px; height: 30px; }

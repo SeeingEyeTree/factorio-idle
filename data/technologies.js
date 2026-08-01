@@ -77,18 +77,18 @@ const TECHNOLOGIES = {
     unlockRecipes: ['grenade', 'piercingRoundsMag'], unlockBuildings: [],
   }),
   automation2: new Technology({
-    name: 'Automation 2', icon: '🏗️', iconImg: 'data/icon_imgs/assembler_machine_2.png',
+    name: 'Assembler Optimization', icon: '🏗️', iconImg: 'data/icon_imgs/assembler_machine_2.png',
     cost: { redScience: 40, greenScience: 40 }, timePerPack: 15,
     prereqs: ['automation', 'logisticSciencePack', 'steelProcessing'],
-    description: 'Unlocks Assembly Machine Mk2 (speed ×0.75, 150 kW)',
-    unlockRecipes: ['assemblyMachine2Item'], unlockBuildings: ['assembly2'],
+    description: 'Upgrades all Assembly Machines → Mk2 (speed ×0.75, 150 kW, 2 module slots)',
+    upgradeBuildings: { assembly: 'assembly2' }, unlockRecipes: [], unlockBuildings: [],
   }),
   advancedMaterialProcessing: new Technology({
     name: 'Advanced Material Processing', icon: '🟧', iconImg: 'data/icon_imgs/steel_furnace.png',
     cost: { redScience: 75, greenScience: 75 }, timePerPack: 30,
     prereqs: ['logisticSciencePack', 'steelProcessing'],
-    description: 'Unlocks Steel Furnace (2× faster smelting)',
-    unlockRecipes: ['steelFurnaceItem'], unlockBuildings: ['steelFurnace'],
+    description: 'Upgrades all Furnaces → Steel (2× smelting speed)',
+    upgradeBuildings: { furnace: 'steelFurnace' }, unlockRecipes: [], unlockBuildings: [],
   }),
   engineTech: new Technology({
     name: 'Engine', icon: '🛠️', iconImg: 'data/icon_imgs/engine_unit.png',
@@ -268,8 +268,8 @@ const TECHNOLOGIES = {
     name: 'Electric Furnace', icon: '⚡', iconImg: 'data/icon_imgs/electric_furnace.png',
     cost: { redScience: 250, greenScience: 250, blueScience: 250 }, timePerPack: 30,
     prereqs: ['advancedMaterialProcessing', 'chemicalSciencePack'],
-    description: 'Unlocks Electric Furnace (2× speed, 180 kW, no coal)',
-    unlockRecipes: ['electricFurnaceItem'], unlockBuildings: ['electricFurnace'],
+    description: 'Upgrades all Furnaces → Electric (2× speed, 180 kW, no coal needed)',
+    upgradeBuildings: { steelFurnace: 'electricFurnace' }, unlockRecipes: [], unlockBuildings: [],
   }),
   militarySciencePack: new Technology({
     name: 'Military Science Pack', icon: '⬛', iconImg: 'data/icon_imgs/military_science_pack.png',
@@ -358,11 +358,11 @@ const TECHNOLOGIES = {
     unlockRecipes: ['processingUnit'], unlockBuildings: [],
   }),
   automation3: new Technology({
-    name: 'Automation 3', icon: '🏗️',
+    name: 'Assembler Mastery', icon: '🏗️',
     cost: { redScience: 150, greenScience: 150, blueScience: 150, purpleScience: 150 }, timePerPack: 60,
     prereqs: ['speedModuleTech1', 'productionSciencePack', 'electricEngine'],
-    description: 'Unlocks Assembly Machine Mk3 (speed ×1.25, 375 kW)',
-    unlockRecipes: ['assemblyMachine3Item'], unlockBuildings: ['assembly3'],
+    description: 'Upgrades all Assembly Machines → Mk3 (speed ×1.25, 375 kW, 4 module slots)',
+    upgradeBuildings: { assembly2: 'assembly3' }, unlockRecipes: [], unlockBuildings: [],
   }),
   uraniumProcessing: new Technology({
     name: 'Getting started with uranium', icon: '⚛️',
@@ -412,7 +412,7 @@ const TECHNOLOGIES = {
     cost: { redScience: 800, greenScience: 800, blueScience: 800 }, timePerPack: 60,
     prereqs: ['uraniumProcessing'],
     description: 'Enables construction of nuclear reactor power plants (488.88 MW per complex)',
-    unlockRecipes: ['nuclearReactorItem', 'heatPipeItem', 'heatExchangerItem', 'steamTurbineItem', 'uraniumFuelCell'], unlockBuildings: ['nuclearReactor'],
+    unlockRecipes: ['heatPipeItem', 'uraniumFuelCell'], unlockBuildings: ['nuclearReactor'],
   }),
   oilProcessingTech: new Technology({
     name: 'Oil Processing', icon: '⚗️',

@@ -1,16 +1,17 @@
 'use strict';
 
 class Technology {
-  constructor({ name, icon, iconImg, cost, timePerPack, prereqs, description, unlockRecipes, unlockBuildings }) {
-    this.name            = name;
-    this.icon            = icon ?? '⚙️';
-    this.iconImg         = iconImg ?? null;
-    this.cost            = cost ?? {};
-    this.timePerPack     = timePerPack ?? 10;
-    this.prereqs         = prereqs ?? [];
-    this.description     = description ?? '';
-    this.unlockRecipes   = unlockRecipes ?? [];
-    this.unlockBuildings = unlockBuildings ?? [];
+  constructor({ name, icon, iconImg, cost, timePerPack, prereqs, description, unlockRecipes, unlockBuildings, upgradeBuildings }) {
+    this.name             = name;
+    this.icon             = icon ?? '⚙️';
+    this.iconImg          = iconImg ?? null;
+    this.cost             = cost ?? {};
+    this.timePerPack      = timePerPack ?? 10;
+    this.prereqs          = prereqs ?? [];
+    this.description      = description ?? '';
+    this.unlockRecipes    = unlockRecipes ?? [];
+    this.unlockBuildings  = unlockBuildings ?? [];
+    this.upgradeBuildings = upgradeBuildings ?? null;
   }
 
   // Max packs needed across all science pack requirements
