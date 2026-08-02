@@ -16,7 +16,7 @@
     <button class="btn-primary" style="margin-bottom:1.5rem" onclick="openNewGameModal()">New Game</button>
     <button class="btn-secondary" style="margin-bottom:1rem" onclick="showMetaScreen()">⭐ Meta Progression</button>
     <a href="https://discord.gg/TRBeRfMwk6" target="_blank" style="display:block;margin-bottom:1rem;color:#5865F2;font-size:.9rem;text-decoration:none;opacity:.85">💬 Join the Discord</a>
-    <div class="save-panel">
+    <div class="save-panel" style="margin-bottom:1rem">
       <div class="save-panel-header">
         <span class="save-panel-title">Saves</span>
       </div>
@@ -27,6 +27,7 @@
         <button class="btn-sm" onclick="importSaveFromFile()">Import Save from File…</button>
       </div>
     </div>
+    <button class="btn-secondary" style="width:100%;opacity:.65;font-size:.8rem" onclick="if(window.fileAPI)window.fileAPI.windowClose()">Quit</button>
   </div>
 </div>
 
@@ -214,21 +215,27 @@
       <div class="buildings-layout">
 
         <div class="placement-col">
-          <h3 class="section-label">Place Buildings</h3>
-          <p style="font-size:.72rem;color:var(--dim);margin:-.4rem 0 .6rem">Tip: <strong>Alt+click</strong> Place or + Add to jump to the front of the build queue.</p>
+          <div class="placement-col-header">
+            <h3 class="section-label" style="margin-bottom:.3rem">Place Buildings</h3>
+            <p style="font-size:.72rem;color:var(--dim);margin:0 0 .6rem">Tip: <strong>Alt+click</strong> Place or + Add to jump to the front of the build queue.</p>
 
-          <!-- Always-visible build queue status -->
-          <div id="placement-status" class="placement-status">
-            <div class="placement-status-row">
-              <span id="placement-label">Build Queue</span>
-              <span id="place-queue-info" class="place-queue-info">empty</span>
-              <button id="clear-queue-btn" class="btn-sm btn-secondary" onclick="clearPlaceQueue()" title="Clear build queue" style="display:none;margin-left:auto;font-size:.7rem;padding:.1rem .45rem">Clear</button>
-            </div>
-            <div class="progress-bar">
-              <div class="progress-fill" id="place-progress"></div>
+            <!-- Always-visible build queue status -->
+            <div id="placement-status" class="placement-status">
+              <div class="placement-status-row">
+                <span id="placement-label">Build Queue</span>
+                <span id="place-queue-info" class="place-queue-info">empty</span>
+                <button id="clear-queue-btn" class="btn-sm btn-secondary" onclick="clearPlaceQueue()" title="Clear build queue" style="display:none;margin-left:auto;font-size:.7rem;padding:.1rem .45rem">Clear</button>
+              </div>
+              <div id="place-eta-row" style="display:none;font-size:.68rem;color:var(--dim);margin-bottom:.3rem">
+                <span id="place-eta-info"></span>
+              </div>
+              <div class="progress-bar">
+                <div class="progress-fill" id="place-progress"></div>
+              </div>
             </div>
           </div>
 
+          <div class="placement-col-body">
           <!-- ⛏️ Mining -->
           <div class="build-section">
             <div class="build-section-header" onclick="toggleBuildSection('mining')">
@@ -493,16 +500,19 @@
             </div>
           </div>
 
-        </div>
+          </div><!-- .placement-col-body -->
+        </div><!-- .placement-col -->
 
         <div class="active-col">
-          <div class="active-col-header">
-            <h3 class="section-label" style="margin:0">Active Buildings</h3>
-            <button id="pause-all-btn" class="btn-sm" onclick="toggleAllPaused()">⏸ Pause All</button>
-            <button class="btn-sm" onclick="clearAllLimits()">∞ Clear Limits</button>
-          </div>
-          <div class="buildings-search-row">
-            <input type="text" id="buildings-search" class="buildings-search" placeholder="Search buildings...">
+          <div class="active-col-header-wrap">
+            <div class="active-col-header">
+              <h3 class="section-label" style="margin:0">Active Buildings</h3>
+              <button id="pause-all-btn" class="btn-sm" onclick="toggleAllPaused()">⏸ Pause All</button>
+              <button class="btn-sm" onclick="clearAllLimits()">∞ Clear Limits</button>
+            </div>
+            <div class="buildings-search-row">
+              <input type="text" id="buildings-search" class="buildings-search" placeholder="Search buildings...">
+            </div>
           </div>
           <div id="active-buildings" class="buildings-list"></div>
         </div>
@@ -807,6 +817,7 @@
 <script src="data/tech.js"></script>
 <script src="data/technologies.js"></script>
 <script src="game.js"></script>
+<script src="data/validate.js"></script>
 <script src="script.js"></script>
 <script src="calculator.js"></script>
 </body>

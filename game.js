@@ -1,7 +1,7 @@
 ﻿'use strict';
 
 // ── Constants ────────────────────────────────────────────────
-
+// cd "c:\Users\malco\factorio-idle" && npm run dist 2>&1
 const TICK_MS              = 200;  // simulation rate; display runs at 10fps via separate render loop
 const MINE_SPEED           = 0.25;   // ore/sec per burner miner
 const ELECTRIC_MINER_SPEED = 0.5;   // ore/sec per electric miner
@@ -99,10 +99,10 @@ function _p1(s, t) {
 // ── Module System ─────────────────────────────────────────────
 const MODULE_SLOTS = {
   electricMiner: 3,
-  assembly: 0, assembly2: 2, assembly3: 4,
+  assembly: 0,
+  furnace: 0,
   chemicalPlant: 3, oilRefinery: 3,
   rocketSilo: 4,
-  electricFurnace: 2,
   lab: 2,
   pumpjack: 2,
   centrifuge: 2,
@@ -133,10 +133,10 @@ const CHEST_REWARDS = {
       eligible: s => _anyBldg(s, ['miner','electricMiner']) },
     { id: 'speed_furnaces',    name: 'Furnace Speed',          maxLevel: 25, perLevel: 0.01,
       desc: lvl => `+${lvl}% furnace speed`,
-      eligible: s => _anyBldg(s, ['furnace','steelFurnace','electricFurnace']) },
+      eligible: s => _anyBldg(s, ['furnace']) },
     { id: 'speed_assemblers',  name: 'Assembler Speed',        maxLevel: 25, perLevel: 0.01,
       desc: lvl => `+${lvl}% assembler speed`,
-      eligible: s => _anyBldg(s, ['assembly','assembly2','assembly3']) },
+      eligible: s => _anyBldg(s, ['assembly']) },
     { id: 'speed_oilRefinery', name: 'Oil Refinery Speed',     maxLevel: 25, perLevel: 0.01,
       desc: lvl => `+${lvl}% refinery speed`,
       eligible: s => _anyBldg(s, ['oilRefinery']) },
@@ -159,10 +159,10 @@ const CHEST_REWARDS = {
   rare: [
     { id: 'prod_furnaces',    name: 'Furnace Productivity',        maxLevel: 5, perLevel: 0.004,
       desc: lvl => `+${(lvl * 0.4).toFixed(1)}% furnace productivity`,
-      eligible: s => _anyBldg(s, ['furnace','steelFurnace','electricFurnace']) },
+      eligible: s => _anyBldg(s, ['furnace']) },
     { id: 'prod_assemblers',  name: 'Assembler Productivity',      maxLevel: 5, perLevel: 0.004,
       desc: lvl => `+${(lvl * 0.4).toFixed(1)}% assembler productivity`,
-      eligible: s => _anyBldg(s, ['assembly','assembly2','assembly3']) },
+      eligible: s => _anyBldg(s, ['assembly']) },
     { id: 'prod_oilRefinery', name: 'Oil Refinery Productivity',   maxLevel: 5, perLevel: 0.004,
       desc: lvl => `+${(lvl * 0.4).toFixed(1)}% refinery productivity`,
       eligible: s => _anyBldg(s, ['oilRefinery']) },
@@ -260,6 +260,28 @@ const POWERED_BUILDINGS = new Set(
   Object.entries(BUILDING_DEFS).filter(([, v]) => v.isElectric).map(([k]) => k)
 );
 
+// ── Tier helper functions (derive stats from research at runtime) ─────────────
+
+function assemblyTier() {
+  const done = state?.research?.done ?? {};
+  if (done.automation3) return { speed: ASSEMBLY3_SPEED, kw: ASSEMBLY3_KW, slots: 4 };
+  if (done.automation2) return { speed: ASSEMBLY2_SPEED, kw: ASSEMBLY2_KW, slots: 2 };
+  return { speed: ASSEMBLY_SPEED, kw: ASSEMBLY_KW, slots: 0 };
+}
+
+function furnaceTier() {
+  const done = state?.research?.done ?? {};
+  if (done.electricFurnaceTech) return { speed: ELECTRIC_FURNACE_SPEED, kw: ELECTRIC_FURNACE_KW, isElectric: true, coalRate: 0, slots: 2 };
+  if (done.advancedMaterialProcessing) return { speed: STEEL_FURNACE_SPEED, kw: 0, isElectric: false, coalRate: COAL_PER_STEEL_FURNACE, slots: 0 };
+  return { speed: 1.0, kw: 0, isElectric: false, coalRate: COAL_PER_FURNACE, slots: 0 };
+}
+
+function getModuleSlots(type) {
+  if (type === 'assembly') return assemblyTier().slots;
+  if (type === 'furnace') return furnaceTier().slots;
+  return MODULE_SLOTS[type] ?? 0;
+}
+
 // ── Theme Resolvers ───────────────────────────────────────────
 // Each resolver merges the base ITEMS/BUILDING_DEFS entry with the active theme's overrides.
 // THEMES is defined in data/themes.js and loaded before game.js.
@@ -273,7 +295,26 @@ function itemDisplay(key) {
 function buildingDisplay(type) {
   const t = state?.settings?.theme ?? 'caffactory';
   const base = BUILDING_DEFS[type] ?? {};
-  return { ...base, ...(THEMES[t]?.buildings?.[type] ?? {}) };
+  const override = THEMES[t]?.buildings?.[type] ?? {};
+  if (type === 'assembly') {
+    const done = state?.research?.done ?? {};
+    const tierType = done.automation3 ? 'assembly3' : done.automation2 ? 'assembly2' : 'assembly';
+    if (tierType !== 'assembly') {
+      const tierBase = BUILDING_DEFS[tierType] ?? {};
+      const tierTheme = (THEMES[t]?.buildings?.[tierType]) ?? {};
+      return { ...base, ...tierBase, ...tierTheme };
+    }
+  }
+  if (type === 'furnace') {
+    const done = state?.research?.done ?? {};
+    const tierType = done.electricFurnaceTech ? 'electricFurnace' : done.advancedMaterialProcessing ? 'steelFurnace' : 'furnace';
+    if (tierType !== 'furnace') {
+      const tierBase = BUILDING_DEFS[tierType] ?? {};
+      const tierTheme = (THEMES[t]?.buildings?.[tierType]) ?? {};
+      return { ...base, ...tierBase, ...tierTheme };
+    }
+  }
+  return { ...base, ...override };
 }
 
 function spriteSrc(key) {
@@ -390,12 +431,20 @@ let metaState = defaultMetaState();
 function _applyMetaParsed(parsed) {
   const def = defaultMetaState();
   if (parsed.rawKills != null && parsed.weightedKills == null) parsed.weightedKills = parsed.rawKills;
+  const _bu = { ...(parsed.buildingUpgrades ?? {}) };
+  // Migrate old tier types: carry the highest upgrade level over to the unified type
+  const _asmMax = Math.max(_bu.assembly ?? 0, _bu.assembly2 ?? 0, _bu.assembly3 ?? 0);
+  const _furMax  = Math.max(_bu.furnace  ?? 0, _bu.steelFurnace ?? 0, _bu.electricFurnace ?? 0);
+  delete _bu.assembly2; delete _bu.assembly3;
+  delete _bu.steelFurnace; delete _bu.electricFurnace;
+  if (_asmMax > 0) _bu.assembly = _asmMax;
+  if (_furMax  > 0) _bu.furnace  = _furMax;
   metaState = {
     ...def,
     ...parsed,
     perks: { ...def.perks, ...(parsed.perks ?? {}) },
     gamerModule: { ...def.gamerModule, ...(parsed.gamerModule ?? {}) },
-    buildingUpgrades: { ...(parsed.buildingUpgrades ?? {}) },
+    buildingUpgrades: _bu,
     chestUpgrades:    { ...(parsed.chestUpgrades    ?? {}) },
     skillPerks: { ...(parsed.skillPerks ?? {}) },
     saveBlacklist: Array.isArray(parsed.saveBlacklist) ? parsed.saveBlacklist : [],
@@ -515,12 +564,12 @@ const TUTORIAL_GOALS = [
     text: () => `Now scale up — place 10 ${itemDisplay('burnerMinerItem').name} on iron ore and 8 ${itemDisplay('stoneFurnaceItem').name} smelting ${itemDisplay('ironPlate').name}. Don't forget coal and stone miners too!`,
     check: s => {
       const ironMiners   = Object.values(s.buildings).filter(g => (g.type==='miner'||g.type==='electricMiner') && g.resource==='ironOre').reduce((n,g)=>n+g.count,0);
-      const ironFurnaces = Object.values(s.buildings).filter(g => (g.type==='furnace'||g.type==='steelFurnace'||g.type==='electricFurnace') && g.recipe==='ironPlate').reduce((n,g)=>n+g.count,0);
+      const ironFurnaces = Object.values(s.buildings).filter(g => g.type==='furnace' && g.recipe==='ironPlate').reduce((n,g)=>n+g.count,0);
       return ironMiners >= 10 && ironFurnaces >= 8;
     },
     progress: s => {
       const ironMiners   = Object.values(s.buildings).filter(g => (g.type==='miner'||g.type==='electricMiner') && g.resource==='ironOre').reduce((n,g)=>n+g.count,0);
-      const ironFurnaces = Object.values(s.buildings).filter(g => (g.type==='furnace'||g.type==='steelFurnace'||g.type==='electricFurnace') && g.recipe==='ironPlate').reduce((n,g)=>n+g.count,0);
+      const ironFurnaces = Object.values(s.buildings).filter(g => g.type==='furnace' && g.recipe==='ironPlate').reduce((n,g)=>n+g.count,0);
       return `${Math.min(ironMiners,10)}/10 iron miners · ${Math.min(ironFurnaces,8)}/8 iron furnaces`;
     },
     glowTab: 'buildings',
@@ -530,12 +579,12 @@ const TUTORIAL_GOALS = [
     text: () => `Place 5 ${itemDisplay('burnerMinerItem').name} on copper ore and 4 ${itemDisplay('stoneFurnaceItem').name} smelting ${itemDisplay('copperPlate').name}.`,
     check: s => {
       const copperMiners   = Object.values(s.buildings).filter(g => (g.type==='miner'||g.type==='electricMiner') && g.resource==='copperOre').reduce((n,g)=>n+g.count,0);
-      const copperFurnaces = Object.values(s.buildings).filter(g => (g.type==='furnace'||g.type==='steelFurnace'||g.type==='electricFurnace') && g.recipe==='copperPlate').reduce((n,g)=>n+g.count,0);
+      const copperFurnaces = Object.values(s.buildings).filter(g => g.type==='furnace' && g.recipe==='copperPlate').reduce((n,g)=>n+g.count,0);
       return copperMiners >= 5 && copperFurnaces >= 4;
     },
     progress: s => {
       const copperMiners   = Object.values(s.buildings).filter(g => (g.type==='miner'||g.type==='electricMiner') && g.resource==='copperOre').reduce((n,g)=>n+g.count,0);
-      const copperFurnaces = Object.values(s.buildings).filter(g => (g.type==='furnace'||g.type==='steelFurnace'||g.type==='electricFurnace') && g.recipe==='copperPlate').reduce((n,g)=>n+g.count,0);
+      const copperFurnaces = Object.values(s.buildings).filter(g => g.type==='furnace' && g.recipe==='copperPlate').reduce((n,g)=>n+g.count,0);
       return `${Math.min(copperMiners,5)}/5 copper miners · ${Math.min(copperFurnaces,4)}/4 copper furnaces`;
     },
   },
@@ -796,8 +845,8 @@ function miningProdMult() {
 function chestSpeedBonus(buildingType) {
   const u = metaState?.chestUpgrades ?? {};
   if (['miner','electricMiner'].includes(buildingType))          return (u.speed_miners      ?? 0) * 0.01;
-  if (['furnace','steelFurnace','electricFurnace'].includes(buildingType)) return (u.speed_furnaces  ?? 0) * 0.01;
-  if (['assembly','assembly2','assembly3'].includes(buildingType)) return (u.speed_assemblers ?? 0) * 0.01;
+  if (buildingType === 'furnace') return (u.speed_furnaces  ?? 0) * 0.01;
+  if (buildingType === 'assembly') return (u.speed_assemblers ?? 0) * 0.01;
   if (buildingType === 'oilRefinery')   return (u.speed_oilRefinery ?? 0) * 0.01;
   if (buildingType === 'chemicalPlant') return (u.speed_chemPlant   ?? 0) * 0.01;
   if (buildingType === 'centrifuge')    return (u.speed_centrifuge  ?? 0) * 0.01;
@@ -808,8 +857,8 @@ function chestSpeedBonus(buildingType) {
 
 function chestProdBonus(buildingType) {
   const u = metaState?.chestUpgrades ?? {};
-  if (['furnace','steelFurnace','electricFurnace'].includes(buildingType)) return (u.prod_furnaces    ?? 0) * 0.004;
-  if (['assembly','assembly2','assembly3'].includes(buildingType)) return (u.prod_assemblers ?? 0) * 0.004;
+  if (buildingType === 'furnace') return (u.prod_furnaces    ?? 0) * 0.004;
+  if (buildingType === 'assembly') return (u.prod_assemblers ?? 0) * 0.004;
   if (buildingType === 'oilRefinery')   return (u.prod_oilRefinery ?? 0) * 0.004;
   if (buildingType === 'chemicalPlant') return (u.prod_chemPlant   ?? 0) * 0.004;
   if (buildingType === 'centrifuge')    return (u.prod_centrifuge  ?? 0) * 0.004;
@@ -893,8 +942,8 @@ function computePlaceTimeSec() {
 function defaultPlacementRecipes() {
   return {
     miner: 'ironOre', electricMiner: 'ironOre',
-    furnace: 'ironPlate', steelFurnace: 'ironPlate', electricFurnace: 'ironPlate',
-    assembly: 'ironGear', assembly2: 'ironGear', assembly3: 'ironGear',
+    furnace: 'ironPlate',
+    assembly: 'ironGear',
     oilRefinery: 'basicOilProcessing',
     chemicalPlant: 'plasticBar',
     centrifuge: 'uraniumProcessing',
@@ -1162,6 +1211,27 @@ function applyStateFromEnvelope(envelope) {
   if (state.craftActive === undefined) state.craftActive       = null;
   if (!state.craftReservations)    state.craftReservations    = {};
   if (!state.pendingPlacements)    state.pendingPlacements    = [];
+  // Drop orphaned pending placements: entries whose building item is not in
+  // inventory and has no craft in the queue that will ever produce it.
+  if (state.pendingPlacements.length > 0) {
+    const craftableItems = new Set();
+    if (state.craftActive?.key) {
+      const r = PLAYER_RECIPES[state.craftActive.key];
+      if (r) Object.keys(r.outputs).forEach(k => craftableItems.add(k));
+    }
+    for (const c of (state.craftQueue ?? [])) {
+      const r = PLAYER_RECIPES[c.key];
+      if (r) Object.keys(r.outputs).forEach(k => craftableItems.add(k));
+    }
+    state.pendingPlacements = state.pendingPlacements.filter(p => {
+      const costs = BUILDING_COSTS[p.type];
+      if (!costs) return false;
+      return Object.keys(costs).every(itemKey =>
+        (state.inventory[itemKey] ?? 0) >= (costs[itemKey] ?? 0) ||
+        craftableItems.has(itemKey)
+      );
+    });
+  }
   if (!state.scriptMemory) state.scriptMemory = {};
   if (!state.starredItems) state.starredItems = [];
   if (state.allPaused == null) state.allPaused = false;
@@ -1223,6 +1293,31 @@ function applyStateFromEnvelope(envelope) {
     if (e.initModuleType)   n.initModuleType = e.initModuleType;
     return n;
   });
+
+  // Migrate unified building types (assembly2/3 → assembly, steelFurnace/electricFurnace → furnace)
+  const _BLDG_RENAME = { assembly2:'assembly', assembly3:'assembly', steelFurnace:'furnace', electricFurnace:'furnace' };
+  const _newBuildings = {};
+  const _keyMap = {};
+  for (const [oldKey, entry] of Object.entries(state.buildings ?? {})) {
+    entry.type = _BLDG_RENAME[entry.type] ?? entry.type;
+    const newKey = groupKey(entry);
+    _keyMap[oldKey] = newKey;
+    if (_newBuildings[newKey]) {
+      _newBuildings[newKey].count += entry.count;
+    } else {
+      _newBuildings[newKey] = entry;
+    }
+  }
+  state.buildings = _newBuildings;
+  const _newGS = {};
+  for (const [oldKey, gs] of Object.entries(state.groupSettings ?? {})) {
+    const newKey = _keyMap[oldKey] ?? oldKey;
+    if (!_newGS[newKey]) _newGS[newKey] = gs;
+  }
+  state.groupSettings = _newGS;
+  for (const entry of placeQueue) {
+    entry.type = _BLDG_RENAME[entry.type] ?? entry.type;
+  }
 
   // Script content is restored in showGame() once the DOM is ready
   _pendingScriptRestore = isEnvelope
@@ -1406,6 +1501,16 @@ function fmtNum(n) {
   return v.toLocaleString();
 }
 
+function formatDuration(seconds) {
+  if (seconds < 60) return `${Math.ceil(seconds)}s`;
+  const m = Math.floor(seconds / 60);
+  const s = Math.ceil(seconds % 60);
+  if (seconds < 3600) return s > 0 ? `${m}m ${s}s` : `${m}m`;
+  const h = Math.floor(seconds / 3600);
+  const rm = Math.floor((seconds % 3600) / 60);
+  return rm > 0 ? `${h}h ${rm}m` : `${h}h`;
+}
+
 // ── Group Helpers ─────────────────────────────────────────────
 
 function groupKey(b) {
@@ -1538,7 +1643,9 @@ function getGamerModuleProdBonus() {
 //   effectiveSpeedMult — speedMult * powerMult (use this in tick + display arithmetic)
 //
 function getBuildingModifiers(type, buildingCount, modules) {
-  const slotsPerBuilding = MODULE_SLOTS[type] ?? 0;
+  let slotsPerBuilding = MODULE_SLOTS[type] ?? 0;
+  if (type === 'assembly') slotsPerBuilding = assemblyTier().slots;
+  else if (type === 'furnace') slotsPerBuilding = furnaceTier().slots;
   if (buildingCount === 0)
     return { speedMult: 1, prodBonus: 0, powerMult: 1, yieldMult: 1, effectiveSpeedMult: 1 };
 
@@ -1577,7 +1684,8 @@ function getBuildingModifiers(type, buildingCount, modules) {
   const prodBonus = moduleProdBonus + chestProdBonus(type);
 
   // ── Power ratio (electric vs coal/burner) ─────────────────────────────────
-  const powerMult = POWERED_BUILDINGS.has(type) ? (state.powerRatio ?? 1) : 1;
+  const powerMult = (POWERED_BUILDINGS.has(type) || (type === 'furnace' && furnaceTier().isElectric))
+    ? (state.powerRatio ?? 1) : 1;
 
   // ── Yield multiplier (mining research, lab perk) ──────────────────────────
   let yieldMult = 1;
@@ -1698,18 +1806,6 @@ function completeResearch(key) {
   state.research.current = null;
   state.research.totalConsumed = 0;
   getGS('lab').packAcc = 0;
-
-  // Auto-upgrade existing buildings in queue when a tech provides upgradeBuildings
-  const tech = TECHNOLOGIES[key];
-  if (tech?.upgradeBuildings) {
-    for (const [from, to] of Object.entries(tech.upgradeBuildings)) {
-      let count = 0;
-      for (const entry of state.buildQueue) {
-        if (entry.type === from) { entry.type = to; count++; }
-      }
-      if (count > 0) notify(`⬆️ Upgraded ${count} ${BUILDING_DEFS[from]?.name ?? from} → ${BUILDING_DEFS[to]?.name ?? to}`, 'info');
-    }
-  }
 
   notify(`✅ Researched: ${techDisplay(key).name}!`, 'info');
   flashResearchTab();
@@ -1929,6 +2025,7 @@ function recordConsumed(key, amount) {
   state.inventory[key] = Math.max(0, (state.inventory[key] ?? 0) - amount);
 }
 
+
 // Refund items to inventory without counting as production (cancel craft, sell building, etc.)
 function refundItem(key, amount) {
   if (!amount || amount <= 0) return;
@@ -1957,7 +2054,10 @@ function tick() {
   const _tPD = _p0();
   let totalDemand = 0;
   for (const [key, group] of Object.entries(groups)) {
-    const baseKw = BUILDING_KW_TABLE[group.type];
+    let baseKw;
+    if (group.type === 'assembly') baseKw = assemblyTier().kw;
+    else if (group.type === 'furnace') baseKw = furnaceTier().kw;
+    else baseKw = BUILDING_KW_TABLE[group.type];
     if (!baseKw) continue;
     const gs = getGS(key);
     if (!gs.enabled) continue;
@@ -1972,15 +2072,14 @@ function tick() {
 
   if (!state.allPaused) { // ── Production ──
 
-  // ── Coal for miners, furnaces & steel furnaces ──
+  // ── Coal for miners and furnaces (coal-burning only) ──
   const _tCoal = _p0();
   for (const [key, group] of Object.entries(groups)) {
-    if (group.type !== 'miner' && group.type !== 'furnace' && group.type !== 'steelFurnace') continue;
+    if (group.type !== 'miner' && group.type !== 'furnace') continue;
     const gs = getGS(key);
     if (!gs.enabled) { gs.starved = true; continue; }
-    const rate = group.type === 'miner' ? COAL_PER_MINER
-               : group.type === 'steelFurnace' ? COAL_PER_STEEL_FURNACE
-               : COAL_PER_FURNACE;
+    if (group.type === 'furnace' && furnaceTier().isElectric) { gs.starved = false; continue; }
+    const rate = group.type === 'miner' ? COAL_PER_MINER : furnaceTier().coalRate;
     gs.coalAcc = (gs.coalAcc ?? 0) + group.count * rate * dt;
     if (gs.coalAcc >= 1) {
       const needed = Math.floor(gs.coalAcc);
@@ -2056,12 +2155,18 @@ function tick() {
     (getGS(ka).priority ? 0 : 1) - (getGS(kb).priority ? 0 : 1)
   );
 
-  // ── Furnaces (stone) — aggregated ──
+  // ── Furnaces (stone / steel / electric — unified) — aggregated ──
   const _tSF = _p0();
   for (const [key, group] of sortedGroupEntries) {
     if (group.type !== 'furnace') continue;
+    const ft = furnaceTier();
     const gs = getGS(key);
-    if (gs.starved) { gs.active = false; gs.progress = 0; gs.activeCount = 0; continue; }
+    if (ft.isElectric) {
+      if (!gs.enabled) { gs.active = false; gs.activeCount = 0; continue; }
+      gs.noPower = powerRatio < 1;
+    } else {
+      if (gs.starved) { gs.active = false; gs.progress = 0; gs.activeCount = 0; continue; }
+    }
     const recipe = FURNACE_RECIPES[group.recipe];
     if (!recipe) { gs.active = false; gs.activeCount = 0; continue; }
     const count = group.count;
@@ -2071,7 +2176,7 @@ function tick() {
     const atLimit = inv >= gs.limit;
     const activeN = atLimit ? 0 : Math.min(count, howManyCanAfford(recipe.inputs, count));
     gs.activeCount = activeN;
-    gs.progress += activeN * modifiers.effectiveSpeedMult / recipe.time * dt;
+    gs.progress += activeN * modifiers.effectiveSpeedMult * ft.speed / recipe.time * dt;
     gs.progress = Math.min(gs.progress, count * 4);
     const cycles = Math.floor(gs.progress);
     if (cycles > 0) {
@@ -2099,54 +2204,9 @@ function tick() {
       }
     }
   }
-  _p1('stoneFurnaces', _tSF);
+  _p1('furnaces', _tSF);
 
-  // ── Steel Furnaces — aggregated ──
-  const _tStF = _p0();
-  for (const [key, group] of sortedGroupEntries) {
-    if (group.type !== 'steelFurnace') continue;
-    const gs = getGS(key);
-    if (gs.starved) { gs.active = false; gs.progress = 0; gs.activeCount = 0; continue; }
-    const recipe = FURNACE_RECIPES[group.recipe];
-    if (!recipe) { gs.active = false; gs.activeCount = 0; continue; }
-    const count = group.count;
-    const outputKey = Object.keys(recipe.outputs)[0];
-    const modifiers = getBuildingModifiers('steelFurnace', count, gs.modules);
-    const inv = Math.floor(state.inventory[outputKey] ?? 0);
-    const atLimit = inv >= gs.limit;
-    const activeN = atLimit ? 0 : Math.min(count, howManyCanAfford(recipe.inputs, count));
-    gs.activeCount = activeN;
-    gs.progress += activeN * modifiers.effectiveSpeedMult * STEEL_FURNACE_SPEED / recipe.time * dt;
-    gs.progress = Math.min(gs.progress, count * 4);
-    const cycles = Math.floor(gs.progress);
-    if (cycles > 0) {
-      if (atLimit) { gs.progress = 0; gs.active = false; }
-      else {
-        const afford = howManyCanAfford(recipe.inputs, cycles);
-        if (afford === 0) { gs.progress = 0; gs.active = false; }
-        else {
-          const outAmt = recipe.outputs[outputKey];
-          const byLimit = gs.limit === Infinity ? cycles : Math.max(0, Math.floor((gs.limit - inv) / outAmt));
-          const actual = clampByU235Reserve(recipe, Math.min(afford, byLimit, cycles));
-          if (actual > 0) {
-            for (const [k, v] of Object.entries(recipe.inputs)) recordConsumed(k, v * actual);
-            for (const [k, v] of Object.entries(recipe.outputs)) {
-              const tot = v * actual * (1 + modifiers.prodBonus);
-              gs.prodFrac[k] = (gs.prodFrac[k] ?? 0) + tot;
-              const w = Math.floor(gs.prodFrac[k]); gs.prodFrac[k] -= w;
-              if (w > 0) recordProduced(k, w);
-            }
-            for (const [k, v] of Object.entries(recipe.outputs))
-              state.baseProduced[k] = (state.baseProduced[k] ?? 0) + v * actual;
-            gs.progress -= actual; gs.active = true;
-          } else { gs.progress = 0; gs.active = false; }
-        }
-      }
-    }
-  }
-  _p1('steelFurnaces', _tStF);
-
-  // ── Assembly Machines Mk1 — aggregated ──
+  // ── Assembly Machines (all tiers — unified) — aggregated ──
   const _tA1 = _p0();
   for (const [key, group] of sortedGroupEntries) {
     if (group.type !== 'assembly') continue;
@@ -2162,7 +2222,7 @@ function tick() {
     const atLimit = inv >= gs.limit;
     const activeN = atLimit ? 0 : Math.min(count, howManyCanAfford(recipe.inputs, count));
     gs.activeCount = activeN;
-    gs.progress += activeN * modifiers.effectiveSpeedMult * ASSEMBLY_SPEED / recipe.time * dt;
+    gs.progress += activeN * modifiers.effectiveSpeedMult * assemblyTier().speed / recipe.time * dt;
     gs.progress = Math.min(gs.progress, count * 4);
     const cycles = Math.floor(gs.progress);
     if (cycles > 0) {
@@ -2190,145 +2250,7 @@ function tick() {
       }
     }
   }
-  _p1('assembly1', _tA1);
-
-  // ── Assembly Machines Mk2 — aggregated ──
-  const _tA2 = _p0();
-  for (const [key, group] of sortedGroupEntries) {
-    if (group.type !== 'assembly2') continue;
-    const gs = getGS(key);
-    if (!gs.enabled) { gs.active = false; gs.activeCount = 0; continue; }
-    gs.noPower = powerRatio < 1;
-    const recipe = PLAYER_RECIPES[group.recipe];
-    if (!recipe) { gs.active = false; gs.activeCount = 0; continue; }
-    const count = group.count;
-    const outputKey = Object.keys(recipe.outputs)[0];
-    const modifiers = getBuildingModifiers('assembly2', count, gs.modules);
-    const inv = Math.floor(state.inventory[outputKey] ?? 0);
-    const atLimit = inv >= gs.limit;
-    const activeN = atLimit ? 0 : Math.min(count, howManyCanAfford(recipe.inputs, count));
-    gs.activeCount = activeN;
-    gs.progress += activeN * modifiers.effectiveSpeedMult * ASSEMBLY2_SPEED / recipe.time * dt;
-    gs.progress = Math.min(gs.progress, count * 4);
-    const cycles = Math.floor(gs.progress);
-    if (cycles > 0) {
-      if (atLimit) { gs.progress = 0; gs.active = false; }
-      else {
-        const afford = howManyCanAfford(recipe.inputs, cycles);
-        if (afford === 0) { gs.progress = 0; gs.active = false; }
-        else {
-          const outAmt = recipe.outputs[outputKey];
-          const byLimit = gs.limit === Infinity ? cycles : Math.max(0, Math.floor((gs.limit - inv) / outAmt));
-          const actual = clampByU235Reserve(recipe, Math.min(afford, byLimit, cycles));
-          if (actual > 0) {
-            for (const [k, v] of Object.entries(recipe.inputs)) recordConsumed(k, v * actual);
-            for (const [k, v] of Object.entries(recipe.outputs)) {
-              const tot = v * actual * (1 + modifiers.prodBonus);
-              gs.prodFrac[k] = (gs.prodFrac[k] ?? 0) + tot;
-              const w = Math.floor(gs.prodFrac[k]); gs.prodFrac[k] -= w;
-              if (w > 0) recordProduced(k, w);
-            }
-            for (const [k, v] of Object.entries(recipe.outputs))
-              state.baseProduced[k] = (state.baseProduced[k] ?? 0) + v * actual;
-            gs.progress -= actual; gs.active = true;
-          } else { gs.progress = 0; gs.active = false; }
-        }
-      }
-    }
-  }
-  _p1('assembly2', _tA2);
-
-  // ── Assembly Machines Mk3 — aggregated ──
-  const _tA3 = _p0();
-  for (const [key, group] of sortedGroupEntries) {
-    if (group.type !== 'assembly3') continue;
-    const gs = getGS(key);
-    if (!gs.enabled) { gs.active = false; gs.activeCount = 0; continue; }
-    gs.noPower = powerRatio < 1;
-    const recipe = PLAYER_RECIPES[group.recipe];
-    if (!recipe) { gs.active = false; gs.activeCount = 0; continue; }
-    const count = group.count;
-    const outputKey = Object.keys(recipe.outputs)[0];
-    const modifiers = getBuildingModifiers('assembly3', count, gs.modules);
-    const inv = Math.floor(state.inventory[outputKey] ?? 0);
-    const atLimit = inv >= gs.limit;
-    const activeN = atLimit ? 0 : Math.min(count, howManyCanAfford(recipe.inputs, count));
-    gs.activeCount = activeN;
-    gs.progress += activeN * modifiers.effectiveSpeedMult * ASSEMBLY3_SPEED / recipe.time * dt;
-    gs.progress = Math.min(gs.progress, count * 4);
-    const cycles = Math.floor(gs.progress);
-    if (cycles > 0) {
-      if (atLimit) { gs.progress = 0; gs.active = false; }
-      else {
-        const afford = howManyCanAfford(recipe.inputs, cycles);
-        if (afford === 0) { gs.progress = 0; gs.active = false; }
-        else {
-          const outAmt = recipe.outputs[outputKey];
-          const byLimit = gs.limit === Infinity ? cycles : Math.max(0, Math.floor((gs.limit - inv) / outAmt));
-          const actual = clampByU235Reserve(recipe, Math.min(afford, byLimit, cycles));
-          if (actual > 0) {
-            for (const [k, v] of Object.entries(recipe.inputs)) recordConsumed(k, v * actual);
-            for (const [k, v] of Object.entries(recipe.outputs)) {
-              const tot = v * actual * (1 + modifiers.prodBonus);
-              gs.prodFrac[k] = (gs.prodFrac[k] ?? 0) + tot;
-              const w = Math.floor(gs.prodFrac[k]); gs.prodFrac[k] -= w;
-              if (w > 0) recordProduced(k, w);
-            }
-            for (const [k, v] of Object.entries(recipe.outputs))
-              state.baseProduced[k] = (state.baseProduced[k] ?? 0) + v * actual;
-            gs.progress -= actual; gs.active = true;
-          } else { gs.progress = 0; gs.active = false; }
-        }
-      }
-    }
-  }
-  _p1('assembly3', _tA3);
-
-  // ── Electric Furnaces — aggregated ──
-  const _tEF = _p0();
-  for (const [key, group] of sortedGroupEntries) {
-    if (group.type !== 'electricFurnace') continue;
-    const gs = getGS(key);
-    if (!gs.enabled) { gs.active = false; gs.activeCount = 0; continue; }
-    gs.noPower = powerRatio < 1;
-    const recipe = FURNACE_RECIPES[group.recipe];
-    if (!recipe) { gs.active = false; gs.activeCount = 0; continue; }
-    const count = group.count;
-    const outputKey = Object.keys(recipe.outputs)[0];
-    const modifiers = getBuildingModifiers('electricFurnace', count, gs.modules);
-    const inv = Math.floor(state.inventory[outputKey] ?? 0);
-    const atLimit = inv >= gs.limit;
-    const activeN = atLimit ? 0 : Math.min(count, howManyCanAfford(recipe.inputs, count));
-    gs.activeCount = activeN;
-    gs.progress += activeN * modifiers.effectiveSpeedMult * ELECTRIC_FURNACE_SPEED / recipe.time * dt;
-    gs.progress = Math.min(gs.progress, count * 4);
-    const cycles = Math.floor(gs.progress);
-    if (cycles > 0) {
-      if (atLimit) { gs.progress = 0; gs.active = false; }
-      else {
-        const afford = howManyCanAfford(recipe.inputs, cycles);
-        if (afford === 0) { gs.progress = 0; gs.active = false; }
-        else {
-          const outAmt = recipe.outputs[outputKey];
-          const byLimit = gs.limit === Infinity ? cycles : Math.max(0, Math.floor((gs.limit - inv) / outAmt));
-          const actual = clampByU235Reserve(recipe, Math.min(afford, byLimit, cycles));
-          if (actual > 0) {
-            for (const [k, v] of Object.entries(recipe.inputs)) recordConsumed(k, v * actual);
-            for (const [k, v] of Object.entries(recipe.outputs)) {
-              const tot = v * actual * (1 + modifiers.prodBonus);
-              gs.prodFrac[k] = (gs.prodFrac[k] ?? 0) + tot;
-              const w = Math.floor(gs.prodFrac[k]); gs.prodFrac[k] -= w;
-              if (w > 0) recordProduced(k, w);
-            }
-            for (const [k, v] of Object.entries(recipe.outputs))
-              state.baseProduced[k] = (state.baseProduced[k] ?? 0) + v * actual;
-            gs.progress -= actual; gs.active = true;
-          } else { gs.progress = 0; gs.active = false; }
-        }
-      }
-    }
-  }
-  _p1('electricFurnaces', _tEF);
+  _p1('assembly', _tA1);
 
   // ── Pumpjacks — aggregated per resource group ──
   const _tPJ = _p0();
@@ -2739,21 +2661,37 @@ function tick() {
     const recipe = PLAYER_RECIPES[item.key];
     if (!recipe) {
       state.craftQueue.shift(); // unknown recipe — discard
+    } else if (item.prepaid) {
+      // Raw materials were consumed from inventory (via recordConsumed) at queue time.
+      // Only consume inputs that the chain itself produces (intermediates); raw material
+      // inputs are already accounted for and must NOT be deducted again.
+      state.craftQueue.shift();
+      const chainSet = item.chainOutputs ? new Set(item.chainOutputs) : null;
+      for (const [k, v] of Object.entries(recipe.inputs)) {
+        if (!chainSet || chainSet.has(k)) recordConsumed(k, v);
+      }
+      state.craftActive = { key: item.key, progress: 0 };
     } else if (item.deferred) {
-      // Auto-craft-to-place entries: deduct inputs at start time (not at queue
-      // time) so that earlier crafts in the chain can produce their outputs first.
+      // Legacy path (saves from before the prepaid system). Deduct inputs at start time.
       if (canAfford(recipe.inputs)) {
         state.craftQueue.shift();
         for (const [k, v] of Object.entries(recipe.inputs)) {
           recordConsumed(k, v);
-          // Release the reservation now that the material is actually consumed.
           if (state.craftReservations?.[k] > 0) {
             state.craftReservations[k] = Math.max(0, state.craftReservations[k] - v);
           }
         }
         state.craftActive = { key: item.key, progress: 0 };
+      } else {
+        const laterCanRun = state.craftQueue.slice(1).some(e => {
+          if (!e.deferred) return true;
+          const r = PLAYER_RECIPES[e.key];
+          return r && canAfford(r.inputs);
+        });
+        if (laterCanRun) {
+          state.craftQueue.push(state.craftQueue.shift());
+        }
       }
-      // else: prerequisites not yet produced; wait until next tick
     } else {
       state.craftQueue.shift();
       state.craftActive = { key: item.key, progress: 0 };
@@ -2984,19 +2922,11 @@ function maxDrillsForResource(/*resource*/) {
 }
 
 function resolveEffectiveBuildingType(type) {
-  const done = state.research?.done ?? {};
-  if (type === 'assembly') {
-    if (done.automation3) return 'assembly3';
-    if (done.automation2) return 'assembly2';
-  }
-  if (type === 'furnace') {
-    if (done.electricFurnaceTech) return 'electricFurnace';
-    if (done.advancedMaterialProcessing) return 'steelFurnace';
-  }
   return type;
 }
 
 function placeBuilding(type, triggerEl, ev) {
+  const originalType = type;
   type = resolveEffectiveBuildingType(type);
   if (!isUnlocked('building', type)) { notify(`Research required to place this building.`, 'warning'); return; }
 
@@ -3011,7 +2941,7 @@ function placeBuilding(type, triggerEl, ev) {
   if (type === 'miner')              resource = pr.miner ?? 'ironOre';
   else if (type === 'electricMiner') resource = pr.electricMiner ?? 'ironOre';
   else if (type === 'pumpjack')      resource = 'crudeOil';
-  else if (BUILDING_DEFS[type]?.hasRecipe) recipe = pr[type] ?? '';
+  else if (BUILDING_DEFS[type]?.hasRecipe) recipe = pr[originalType] ?? pr[type] ?? '';
 
   // Direct placements (items already in inventory)
   let actualCount = 0;
@@ -3044,21 +2974,27 @@ function placeBuilding(type, triggerEl, ev) {
       if (result.craftTime >= 60) {
         notify(`⚠️ Auto-crafting ${result.feasibleCount} ${BUILDING_DEFS[type]?.name ?? type} will take ~${Math.ceil(result.craftTime)}s`, 'warning');
       }
-      // Reserve raw materials so a subsequent placeBuilding call doesn't re-plan the same materials.
-      // Reservations are released as each deferred craft actually starts and calls recordConsumed.
-      state.craftReservations = state.craftReservations ?? {};
-      for (const k of Object.keys(result.startInv)) {
-        const consumed = (result.startInv[k] ?? 0) - (result.finalInv[k] ?? 0);
-        if (consumed > 0) {
-          state.craftReservations[k] = (state.craftReservations[k] ?? 0) + consumed;
+      // Items produced by the chain (intermediates). Raw materials are anything NOT here.
+      const chainOutputs = [];
+      for (const c of result.crafts) {
+        const r = PLAYER_RECIPES[c.key];
+        if (r) for (const outKey of Object.keys(r.outputs)) {
+          if (!chainOutputs.includes(outKey)) chainOutputs.push(outKey);
         }
       }
-      // Queue all needed crafts; inputs are deducted at craft-start time (deferred)
-      // so that intermediate items produced by earlier steps are available when needed.
+      const chainSet = new Set(chainOutputs);
+      // Consume raw materials immediately so production buildings can't steal them.
+      for (const [k, startAmt] of Object.entries(result.startInv)) {
+        const consumed = startAmt - (result.finalInv[k] ?? 0);
+        if (consumed > 0 && !chainSet.has(k)) recordConsumed(k, consumed);
+      }
+      // Queue all needed crafts as prepaid. Each entry carries chainOutputs so the
+      // craft tick knows which inputs were already consumed (raw materials) vs.
+      // which must still be consumed from inventory (intermediates).
       for (const c of result.crafts) {
         if (!PLAYER_RECIPES[c.key]) continue;
         for (let i = 0; i < c.count; i++) {
-          state.craftQueue.push({ key: c.key, deferred: true });
+          state.craftQueue.push({ key: c.key, prepaid: true, chainOutputs });
         }
       }
       // Register pending placements (processed after crafts complete)
@@ -3162,6 +3098,8 @@ function updatePlacementUI(placeBatch) {
   const label = document.getElementById('placement-label');
   const queueInfo = document.getElementById('place-queue-info');
   const clearBtn = document.getElementById('clear-queue-btn');
+  const etaRow = document.getElementById('place-eta-row');
+  const etaInfo = document.getElementById('place-eta-info');
   const totalQueued = placeQueue.slice(_placeHead).reduce((s, e) => s + e.count, 0);
   if (placing && currentPlacing) {
     const batchStr = currentPlacing.count > 1 ? ` ×${currentPlacing.count.toLocaleString()}` : '';
@@ -3175,6 +3113,18 @@ function updatePlacementUI(placeBatch) {
     if (queueInfo) queueInfo.textContent = 'empty';
   }
   if (clearBtn) clearBtn.style.display = totalQueued > 0 ? '' : 'none';
+  if (etaRow && etaInfo) {
+    if (totalQueued > 0) {
+      const { time, batch } = computePlaceTimeSec();
+      const ticksNeeded = Math.ceil(totalQueued / batch);
+      const progressTicks = placing ? (_placeElapsedMs / (time * 1000)) : 0;
+      const etaSec = Math.max(0, (ticksNeeded - progressTicks) * time);
+      etaRow.style.display = '';
+      etaInfo.textContent = `ETA: ${formatDuration(etaSec)}`;
+    } else {
+      etaRow.style.display = 'none';
+    }
+  }
 }
 
 // ── Manual Mining ─────────────────────────────────────────────
@@ -3229,12 +3179,11 @@ function _craftPlan(itemKey, qty, inv, depth) {
 // Starts from inventory minus already-reserved materials so concurrent placeBuilding
 // calls cannot double-queue crafts for the same raw materials.
 function computeAutoCraftsForPlace(costs, count) {
-  const reservations = state.craftReservations ?? {};
-  // Effective available inventory = actual inventory minus what is reserved for pending crafts.
+  // Use actual inventory — raw materials for pending chains are already removed upfront,
+  // so no reservation subtraction is needed.
   let inv = {};
   for (const k of Object.keys(state.inventory)) {
-    const avail = (state.inventory[k] ?? 0) - (reservations[k] ?? 0);
-    if (avail > 0) inv[k] = avail;
+    if (state.inventory[k] > 0) inv[k] = state.inventory[k];
   }
   const startInv = { ...inv };
 
@@ -3267,7 +3216,6 @@ function computeAutoCraftsForPlace(costs, count) {
 // Called after each hand-craft completes — process any pending auto-craft placements.
 function _tryProcessPendingPlacements() {
   if (!state.pendingPlacements?.length) return;
-  const pr = state.placementRecipes ?? defaultPlacementRecipes();
   let placed = false;
   state.pendingPlacements = state.pendingPlacements.filter(p => {
     const costs = BUILDING_COSTS[p.type];
@@ -3896,7 +3844,7 @@ function renderOnePlacementPicker(ptype, host) {
       return true;
     });
     entries = ores.map(k => [k, null, itemDisplay(k).name, itemIcon(k)]);
-  } else if (ptype === 'furnace' || ptype === 'steelFurnace' || ptype === 'electricFurnace') {
+  } else if (ptype === 'furnace') {
     entries = Object.entries(FURNACE_RECIPES)
       .filter(([k]) => isUnlocked('recipe', k))
       .map(([k, r]) => { const outKey = Object.keys(r.outputs)[0]; return [k, r, itemDisplay(outKey).name, itemIcon(outKey)]; });
@@ -3913,7 +3861,7 @@ function renderOnePlacementPicker(ptype, host) {
   }
 
   // Filter by search for assembly machines
-  const isAssembly = ['assembly','assembly2','assembly3'].includes(ptype);
+  const isAssembly = ptype === 'assembly';
   const search = isAssembly ? (pickerSearches[ptype] ?? '').toLowerCase() : '';
   if (search) entries = entries.filter(([, , name]) => name.toLowerCase().includes(search));
 
@@ -3950,9 +3898,11 @@ function addBuildingFromGroup(key, count, frontOfQueue = false) {
   const type = group.type;
   if (!isUnlocked('building', type)) { notify(`Research required.`, 'warning'); return; }
   const costs = BUILDING_COSTS[type] ?? {};
+
+  // Direct placements from inventory
   let actualCount = 0;
   for (let i = 0; i < count; i++) {
-    if (!canAfford(costs)) { if (i === 0) notify(`Need ${COST_LABEL[type] ?? type} — craft it first`, 'warning'); break; }
+    if (!canAfford(costs)) break;
     spend(costs);
     actualCount++;
   }
@@ -3964,6 +3914,47 @@ function addBuildingFromGroup(key, count, frontOfQueue = false) {
     else placeQueue.push(entry);
     updatePlacementUI();
     if (!placing) processNextPlacement();
+  }
+
+  // Auto-craft fallback for the remaining count
+  const leftover = count - actualCount;
+  if (leftover > 0 && Object.keys(costs).length > 0) {
+    const result = computeAutoCraftsForPlace(costs, leftover);
+    if (result) {
+      if (result.craftTime >= 60) {
+        notify(`⚠️ Auto-crafting ${result.feasibleCount} ${BUILDING_DEFS[type]?.name ?? type} will take ~${Math.ceil(result.craftTime)}s`, 'warning');
+      }
+      const chainOutputs2 = [];
+      for (const c of result.crafts) {
+        const r = PLAYER_RECIPES[c.key];
+        if (r) for (const outKey of Object.keys(r.outputs)) {
+          if (!chainOutputs2.includes(outKey)) chainOutputs2.push(outKey);
+        }
+      }
+      const chainSet2 = new Set(chainOutputs2);
+      for (const [k, startAmt] of Object.entries(result.startInv)) {
+        const consumed = startAmt - (result.finalInv[k] ?? 0);
+        if (consumed > 0 && !chainSet2.has(k)) recordConsumed(k, consumed);
+      }
+      for (const c of result.crafts) {
+        if (!PLAYER_RECIPES[c.key]) continue;
+        for (let i = 0; i < c.count; i++) {
+          state.craftQueue.push({ key: c.key, prepaid: true, chainOutputs: chainOutputs2 });
+        }
+      }
+      for (let i = 0; i < result.feasibleCount; i++) {
+        state.pendingPlacements.push({ type, resource: group.resource ?? null, recipe: group.recipe ?? null, frontOfQueue });
+      }
+      if (actualCount === 0 && result.craftTime < 60) {
+        notify(`⚙️ Crafting ${result.feasibleCount} ${BUILDING_DEFS[type]?.name ?? type}…`, 'info');
+      }
+    } else if (actualCount === 0) {
+      const missing = Object.entries(costs)
+        .filter(([k, n]) => (state.inventory[k] ?? 0) < n)
+        .map(([k, n]) => `${itemDisplay(k).name}: need ${fmtNum(n)}, have ${fmtNum(Math.floor(state.inventory[k] ?? 0))}`)
+        .join(' · ');
+      notify(missing ? `Missing: ${missing}` : `Need ${COST_LABEL[type] ?? type} — craft it first`, 'warning');
+    }
   }
 }
 
@@ -4052,8 +4043,13 @@ function refreshPlaceTabNames() {
     }
     const iconSpan = card.querySelector('.card-icon');
     if (iconSpan) {
-      const itemKey = getBuildingItemKey(type);
-      if (itemKey) iconSpan.innerHTML = itemIcon(itemKey);
+      const bd = buildingDisplay(type);
+      if (bd.iconImg) {
+        iconSpan.innerHTML = `<img class="item-icon" src="${bd.iconImg}" alt="${bd.name}">`;
+      } else {
+        const itemKey = getBuildingItemKey(type);
+        if (itemKey) iconSpan.innerHTML = itemIcon(itemKey);
+      }
     }
     // Fill description templates: {itemKey} → themed item name
     card.querySelectorAll('p[data-desc]').forEach(p => {
@@ -4241,48 +4237,34 @@ function renderBuildings() {
     }
 
     if (type === 'furnace') {
+      const ft = furnaceTier();
       const activeN   = gs.activeCount ?? 0;
       const recipe    = FURNACE_RECIPES[group.recipe];
       const outputKey = recipe ? Object.keys(recipe.outputs)[0] : null;
       const atLimit   = outputKey && (state.inventory[outputKey] ?? 0) >= gs.limit;
       const missingIn = activeN === 0 && recipe ? getMissingInputs(recipe) : null;
       const waitMsg   = missingIn ? `⏳ Need: ${missingIn.join(', ')}` : 'Waiting for inputs';
+      const brownStr  = ft.isElectric && gs.noPower ? ` · ⚡ ${Math.round((state.powerRatio ?? 1) * 100)}% power` : '';
       const statusTxt = !gs.enabled ? 'Disabled'
-                       : gs.starved  ? '⚡ No Coal'
+                       : (!ft.isElectric && gs.starved) ? '⚡ No Coal'
                        : atLimit     ? `⏸ Output limit (${gs.limit})`
-                       : activeN === count ? `Smelting (${activeN}/${count})`
-                       : activeN > 0  ? `Smelting (${activeN}/${count})${partialRunMsg(recipe, activeN, count)}`
-                                      : waitMsg;
+                       : activeN === count ? `Smelting (${activeN}/${count})${brownStr}`
+                       : activeN > 0  ? `Smelting (${activeN}/${count})${brownStr}${partialRunMsg(recipe, activeN, count)}`
+                                      : `${waitMsg}${brownStr}`;
       const modifiers = getBuildingModifiers('furnace', count, gs.modules);
-      const rateStr = recipeRateStr(activeN, count, 1, modifiers, recipe, outputKey);
+      const rateStr = recipeRateStr(activeN, count, ft.speed, modifiers, recipe, outputKey);
+      const statsStr = ft.isElectric
+        ? `${ft.kw * count} kW · ${rateStr}`
+        : `${itemDisplay('coal').name}: ${(count * ft.coalRate).toFixed(4)}/sec · ${rateStr}`;
+      const isActive = ft.isElectric ? (gs.enabled && activeN > 0) : (gs.enabled && !gs.starved && activeN > 0);
       return buildingCard('furnace', count,
-        `${itemDisplay('coal').name}: ${(count * COAL_PER_FURNACE).toFixed(4)}/sec · ${rateStr}`,
-        statusTxt, gs.enabled && !gs.starved && activeN > 0, -1, key,
+        statsStr,
+        statusTxt, isActive, -1, key,
         buildCurrentRecipeDisplay(group.recipe, FURNACE_RECIPES), true, 'furnace', true);
     }
 
-    if (type === 'steelFurnace') {
-      const activeN   = gs.activeCount ?? 0;
-      const recipe    = FURNACE_RECIPES[group.recipe];
-      const outputKey = recipe ? Object.keys(recipe.outputs)[0] : null;
-      const atLimit   = outputKey && (state.inventory[outputKey] ?? 0) >= gs.limit;
-      const missingIn = activeN === 0 && recipe ? getMissingInputs(recipe) : null;
-      const waitMsg   = missingIn ? `⏳ Need: ${missingIn.join(', ')}` : 'Waiting for inputs';
-      const statusTxt = !gs.enabled ? 'Disabled'
-                       : gs.starved  ? '⚡ No Coal'
-                       : atLimit     ? `⏸ Output limit (${gs.limit})`
-                       : activeN === count ? `Smelting (${activeN}/${count})`
-                       : activeN > 0  ? `Smelting (${activeN}/${count})${partialRunMsg(recipe, activeN, count)}`
-                                      : waitMsg;
-      const modifiers = getBuildingModifiers('steelFurnace', count, gs.modules);
-      const rateStr = recipeRateStr(activeN, count, STEEL_FURNACE_SPEED, modifiers, recipe, outputKey);
-      return buildingCard('steelFurnace', count,
-        `${itemDisplay('coal').name}: ${(count * COAL_PER_STEEL_FURNACE).toFixed(4)}/sec · ${rateStr}`,
-        statusTxt, gs.enabled && !gs.starved && activeN > 0, -1, key,
-        buildCurrentRecipeDisplay(group.recipe, FURNACE_RECIPES), true, 'steelFurnace', true);
-    }
-
     if (type === 'assembly') {
+      const at = assemblyTier();
       const activeN   = gs.activeCount ?? 0;
       const recipe    = PLAYER_RECIPES[group.recipe];
       const outputKey = recipe ? Object.keys(recipe.outputs)[0] : null;
@@ -4296,32 +4278,11 @@ function renderBuildings() {
                        : activeN > 0  ? `Crafting (${activeN}/${count})${brownStr}${partialRunMsg(recipe, activeN, count)}`
                                       : `${waitMsg}${brownStr}`;
       const modifiers = getBuildingModifiers('assembly', count, gs.modules);
-      const rateStr = recipeRateStr(activeN, count, ASSEMBLY_SPEED, modifiers, recipe, outputKey);
+      const rateStr = recipeRateStr(activeN, count, at.speed, modifiers, recipe, outputKey);
       return buildingCard('assembly', count,
-        `${ASSEMBLY_KW * count} kW · ${rateStr}`,
+        `${at.kw * count} kW · ${rateStr}`,
         statusTxt, gs.enabled && activeN > 0, -1, key,
         buildCurrentRecipeDisplay(group.recipe, PLAYER_RECIPES), true, 'assembly', true);
-    }
-
-    if (type === 'assembly2') {
-      const activeN   = gs.activeCount ?? 0;
-      const recipe    = PLAYER_RECIPES[group.recipe];
-      const outputKey = recipe ? Object.keys(recipe.outputs)[0] : null;
-      const atLimit   = outputKey && (state.inventory[outputKey] ?? 0) >= gs.limit;
-      const missingIn = activeN === 0 && recipe ? getMissingInputs(recipe) : null;
-      const waitMsg   = missingIn ? `⏳ Need: ${missingIn.join(', ')}` : 'Waiting for inputs';
-      const brownStr  = gs.noPower ? ` · ⚡ ${Math.round((state.powerRatio ?? 1) * 100)}% power` : '';
-      const statusTxt = !gs.enabled ? 'Disabled'
-                       : atLimit    ? `⏸ Output limit (${gs.limit})`
-                       : activeN === count ? `Crafting (${activeN}/${count})${brownStr}`
-                       : activeN > 0  ? `Crafting (${activeN}/${count})${brownStr}${partialRunMsg(recipe, activeN, count)}`
-                                      : `${waitMsg}${brownStr}`;
-      const modifiers = getBuildingModifiers('assembly2', count, gs.modules);
-      const rateStr = recipeRateStr(activeN, count, ASSEMBLY2_SPEED, modifiers, recipe, outputKey);
-      return buildingCard('assembly2', count,
-        `${ASSEMBLY2_KW * count} kW · ${rateStr}`,
-        statusTxt, gs.enabled && activeN > 0, -1, key,
-        buildCurrentRecipeDisplay(group.recipe, PLAYER_RECIPES), true, 'assembly2', true);
     }
 
     if (type === 'lab') {
@@ -4408,48 +4369,6 @@ function renderBuildings() {
       return buildingCard('accumulator', count, `${maxCharge.toLocaleString()} kJ capacity`,
         gs.enabled ? `${kj} / ${maxKj} kJ stored` : 'Disabled',
         gs.enabled, pct, key);
-    }
-
-    if (type === 'electricFurnace') {
-      const activeN   = gs.activeCount ?? 0;
-      const recipe    = FURNACE_RECIPES[group.recipe];
-      const outputKey = recipe ? Object.keys(recipe.outputs)[0] : null;
-      const atLimit   = outputKey && (state.inventory[outputKey] ?? 0) >= gs.limit;
-      const missingIn = activeN === 0 && recipe ? getMissingInputs(recipe) : null;
-      const waitMsg   = missingIn ? `⏳ Need: ${missingIn.join(', ')}` : 'Waiting for inputs';
-      const brownStr  = gs.noPower ? ` · ⚡ ${Math.round((state.powerRatio ?? 1) * 100)}% power` : '';
-      const statusTxt2 = !gs.enabled ? 'Disabled'
-                       : atLimit     ? `⏸ Output limit (${gs.limit})`
-                       : activeN === count ? `Smelting (${activeN}/${count})${brownStr}`
-                       : activeN > 0  ? `Smelting (${activeN}/${count})${brownStr}${partialRunMsg(recipe, activeN, count)}`
-                                      : `${waitMsg}${brownStr}`;
-      const modifiers = getBuildingModifiers('electricFurnace', count, gs.modules);
-      const rateStr = recipeRateStr(activeN, count, ELECTRIC_FURNACE_SPEED, modifiers, recipe, outputKey);
-      return buildingCard('electricFurnace', count,
-        `${ELECTRIC_FURNACE_KW * count} kW · ${rateStr}`,
-        statusTxt2, gs.enabled && activeN > 0, -1, key,
-        buildCurrentRecipeDisplay(group.recipe, FURNACE_RECIPES), true, 'electricFurnace', true);
-    }
-
-    if (type === 'assembly3') {
-      const activeN   = gs.activeCount ?? 0;
-      const recipe    = PLAYER_RECIPES[group.recipe];
-      const outputKey = recipe ? Object.keys(recipe.outputs)[0] : null;
-      const atLimit   = outputKey && (state.inventory[outputKey] ?? 0) >= gs.limit;
-      const missingIn = activeN === 0 && recipe ? getMissingInputs(recipe) : null;
-      const waitMsg   = missingIn ? `⏳ Need: ${missingIn.join(', ')}` : 'Waiting for inputs';
-      const brownStr  = gs.noPower ? ` · ⚡ ${Math.round((state.powerRatio ?? 1) * 100)}% power` : '';
-      const statusTxt2 = !gs.enabled ? 'Disabled'
-                       : atLimit     ? `⏸ Output limit (${gs.limit})`
-                       : activeN === count ? `Crafting (${activeN}/${count})${brownStr}`
-                       : activeN > 0  ? `Crafting (${activeN}/${count})${brownStr}${partialRunMsg(recipe, activeN, count)}`
-                                      : `${waitMsg}${brownStr}`;
-      const modifiers = getBuildingModifiers('assembly3', count, gs.modules);
-      const rateStr = recipeRateStr(activeN, count, ASSEMBLY3_SPEED, modifiers, recipe, outputKey);
-      return buildingCard('assembly3', count,
-        `${ASSEMBLY3_KW * count} kW · ${rateStr}`,
-        statusTxt2, gs.enabled && activeN > 0, -1, key,
-        buildCurrentRecipeDisplay(group.recipe, PLAYER_RECIPES), true, 'assembly3', true);
     }
 
     if (type === 'pumpjack') {
@@ -4588,7 +4507,7 @@ function adjustGroupModules(key, modType, amount) {
   const groups = buildGroupMap();
   const group = groups[key];
   if (!group) return;
-  const slotsPerBuilding = MODULE_SLOTS[group.type] ?? 0;
+  const slotsPerBuilding = getModuleSlots(group.type);
   const totalSlots = slotsPerBuilding * group.count;
   if (!gs.modules) gs.modules = {};
   const usedSlots = Object.values(gs.modules).reduce((s, n) => s + n, 0);
@@ -4617,7 +4536,7 @@ function fillGroupModules(key, modType) {
   const groups = buildGroupMap();
   const group = groups[key];
   if (!group) return;
-  const slotsPerBuilding = MODULE_SLOTS[group.type] ?? 0;
+  const slotsPerBuilding = getModuleSlots(group.type);
   const totalSlots = slotsPerBuilding * group.count;
   if (!gs.modules) gs.modules = {};
   const current = gs.modules[modType] ?? 0;
@@ -4660,7 +4579,7 @@ function buildingCard(type, count, meta, statusTxt, isActive, barFill, key, extr
   const _anyModuleTech = _done.speedModuleTech1 || _done.speedModuleTech2 || _done.speedModuleTech3 ||
                          _done.productionModuleTech1 || _done.productionModuleTech2 || _done.productionModuleTech3;
   if (moduleType !== null && _anyModuleTech) {
-    const slotsPerBuilding = MODULE_SLOTS[moduleType] ?? 0;
+    const slotsPerBuilding = getModuleSlots(moduleType);
     const totalSlots = slotsPerBuilding * count;
     if (totalSlots > 0) {
       const mods = gs.modules ?? {};
@@ -4690,13 +4609,17 @@ function buildingCard(type, count, meta, statusTxt, isActive, barFill, key, extr
     : '';
 
   // Right-side image panel: building image + name label when there's an output item
-  const _bldgItemKey = getBuildingItemKey(type);
+  const _bldgItemKey = _bd.iconImg ? null : getBuildingItemKey(type);
   const _outKey = getBuildingOutputKey(key);
   const _outName = _outKey ? itemDisplay(_outKey).name : '';
   const _bldgNameLabel = _outKey ? `<span class="bldg-name-label">${name}</span>` : '';
-  const _bldgImgHtml = _bldgItemKey
-    ? `<div class="bldg-main-wrap"><div class="bldg-main-img">${itemIcon(_bldgItemKey)}</div>${_bldgNameLabel}</div>`
-    : `<div class="bldg-main-wrap"><div class="bldg-main-img bldg-main-emoji">${icon}</div>${_bldgNameLabel}</div>`;
+  const _bldgIconHtml = _bd.iconImg
+    ? `<img class="item-icon" src="${_bd.iconImg}" alt="${name}">`
+    : _bldgItemKey
+      ? itemIcon(_bldgItemKey)
+      : icon;
+  const _bldgImgClass = (_bd.iconImg || _bldgItemKey) ? 'bldg-main-img' : 'bldg-main-img bldg-main-emoji';
+  const _bldgImgHtml = `<div class="bldg-main-wrap"><div class="${_bldgImgClass}">${_bldgIconHtml}</div>${_bldgNameLabel}</div>`;
   const _outImgHtml = _outKey
     ? `<div class="bldg-output-img">${itemIcon(_outKey)}<span class="bldg-output-count">×${count}</span></div>`
     : '';
@@ -6540,16 +6463,32 @@ function toggleBitersField(enabled) {
 
 function updatePlaceButtonStates() {
   document.querySelectorAll('.btn-place[data-type]').forEach(btn => {
-    const type  = btn.dataset.type;
-    const costs = BUILDING_COSTS[type] ?? {};
-    if (canAfford(costs)) {
+    const type     = btn.dataset.type;
+    const costs    = BUILDING_COSTS[resolveEffectiveBuildingType(type)] ?? {};
+    const countEl  = btn.closest('.place-row')?.querySelector('.place-count');
+    const count    = Math.max(1, Math.floor(parseFloat(countEl?.value ?? '1') || 1));
+
+    // How many can be placed directly from current inventory?
+    const costEntries = Object.entries(costs);
+    const directAvail = costEntries.length === 0
+      ? Infinity
+      : Math.floor(Math.min(...costEntries.map(([k, v]) => (state.inventory[k] ?? 0) / v)));
+
+    if (directAvail >= count) {
+      // All count items are in inventory
       btn.classList.remove('cant-afford', 'can-craft');
-    } else if (computeAutoCraftsForPlace(costs, 1) !== null) {
-      btn.classList.remove('cant-afford');
-      btn.classList.add('can-craft');
     } else {
-      btn.classList.remove('can-craft');
-      btn.classList.add('cant-afford');
+      const leftover = count - directAvail;
+      const craft    = computeAutoCraftsForPlace(costs, leftover);
+      if (craft !== null && craft.feasibleCount >= leftover) {
+        // Can craft the shortfall — yellow
+        btn.classList.remove('cant-afford');
+        btn.classList.add('can-craft');
+      } else {
+        // Can't fulfill count even with crafting — gray
+        btn.classList.remove('can-craft');
+        btn.classList.add('cant-afford');
+      }
     }
   });
   // Hide/show locked building cards
@@ -6619,20 +6558,29 @@ function renderDrillCard() {
 function renderAssemblyCard() {
   const el = document.getElementById('asm-card-content');
   if (!el) return;
-  const type = resolveEffectiveBuildingType('assembly');
   const asmCard = el.closest('.buildable-card');
   const asmH4   = asmCard?.querySelector('h4');
-  if (asmH4) asmH4.textContent = buildingDisplay(type).name;
+  if (asmH4) asmH4.textContent = buildingDisplay('assembly').name;
   const asmIcon = asmCard?.querySelector('.card-icon');
-  if (asmIcon) { const k = getBuildingItemKey(type); if (k) asmIcon.innerHTML = itemIcon(k); }
-  const statsMap = {
-    assembly:  `<p>Auto-crafts items · 75 kW · speed ×0.5</p><p class="card-cost">Cost: 1 × ${itemDisplay('assemblyMachine1Item').name}</p>`,
-    assembly2: `<p>Auto-crafts items · 150 kW · speed ×0.75 (upgraded)</p><p class="card-cost">Free — upgrade applied by research</p>`,
-    assembly3: `<p>Auto-crafts items · 375 kW · speed ×1.25 (upgraded)</p><p class="card-cost">Free — upgrade applied by research</p>`,
-  };
-  el.innerHTML = `${statsMap[type] ?? statsMap.assembly}
-    <input class="picker-search" type="text" placeholder="Search recipes…" oninput="onPickerSearch('${type}', this.value)">
-    <div class="recipe-picker-host" data-ptype="${type}"></div>
+  if (asmIcon) {
+    const bd = buildingDisplay('assembly');
+    if (bd.iconImg) {
+      asmIcon.innerHTML = `<img class="item-icon" src="${bd.iconImg}" alt="${bd.name}">`;
+    } else {
+      const k = getBuildingItemKey('assembly');
+      if (k) asmIcon.innerHTML = itemIcon(k);
+    }
+  }
+  const at = assemblyTier();
+  const done = state?.research?.done ?? {};
+  const tierLabel = done.automation3 ? ' (Mk3 — upgraded)' : done.automation2 ? ' (Mk2 — upgraded)' : '';
+  const costStr = (done.automation2 || done.automation3)
+    ? 'Free — upgrade applied by research'
+    : `Cost: 1 × ${itemDisplay('assemblyMachine1Item').name}`;
+  const statsStr = `<p>Auto-crafts items · ${at.kw} kW · speed ×${at.speed}${tierLabel}</p><p class="card-cost">${costStr}</p>`;
+  el.innerHTML = `${statsStr}
+    <input class="picker-search" type="text" placeholder="Search recipes…" oninput="onPickerSearch('assembly', this.value)">
+    <div class="recipe-picker-host" data-ptype="assembly"></div>
     <div class="place-row">
       <input type="text" class="place-count" value="1">
       <button class="btn-place" data-type="assembly" onclick="placeBuilding('assembly',this,event)">Place</button>
@@ -6759,6 +6707,10 @@ function setupEventDelegation() {
     mouseHeld = false;
     clearTimeout(mouseHeldTimer);
   }, true);
+
+  document.addEventListener('input', e => {
+    if (e.target.classList.contains('place-count')) updatePlaceButtonStates();
+  });
 
   document.getElementById('resource-patches').addEventListener('click', e => {
     const btn = e.target.closest('[data-mine]');
@@ -6907,14 +6859,15 @@ function notify(msg, type = 'info', opts = {}) {
 
 // ── Meta Progression Tab ──────────────────────────────────────
 
-const META_UPGRADEABLE_TYPES = Object.keys(BUILDING_DEFS).filter(k => BUILDING_DEFS[k].upgradeable);
+const _META_DEAD_TYPES = new Set(['assembly2', 'assembly3', 'steelFurnace', 'electricFurnace']);
+const META_UPGRADEABLE_TYPES = Object.keys(BUILDING_DEFS).filter(k => BUILDING_DEFS[k].upgradeable && !_META_DEAD_TYPES.has(k));
 const META_TYPE_NAMES = Object.fromEntries(
   Object.entries(BUILDING_DEFS).map(([k, v]) => [k, v.name])
 );
 
 const META_BUILDING_ITEM_KEY = {
-  stoneFurnace: 'stoneFurnaceItem', steelFurnace: null, electricFurnace: null,
-  assembly: 'assemblyMachine1Item', assembly2: null, assembly3: null,
+  furnace: 'stoneFurnaceItem',
+  assembly: 'assemblyMachine1Item',
   lab: 'labItem', boiler: 'boilerItem', radar: 'radarItem',
   pumpjack: 'pumpjackItem', oilRefinery: 'oilRefineryItem', chemicalPlant: 'chemicalPlantItem',
   centrifuge: 'centrifugeItem', nuclearReactor: null,
@@ -7573,6 +7526,8 @@ function _getCanvasSlotImg(cat, slotIdx) {
       const img = itemDisplay(itemKey).img;
       if (img) return img;
     }
+    const bd = buildingDisplay(type);
+    if (bd.iconImg) return bd.iconImg;
   }
   return cat.slotImgs[slotIdx] ?? null;
 }

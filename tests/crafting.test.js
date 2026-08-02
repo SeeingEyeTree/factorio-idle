@@ -34,6 +34,38 @@ function silentGame(g) {
   return st;
 }
 
+// Like silentGame but allows actual building placement. tickPlacement is
+// overridden to be synchronous (no wall-clock timing) so that state.buildings
+// is updated immediately when a pending placement triggers.
+function fullSilentGame(g) {
+  const st = emptyGame(g);
+  g.run('updatePlacementUI = function() {}');
+  g.run('notify = function() {}');
+  // processNextPlacement is NOT stubbed — buildings must actually land.
+  // Override tickPlacement to skip the RAF animation and place immediately.
+  g.run(`tickPlacement = function() {
+    let budget = 9999;
+    while (budget > 0 && _placeHead < placeQueue.length) {
+      const entry = placeQueue[_placeHead];
+      if (!entry) break;
+      const toPlace = Math.min(budget, entry.count);
+      const k = groupKey(entry);
+      if (!state.buildings[k]) state.buildings[k] = {
+        type: entry.type, count: 0,
+        ...(entry.resource != null && { resource: entry.resource }),
+        ...(entry.recipe   != null && { recipe:   entry.recipe   }),
+      };
+      state.buildings[k].count += toPlace;
+      entry.count -= toPlace;
+      if (entry.count <= 0) _placeDequeue();
+      budget -= toPlace;
+    }
+    _groupsDirty = true; _typeCountsCache = null;
+    placing = false; currentPlacing = null;
+  };`);
+  return st;
+}
+
 // ── _craftPlan unit tests ─────────────────────────────────────────────────────
 
 test('_craftPlan: returns empty plan when inventory already has enough', () => {
@@ -338,4 +370,229 @@ test('pause: allPaused deferred auto-craft still completes', () => {
   assert.strictEqual(st.craftQueue.length, 0, 'deferred craft must finish during allPaused');
   assert.strictEqual(st.pendingPlacements.length, 0,
     'placement must trigger after craft completes during allPaused');
+});
+
+// ── addBuildingFromGroup auto-craft tests ───────────────────────────────────
+// addBuildingFromGroup is the "+ Add" button handler; it should auto-craft
+// building items it can't immediately place, just like the Place button.
+//
+// Setup: we manually add a buildings entry so buildGroupMap() finds the group.
+// After patching state.buildings the cache must be invalidated.
+
+test('addBuildingFromGroup: auto-crafts and places when building not in inventory', () => {
+  const g = loadGame();
+  const st = silentGame(g);
+  st.buildings['furnace:ironPlate'] = { type: 'furnace', recipe: 'ironPlate', count: 1 };
+  g.run('_groupsDirty = true');
+  st.inventory.stone = 5; // enough for 1 stoneFurnaceItem (costs 5 stone)
+  g.get('addBuildingFromGroup')('furnace:ironPlate', 1);
+  assert.strictEqual(st.pendingPlacements.length, 1, 'deferred craft should be queued');
+  g.advance(4);
+  assert.strictEqual(st.pendingPlacements.length, 0, 'placement should resolve after craft');
+  assert.strictEqual(st.inventory.stoneFurnaceItem ?? 0, 0, 'item consumed by placement');
+  assert.strictEqual(st.inventory.stone ?? 0, 0, 'stone consumed by craft');
+});
+
+test('addBuildingFromGroup: partial inventory — places available, crafts the gap', () => {
+  // 8 stoneFurnaceItems in inventory, requesting 10; should place 8 immediately
+  // and queue deferred crafts for the remaining 2.
+  const g = loadGame();
+  const st = silentGame(g);
+  st.buildings['furnace:ironPlate'] = { type: 'furnace', recipe: 'ironPlate', count: 8 };
+  g.run('_groupsDirty = true');
+  st.inventory.stoneFurnaceItem = 8;
+  st.inventory.stone = 10; // enough to craft 2 more (5 stone each)
+  g.get('addBuildingFromGroup')('furnace:ironPlate', 10);
+  assert.strictEqual(st.craftQueue.length, 2, '2 deferred crafts queued for the gap');
+  assert.strictEqual(st.pendingPlacements.length, 2, '2 pending placements registered');
+  g.advance(4);
+  assert.strictEqual(st.craftQueue.length, 0, 'both crafts complete');
+  assert.strictEqual(st.pendingPlacements.length, 0, 'both placements trigger');
+  assert.strictEqual(st.inventory.stone ?? 0, 0, 'all stone consumed');
+});
+
+test('auto-craft: offshore pump + boiler + 2 steam engines all placed from raw materials', () => {
+  // Raw material breakdown (all items crafted from scratch):
+  //
+  //   offshorePumpItem  { ironGear:1, electronicCircuit:2, pipe:1 }
+  //     ironGear×1        → ironPlate:2
+  //     copperCable×3     → copperPlate:3  (3 batches×2=6 cable for 2 circuits)
+  //     electronicCircuit×2 → ironPlate:2 + 6 copperCable (above)
+  //     pipe×1            → ironPlate:1
+  //     subtotal          → ironPlate:5, copperPlate:3
+  //
+  //   boilerItem  { ironPlate:4, stoneFurnaceItem:1, pipe:4 }
+  //     stoneFurnaceItem×1 → stone:5
+  //     pipe×4            → ironPlate:4
+  //     subtotal          → ironPlate:8, stone:5
+  //
+  //   steamEngineItem×2  each { ironPlate:10, ironGear:8, pipe:5 }
+  //     ironGear×8        → ironPlate:16  (×2 = 32)
+  //     pipe×5            → ironPlate:5   (×2 = 10)
+  //     ironPlate direct  → 10            (×2 = 20)
+  //     subtotal          → ironPlate:62
+  //
+  //   TOTAL: ironPlate:75, copperPlate:3, stone:5
+
+  const g = loadGame();
+  const st = fullSilentGame(g); // allows actual placement into state.buildings
+  st.inventory.ironPlate   = 75;
+  st.inventory.copperPlate = 3;
+  st.inventory.stone       = 5;
+
+  const place = g.get('placeBuilding');
+  place('offshoreP',   null, null); // count=1
+  place('boiler',      null, null); // count=1
+  place('steamEngine', null, null); // count=1
+  place('steamEngine', null, null); // count=1 (second engine)
+
+  // 4 separate pending placements registered
+  assert.strictEqual(st.pendingPlacements.length, 4, '4 pending placements queued');
+
+  // All crafts take 0.5s each; ~42 sequential crafts ≈ 21s. Advance 30s.
+  g.advance(30);
+
+  assert.strictEqual(st.craftQueue.length,       0, 'all deferred crafts complete');
+  assert.strictEqual(st.pendingPlacements.length, 0, 'all 4 placements triggered');
+
+  // Buildings must actually appear in state.buildings
+  assert.strictEqual(st.buildings['offshoreP']?.count ?? 0,  1, 'offshore pump placed');
+  assert.strictEqual(st.buildings['boiler']?.count    ?? 0,  1, 'boiler placed');
+  assert.strictEqual(st.buildings['steamEngine']?.count ?? 0, 2, 'both steam engines placed');
+
+  // Every raw material must be fully consumed
+  assert.strictEqual(st.inventory.ironPlate   ?? 0, 0, 'ironPlate fully consumed');
+  assert.strictEqual(st.inventory.copperPlate ?? 0, 0, 'copperPlate fully consumed');
+  assert.strictEqual(st.inventory.stone       ?? 0, 0, 'stone fully consumed');
+
+  // No intermediate or final building items left over in inventory
+  assert.strictEqual(st.inventory.offshorePumpItem ?? 0, 0, 'offshorePumpItem spent');
+  assert.strictEqual(st.inventory.boilerItem       ?? 0, 0, 'boilerItem spent');
+  assert.strictEqual(st.inventory.steamEngineItem  ?? 0, 0, 'steamEngineItem spent');
+});
+
+test('placeBuilding: recipe is read from assembly key — type never resolves to a different type', () => {
+  // After refactor: resolveEffectiveBuildingType always returns the type unchanged.
+  // placeBuilding('assembly') stays 'assembly', so pr['assembly'] is always used.
+  const g = loadGame();
+  const st = fullSilentGame(g);
+  st.research.done.automation  = true; // required to unlock 'assembly' building
+  st.research.done.automation2 = true;
+  st.research.done.oilGathering = true; // unlock pumpjackItem recipe for recipe picker
+
+  // Simulate user having set the assembly picker to pumpjackItem
+  st.placementRecipes.assembly = 'pumpjackItem';
+
+  // BUILDING_COSTS['assembly'] = { assemblyMachine1Item: 1 } — need the item
+  st.inventory.assemblyMachine1Item = 1;
+  g.get('placeBuilding')('assembly', null, null);
+  g.advance(5);
+
+  assert.strictEqual(st.buildings['assembly:pumpjackItem']?.count ?? 0, 1,
+    'assembly placed with pumpjackItem recipe (from assembly key)');
+  assert.strictEqual(st.buildings['assembly:ironGear']?.count ?? 0, 0,
+    'must NOT place with ironGear');
+});
+
+test('auto-craft: pumpjack + oilRefinery + chemicalPlant placed from raw materials with automation2 + oil techs', () => {
+  // Raw material totals for all 3 buildings (steel and stoneBrick are furnace-only —
+  // _craftPlan cannot plan them, so they must be provided directly in inventory):
+  //
+  //   pumpjackItem      { steel:5, ironGear:10, electronicCircuit:5, pipe:10 }
+  //     ironGear×10        → ironPlate:20
+  //     copperCable×8 bts  → copperPlate:8   (ceil(15/2)=8; 16 produced, 1 leftover)
+  //     electronicCircuit×5 → ironPlate:5
+  //     pipe×10            → ironPlate:10
+  //     subtotal           → steel:5, ironPlate:35, copperPlate:8
+  //
+  //   oilRefineryItem   { steel:15, ironGear:10, electronicCircuit:10, pipe:10, stoneBrick:10 }
+  //     ironGear×10        → ironPlate:20
+  //     copperCable×15 bts → copperPlate:15  (ceil(30/2)=15; 30 produced)
+  //     electronicCircuit×10 → ironPlate:10
+  //     pipe×10            → ironPlate:10
+  //     subtotal           → steel:15, stoneBrick:10, ironPlate:40, copperPlate:15
+  //
+  //   chemicalPlantItem { steel:5, ironGear:5, electronicCircuit:5, pipe:5 }
+  //     ironGear×5         → ironPlate:10
+  //     copperCable×8 bts  → copperPlate:8   (ceil(15/2)=8; 16 produced, 1 leftover)
+  //     electronicCircuit×5 → ironPlate:5
+  //     pipe×5             → ironPlate:5
+  //     subtotal           → steel:5, ironPlate:20, copperPlate:8
+  //
+  //   TOTALS: steel:25, stoneBrick:10, ironPlate:95, copperPlate:31
+  //
+  //   Sequential craft time: pumpjack ~21.5s + oilRefinery ~30.5s + chemicalPlant ~16.5s ≈ 68.5s
+
+  const g = loadGame();
+  const st = fullSilentGame(g);
+
+  // Set research directly to avoid renderUI DOM crash from completeResearch
+  st.research.done.automation2       = true; // assembler mk2 tech (user requirement)
+  st.research.done.oilGathering      = true; // unlocks pumpjack building + pumpjackItem recipe
+  st.research.done.oilProcessingTech = true; // unlocks oilRefinery + chemicalPlant + their items
+
+  st.inventory.steel       = 25;
+  st.inventory.stoneBrick  = 10;
+  st.inventory.ironPlate   = 95;
+  st.inventory.copperPlate = 31;
+
+  const place = g.get('placeBuilding');
+  place('pumpjack',      null, null);
+  place('oilRefinery',   null, null);
+  place('chemicalPlant', null, null);
+
+  assert.strictEqual(st.pendingPlacements.length, 3, '3 pending placements queued');
+
+  // Advance past the full sequential craft chain (~68.5s) with buffer
+  g.advance(80);
+
+  assert.strictEqual(st.craftQueue.length,       0, 'all deferred crafts complete');
+  assert.strictEqual(st.pendingPlacements.length, 0, 'all 3 placements triggered');
+
+  // pumpjack has hasResource:true → groupKey = 'pumpjack:crudeOil'
+  // oilRefinery has hasRecipe:true → groupKey = 'oilRefinery:basicOilProcessing' (default recipe)
+  // chemicalPlant has hasRecipe:true → groupKey = 'chemicalPlant:plasticBar' (default recipe)
+  assert.strictEqual(
+    st.buildings['pumpjack:crudeOil']?.count ?? 0, 1, 'pumpjack placed');
+  assert.strictEqual(
+    st.buildings['oilRefinery:basicOilProcessing']?.count ?? 0, 1, 'oilRefinery placed');
+  assert.strictEqual(
+    st.buildings['chemicalPlant:plasticBar']?.count ?? 0, 1, 'chemicalPlant placed');
+
+  // Raw materials consumed upfront by placeBuilding (not produced by crafts)
+  assert.strictEqual(st.inventory.steel       ?? 0, 0, 'steel fully consumed');
+  assert.strictEqual(st.inventory.stoneBrick  ?? 0, 0, 'stoneBrick fully consumed');
+  assert.strictEqual(st.inventory.ironPlate   ?? 0, 0, 'ironPlate fully consumed');
+  assert.strictEqual(st.inventory.copperPlate ?? 0, 0, 'copperPlate fully consumed');
+
+  // Building items must be spent on placement, not left in inventory
+  assert.strictEqual(st.inventory.pumpjackItem      ?? 0, 0, 'pumpjackItem spent on placement');
+  assert.strictEqual(st.inventory.oilRefineryItem   ?? 0, 0, 'oilRefineryItem spent on placement');
+  assert.strictEqual(st.inventory.chemicalPlantItem ?? 0, 0, 'chemicalPlantItem spent on placement');
+
+  // At most 2 excess copperCable from ceil rounding (1 leftover each from pumpjack + chemicalPlant chains)
+  assert.ok((st.inventory.copperCable ?? 0) <= 2,
+    `copperCable should be at most 2 (batch rounding), got ${st.inventory.copperCable}`);
+});
+
+test('placeBuilding: partial inventory — places available, crafts the gap', () => {
+  // 8 stoneFurnaceItems in inventory, count box set to 10; should place 8
+  // immediately and auto-craft 2 more.
+  const g = loadGame();
+  const st = silentGame(g);
+  st.inventory.stoneFurnaceItem = 8;
+  st.inventory.stone = 10;
+  // Fake triggerEl that returns count=10 from .place-count input
+  const fakeEl = {
+    closest: sel => sel === '.place-row'
+      ? { querySelector: s => s === '.place-count' ? { value: '10' } : null }
+      : null,
+    classList: { add() {}, remove() {} },
+  };
+  g.get('placeBuilding')('furnace', fakeEl, null);
+  assert.strictEqual(st.craftQueue.length, 2, '2 deferred crafts queued for the gap');
+  assert.strictEqual(st.pendingPlacements.length, 2, '2 pending placements registered');
+  g.advance(4);
+  assert.strictEqual(st.pendingPlacements.length, 0, 'both placements trigger');
+  assert.strictEqual(st.inventory.stone ?? 0, 0, 'all stone consumed');
 });

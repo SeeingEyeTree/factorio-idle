@@ -631,25 +631,45 @@ button {
 
 .buildings-layout {
   display: grid;
-  grid-template-columns: 1fr 1100px;
+  grid-template-columns: 44% 1fr;
   gap: 1.25rem;
   align-items: start;
 }
 @media (max-width: 680px) { .buildings-layout { grid-template-columns: 1fr; } }
 
-.placement-col, .active-col {
-  display: flex; flex-direction: column; gap: .6rem;
+.placement-col {
+  display: flex; flex-direction: column;
   max-height: calc(100vh - 80px);
-  overflow-y: auto;
+  overflow: hidden;
+}
+.placement-col-header { flex-shrink: 0; display: flex; flex-direction: column; gap: 0; padding-bottom: .4rem; }
+.placement-col-body {
+  display: flex; flex-direction: column; gap: .6rem;
+  overflow-y: auto; flex: 1;
   scrollbar-width: thin;
   scrollbar-color: var(--border2) transparent;
 }
-.placement-col::-webkit-scrollbar, .active-col::-webkit-scrollbar { width: 5px; }
-.placement-col::-webkit-scrollbar-track, .active-col::-webkit-scrollbar-track { background: transparent; }
-.placement-col::-webkit-scrollbar-thumb, .active-col::-webkit-scrollbar-thumb {
-  background: var(--border2); border-radius: 3px;
+.placement-col-body::-webkit-scrollbar { width: 5px; }
+.placement-col-body::-webkit-scrollbar-track { background: transparent; }
+.placement-col-body::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+.active-col {
+  display: flex; flex-direction: column;
+  max-height: calc(100vh - 80px);
+  overflow: hidden;
 }
-.active-col-header { display: flex; align-items: center; justify-content: space-between; }
+.active-col-header { display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+.active-col-header-wrap {
+  flex-shrink: 0; display: flex; flex-direction: column; gap: .6rem; padding-bottom: .4rem;
+}
+#active-buildings {
+  overflow-y: auto; flex: 1;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border2) transparent;
+}
+#active-buildings::-webkit-scrollbar { width: 5px; }
+#active-buildings::-webkit-scrollbar-track { background: transparent; }
+#active-buildings::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
 
 .placement-status {
   padding: .55rem .9rem;
@@ -1399,7 +1419,7 @@ button {
 .place-count:focus { outline: none; border-color: var(--accent); }
 
 /* ── Buildings search ───────────────────────────────────────── */
-.buildings-search-row { margin-bottom: .5rem; }
+.buildings-search-row { margin-bottom: 0; }
 .buildings-search {
   width: 100%; padding: .32rem .55rem; font-size: .82rem;
   background: var(--surf3); color: var(--text);
@@ -1435,9 +1455,9 @@ button {
 .add-count-input:focus, .remove-count-input:focus { outline: none; border-color: var(--accent); }
 
 /* ── Recipe icon picker ─────────────────────────────────────── */
-.recipe-picker { display: flex; flex-wrap: wrap; gap: 4px; margin: .2rem 0 .1rem; max-height: 130px; overflow-y: auto; }
+.recipe-picker { display: flex; flex-wrap: wrap; gap: 5px; margin: .2rem 0 .1rem; max-height: 230px; overflow-y: auto; }
 .recipe-icon-btn {
-  width: 42px; height: 42px; font-size: 1.4rem;
+  width: 58px; height: 58px; font-size: 1.85rem;
   display: flex; align-items: center; justify-content: center;
   background: var(--surf3); border: 1px solid var(--border);
   border-radius: 4px; cursor: pointer; transition: none;
@@ -1544,7 +1564,7 @@ button {
   padding: 1px;
   box-sizing: border-box;
 }
-.recipe-icon-btn .item-icon { width: 34px; height: 34px; }
+.recipe-icon-btn .item-icon { width: 48px; height: 48px; }
 .recipe-ingredient .item-icon { width: 20px; height: 20px; padding: 0; background: none; }
 .craft-icon .item-icon { width: 36px; height: 36px; vertical-align: middle; }
 .tech-node-icon .item-icon, .tech-icon-img { width: 34px; height: 34px; padding: 0; background: none; }

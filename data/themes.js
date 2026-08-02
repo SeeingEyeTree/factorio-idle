@@ -188,15 +188,17 @@ const THEMES = {
     },
 
     buildings: {
-      // Building type → display name in Caff-Infinite theme
-      miner:         { name: 'The MINES' },
-      electricMiner: { name: 'MINES (safety optional)' },
-      furnace:       { name: 'Blast Furnace' },
-      steelFurnace:  { name: 'Pressure Forge' },
-      electricFurnace: { name: 'Vacuum Furnace' },
-      assembly:      { name: 'Junior Intern Pod' },
-      assembly2:     { name: 'Mid-Level Intern Pod' },
-      assembly3:     { name: 'Senior Intern Pod' },
+      // Building type → display name (and optional iconImg) in Caff-Infinite theme.
+      // Upgraded buildings have no item cost so getBuildingItemKey returns null;
+      // iconImg here is the fallback used by buildingCard and placement pickers.
+      miner:          { name: 'The MINES' },
+      electricMiner:  { name: 'MINES (safety optional)' },
+      furnace:        { name: 'Blast Furnace' },
+      steelFurnace:   { name: 'Pressure Forge',      iconImg: 'data/icon_imgs/caffactory/steel_furnace.png' },
+      electricFurnace:{ name: 'Vacuum Furnace',      iconImg: 'data/icon_imgs/caffactory/electric_furnace.png' },
+      assembly:       { name: 'Junior Intern Pod' },
+      assembly2:      { name: 'Mid-Level Intern Pod', iconImg: 'data/icon_imgs/caffactory/intern_pod_2.png' },
+      assembly3:      { name: 'Senior Intern Pod',   iconImg: 'data/icon_imgs/caffactory/intern_pod_3.png' },
       lab:           { name: 'Unpaid Intern' },
       boiler:        { name: 'Coffee Boiler' },
       steamEngine:   { name: 'Coffee Generator' },
