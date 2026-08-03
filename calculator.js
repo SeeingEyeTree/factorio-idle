@@ -2,10 +2,11 @@
 
 // ── Recipe Calculator ─────────────────────────────────────────
 // Generates fscript files from a target item + rate.
+// Assembly machine and furnace speeds are auto-detected from the current
+// research tier via assemblyTier() / furnaceTier() — no manual tier selection.
 // Reads PLAYER_RECIPES, FURNACE_RECIPES, ELECTRIC_MINER_SPEED, PUMPJACK_SPEED,
-// ASSEMBLY_SPEED, ASSEMBLY2_SPEED, ASSEMBLY3_SPEED, CHEMICAL_PLANT_SPEED,
-// OIL_REFINERY_SPEED, CENTRIFUGE_SPEED, ROCKET_SILO_SPEED from game.js globals.
-// Reads state.research for current productivity bonuses and tech unlocks.
+// ASSEMBLY_SPEED, CHEMICAL_PLANT_SPEED, OIL_REFINERY_SPEED, CENTRIFUGE_SPEED,
+// ROCKET_SILO_SPEED from game.js globals.
 
 const CALC_RAW_ORES = new Set(['ironOre', 'copperOre', 'coal', 'stone', 'uraniumOre']);
 const CALC_RESOURCE_SCRIPT_NAME = {
@@ -13,17 +14,19 @@ const CALC_RESOURCE_SCRIPT_NAME = {
   stone: 'stone', uraniumOre: 'uranium', crudeOil: 'oil',
 };
 
-// Module slot counts per machinery key (mirrors MODULE_SLOTS in game.js)
+// Module slot counts for static machine types.
+// Assembly and furnace slots are resolved dynamically via calcGetSlots().
 const CALC_MODULE_SLOTS = {
-  assembly: 0, assembly2: 2, assembly3: 4,
-  chemical: 3, refinery: 3,
-  centrifuge: 2,
-  rocket_silo: 4,
-  electricFurnace: 2,
-  electricMiner: 3,
-  pumpjack: 2,
-  furnace: 0, steelFurnace: 0,
+  chemical: 3, refinery: 3, centrifuge: 2, rocket_silo: 4,
+  electricMiner: 3, pumpjack: 2,
 };
+
+// Returns module slots for a machinery key, reading research tier for assembly/furnace.
+function calcGetSlots(machKey) {
+  if (machKey === 'assembly') return (typeof assemblyTier === 'function' ? assemblyTier().slots : 0);
+  if (machKey === 'furnace')  return (typeof furnaceTier  === 'function' ? furnaceTier().slots  : 0);
+  return CALC_MODULE_SLOTS[machKey] ?? 0;
+}
 
 // Script-side module name → MODULE_DATA key (used for generated place() args)
 const CALC_MODULE_SCRIPT_NAME = {
@@ -47,31 +50,32 @@ const CALC_MODULE_INV_CONST = {
   gamerModule:         'GAMER_MODULE',
 };
 
+// Assembly and furnace entries use dynamic speed/slots so calculations always
+// match the player's current research tier. Only one type of each exists —
+// upgrading via research is automatic, not a separate building item.
 const CALC_MACHINERY_INFO = {
-  assembly:     { speed: () => ASSEMBLY_SPEED,       placeArg: 'assembly',         invConst: 'ASSEMBLY_ITEM',      enoughVar: 'enough_am1'           },
-  assembly2:    { speed: () => ASSEMBLY2_SPEED,      placeArg: 'am2',              invConst: 'ASSEMBLY2_ITEM',     enoughVar: 'enough_am2'           },
-  assembly3:    { speed: () => ASSEMBLY3_SPEED,      placeArg: 'am3',              invConst: 'ASSEMBLY3_ITEM',     enoughVar: 'enough_am3'           },
-  chemical:     { speed: () => CHEMICAL_PLANT_SPEED, placeArg: 'chem',             invConst: 'CHEM_PLANT_ITEM',    enoughVar: 'enough_chem'          },
-  refinery:     { speed: () => OIL_REFINERY_SPEED,   placeArg: 'refinery',         invConst: 'OIL_REFINERY_ITEM',  enoughVar: 'enough_refinery'      },
-  centrifuge:   { speed: () => CENTRIFUGE_SPEED,     placeArg: 'centrifuge',       invConst: 'CENTRIFUGE_ITEM',    enoughVar: 'enough_centrifuge'    },
-  rocket_silo:  { speed: () => ROCKET_SILO_SPEED,    placeArg: 'silo',             invConst: 'ROCKET_SILO_ITEM',   enoughVar: 'enough_silo'          },
-  furnace:      { speed: () => 1.0,                  placeArg: 'furnace',          invConst: 'STONE_FURNACE',      enoughVar: 'enough_furnace'       },
-  steelFurnace: { speed: () => STEEL_FURNACE_SPEED,  placeArg: 'steel_furnace',    invConst: 'STEEL_FURNACE_INV',  enoughVar: 'enough_steel_furnace' },
-  electricFurnace: { speed: () => ELECTRIC_FURNACE_SPEED, placeArg: 'electric_furnace', invConst: 'ELEC_FURNACE', enoughVar: 'enough_elec_furnace'  },
-  electricMiner:{ speed: () => {
+  assembly:    { speed: () => (typeof assemblyTier === 'function' ? assemblyTier().speed : ASSEMBLY_SPEED),
+                 placeArg: 'assembly',   invConst: 'ASSEMBLY_ITEM',     enoughVar: 'enough_assembly'  },
+  furnace:     { speed: () => (typeof furnaceTier  === 'function' ? furnaceTier().speed  : 1.0),
+                 placeArg: 'furnace',    invConst: 'STONE_FURNACE',      enoughVar: 'enough_furnace'   },
+  chemical:    { speed: () => CHEMICAL_PLANT_SPEED, placeArg: 'chem',       invConst: 'CHEM_PLANT_ITEM',   enoughVar: 'enough_chem'       },
+  refinery:    { speed: () => OIL_REFINERY_SPEED,   placeArg: 'refinery',   invConst: 'OIL_REFINERY_ITEM', enoughVar: 'enough_refinery'   },
+  centrifuge:  { speed: () => CENTRIFUGE_SPEED,     placeArg: 'centrifuge', invConst: 'CENTRIFUGE_ITEM',   enoughVar: 'enough_centrifuge' },
+  rocket_silo: { speed: () => ROCKET_SILO_SPEED,    placeArg: 'silo',       invConst: 'ROCKET_SILO_ITEM',  enoughVar: 'enough_silo'       },
+  electricMiner: { speed: () => {
     const prod = (typeof state !== 'undefined' && state?.research?.miningProdLevel) ?? 0;
     return ELECTRIC_MINER_SPEED * (1 + prod * 0.1);
-  },             placeArg: 'e_drill',          invConst: 'ELECTRIC_MINER',     enoughVar: 'enough_drill'         },
-  pumpjack:     { speed: () => {
+  },               placeArg: 'e_drill',    invConst: 'ELECTRIC_MINER',     enoughVar: 'enough_drill'      },
+  pumpjack:    { speed: () => {
     const prod = (typeof state !== 'undefined' && state?.research?.miningProdLevel) ?? 0;
     return PUMPJACK_SPEED * (1 + prod * 0.1);
-  },             placeArg: 'pumpjack',         invConst: 'PUMPJACK_ITEM',      enoughVar: 'enough_pumpjack'      },
+  },               placeArg: 'pumpjack',   invConst: 'PUMPJACK_ITEM',      enoughVar: 'enough_pumpjack'   },
 };
 
 // Order in which building types appear in the generated script
 const CALC_BUILDING_ORDER = [
-  'assembly', 'assembly2', 'assembly3', 'chemical', 'refinery', 'centrifuge', 'rocket_silo',
-  'furnace', 'steelFurnace', 'electricFurnace', 'electricMiner', 'pumpjack',
+  'assembly', 'chemical', 'refinery', 'centrifuge', 'rocket_silo',
+  'furnace', 'electricMiner', 'pumpjack',
 ];
 
 // ── Module helpers ────────────────────────────────────────────
@@ -96,18 +100,18 @@ function calcFindRecipe(itemKey) {
   return null;
 }
 
-function calcMachineryKey(recipe, isFurnace, assemblyTier, furnaceTier) {
-  if (isFurnace) return furnaceTier;
+// Returns the machinery key for a recipe. Assembly machines and furnaces are
+// single building types that auto-upgrade through research — no tier param.
+function calcMachineryKey(recipe, isFurnace) {
+  if (isFurnace) return 'furnace';
   const m = recipe.machinery;
-  if (!m || m === 'assembly') return assemblyTier;
+  if (!m || m === 'assembly') return 'assembly';
   return m;
 }
 
 // ── Rate accumulation ─────────────────────────────────────────
 
-// Accumulate total production rates (units/sec) for every item in the tree.
-// moduleType affects outputMult for each recipe, reducing upstream input demand.
-function calcAccumulateRates(targetItem, targetRatePerSec, assemblyTier, furnaceTier, moduleType) {
+function calcAccumulateRates(targetItem, targetRatePerSec, moduleType) {
   const itemRates = {};
 
   function accumulate(itemKey, ratePerSec, stack) {
@@ -117,8 +121,8 @@ function calcAccumulateRates(targetItem, targetRatePerSec, assemblyTier, furnace
     const found = calcFindRecipe(itemKey);
     if (!found) return;
     const { recipe, isFurnace } = found;
-    const machKey    = calcMachineryKey(recipe, isFurnace, assemblyTier, furnaceTier);
-    const slots      = CALC_MODULE_SLOTS[machKey] ?? 0;
+    const machKey    = calcMachineryKey(recipe, isFurnace);
+    const slots      = calcGetSlots(machKey);
     const { outputMult } = calcModMults(slots, moduleType);
     const outputQty  = recipe.outputs[itemKey] ?? 1;
     const execs      = ratePerSec / (outputQty * outputMult);
@@ -222,8 +226,6 @@ function calcOilChain(itemRates, placements, moduleType) {
 
 // ── Kovarex / U235 ────────────────────────────────────────────
 
-// Handle U235 demand via Kovarex enrichment. Modifies itemRates to add
-// the uranium ore demand from net U238 consumption. Returns centrifuge count.
 function calcKovarex(itemRates, moduleType) {
   const needU235 = itemRates.uranium235 ?? 0;
   if (needU235 <= 0) return 0;
@@ -236,8 +238,8 @@ function calcKovarex(itemRates, moduleType) {
   // Kovarex: 40 U235 + 5 U238 → 41 U235 + 2 U238, time=60s
   // Net per exec: +1 U235, -3 U238
   const execsPerCentrifuge = CENTRIFUGE_SPEED * speedMult / 60;
-  const netU235PerCentrifuge = execsPerCentrifuge; // 1 U235 net/exec
-  const netU238PerCentrifuge = execsPerCentrifuge * 3; // 3 U238 consumed net/exec
+  const netU235PerCentrifuge = execsPerCentrifuge;
+  const netU238PerCentrifuge = execsPerCentrifuge * 3;
 
   const centrifuges = Math.ceil(needU235 / netU235PerCentrifuge);
   const needU238    = centrifuges * netU238PerCentrifuge;
@@ -250,19 +252,18 @@ function calcKovarex(itemRates, moduleType) {
 
 // ── Building counts ───────────────────────────────────────────
 
-// Convert item rates map → list of { machineryKey, itemKey, recipeScriptName, count }
-function calcBuildingCounts(itemRates, assemblyTier, furnaceTier, moduleType) {
+function calcBuildingCounts(itemRates, moduleType) {
   const placements = [];
 
   for (const [itemKey, ratePerSec] of Object.entries(itemRates)) {
     if (itemKey === 'water') continue;
-    if (itemKey === 'crudeOil') continue; // handled by oil chain
+    if (itemKey === 'crudeOil') continue;
     if (itemKey === 'petroleumGas' || itemKey === 'lightOil' || itemKey === 'heavyOil') continue;
-    if (itemKey === 'uranium235') continue; // handled by calcKovarex
+    if (itemKey === 'uranium235') continue;
 
     if (CALC_RAW_ORES.has(itemKey)) {
       const speed = CALC_MACHINERY_INFO.electricMiner.speed();
-      const slots = CALC_MODULE_SLOTS.electricMiner ?? 0;
+      const slots = calcGetSlots('electricMiner');
       const { speedMult } = calcModMults(slots, moduleType);
       const count = Math.ceil(ratePerSec / (speed * speedMult));
       if (count > 0)
@@ -273,10 +274,10 @@ function calcBuildingCounts(itemRates, assemblyTier, furnaceTier, moduleType) {
     const found = calcFindRecipe(itemKey);
     if (!found) continue;
     const { recipe, isFurnace } = found;
-    const machKey = calcMachineryKey(recipe, isFurnace, assemblyTier, furnaceTier);
+    const machKey = calcMachineryKey(recipe, isFurnace);
     const info    = CALC_MACHINERY_INFO[machKey];
     if (!info) continue;
-    const slots      = CALC_MODULE_SLOTS[machKey] ?? 0;
+    const slots      = calcGetSlots(machKey);
     const { speedMult, outputMult } = calcModMults(slots, moduleType);
     const outputQty  = recipe.outputs[itemKey] ?? 1;
     const execs      = ratePerSec / (outputQty * outputMult);
@@ -285,7 +286,6 @@ function calcBuildingCounts(itemRates, assemblyTier, furnaceTier, moduleType) {
       placements.push({ machineryKey: machKey, itemKey, recipeScriptName: camelToSnake(itemKey), count });
   }
 
-  // Sort by building order, then by count descending within each group
   placements.sort((a, b) => {
     const oa = CALC_BUILDING_ORDER.indexOf(a.machineryKey);
     const ob = CALC_BUILDING_ORDER.indexOf(b.machineryKey);
@@ -298,11 +298,11 @@ function calcBuildingCounts(itemRates, assemblyTier, furnaceTier, moduleType) {
 
 // ── Script generation ─────────────────────────────────────────
 
-function calcGenerateScript(targetItem, targetRatePerMin, assemblyTier = 'assembly', furnaceTier = 'furnace', moduleType = null) {
+function calcGenerateScript(targetItem, targetRatePerMin, moduleType = null) {
   const ratePerSec = targetRatePerMin / 60;
 
   // Phase 1: accumulate rates
-  const itemRates = calcAccumulateRates(targetItem, ratePerSec, assemblyTier, furnaceTier, moduleType);
+  const itemRates = calcAccumulateRates(targetItem, ratePerSec, moduleType);
 
   // Phase 2: handle Kovarex U235 (adds uranium ore demand)
   let kovarexCentrifuges = 0;
@@ -312,13 +312,13 @@ function calcGenerateScript(targetItem, targetRatePerMin, assemblyTier = 'assemb
 
   // Phase 3: sulfuric acid for uranium miners
   if ((itemRates.uraniumOre ?? 0) > 0) {
-    const sulfRates = calcAccumulateRates('sulfuricAcid', itemRates.uraniumOre * 0.1, assemblyTier, furnaceTier, moduleType);
+    const sulfRates = calcAccumulateRates('sulfuricAcid', itemRates.uraniumOre * 0.1, moduleType);
     for (const [k, v] of Object.entries(sulfRates))
       itemRates[k] = (itemRates[k] ?? 0) + v;
   }
 
   // Phase 4: compute placements (generic recipe buildings)
-  const placements = calcBuildingCounts(itemRates, assemblyTier, furnaceTier, moduleType);
+  const placements = calcBuildingCounts(itemRates, moduleType);
 
   // Phase 5: add Kovarex centrifuge placement
   if (kovarexCentrifuges > 0) {
@@ -326,13 +326,12 @@ function calcGenerateScript(targetItem, targetRatePerMin, assemblyTier = 'assemb
     placements.push({ machineryKey: 'centrifuge', itemKey: 'uranium235', recipeScriptName: 'kovarex_enrichment', count: kovarexCentrifuges, moduleArg: modArg });
   }
 
-  // Phase 6: oil chain (adds refinery/cracker/pumpjack placements)
+  // Phase 6: oil chain
   const OIL_PRODUCTS = ['petroleumGas', 'lightOil', 'heavyOil'];
   if (OIL_PRODUCTS.some(k => (itemRates[k] ?? 0) > 0)) {
     calcOilChain(itemRates, placements, moduleType);
   }
 
-  // Re-sort all placements (oil chain + kovarex were appended)
   placements.sort((a, b) => {
     const oa = CALC_BUILDING_ORDER.indexOf(a.machineryKey);
     const ob = CALC_BUILDING_ORDER.indexOf(b.machineryKey);
@@ -366,12 +365,12 @@ function calcGenerateScript(targetItem, targetRatePerMin, assemblyTier = 'assemb
     enoughVars.push({ enoughVar: info.enoughVar, invConst: info.invConst, needVar });
   }
 
-  // Module enough check: total modules needed = sum(count × slots) across all placements
+  // Module enough check: total modules = sum(count × slots) across all placements
   let modEnoughVar = null;
   if (moduleType && CALC_MODULE_INV_CONST[moduleType]) {
     let totalMods = 0;
     for (const p of placements) {
-      const slots = CALC_MODULE_SLOTS[p.machineryKey] ?? 0;
+      const slots = calcGetSlots(p.machineryKey);
       if (slots > 0) totalMods += p.count * slots;
     }
     if (totalMods > 0) {
@@ -395,7 +394,7 @@ function calcGenerateScript(targetItem, targetRatePerMin, assemblyTier = 'assemb
 
   for (const p of placements) {
     const info    = CALC_MACHINERY_INFO[p.machineryKey];
-    const slots   = CALC_MODULE_SLOTS[p.machineryKey] ?? 0;
+    const slots   = calcGetSlots(p.machineryKey);
     const usesMod = moduleType && slots > 0;
     const mod     = usesMod ? modScriptArg : '';
     lines.push(`        place(${info.placeArg}, ${p.recipeScriptName}, ${p.count}${mod})`);
@@ -440,15 +439,13 @@ function renderCalcPicker() {
 }
 
 function runCalculator() {
-  const itemKey      = calcSelectedItem;
-  const rate         = parseFloat(document.getElementById('calc-rate')?.value ?? '60');
-  const unit         = document.getElementById('calc-unit')?.value ?? 'min';
-  const assemblyTier = document.getElementById('calc-asm-tier')?.value ?? 'assembly';
-  const furnaceTier  = document.getElementById('calc-furnace-tier')?.value ?? 'furnace';
-  const moduleType   = document.getElementById('calc-module')?.value || null;
+  const itemKey    = calcSelectedItem;
+  const rate       = parseFloat(document.getElementById('calc-rate')?.value ?? '60');
+  const unit       = document.getElementById('calc-unit')?.value ?? 'min';
+  const moduleType = document.getElementById('calc-module')?.value || null;
   if (!itemKey || isNaN(rate) || rate <= 0) return;
   const ratePerMin = unit === 'sec' ? rate * 60 : rate;
-  const script = calcGenerateScript(itemKey, ratePerMin, assemblyTier, furnaceTier, moduleType);
+  const script = calcGenerateScript(itemKey, ratePerMin, moduleType);
   const out = document.getElementById('calc-output');
   if (out) out.value = script;
 }

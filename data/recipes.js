@@ -162,6 +162,7 @@ const ITEMS = {
   spidertronItem:       { name: 'Spidertron',               icon: '🕷️' },
   stoneWall:            { name: 'Stone Wall',               icon: '🧱' },
   //gate:                 { name: 'Gate',                     icon: '🚪' },
+  chemicalDiffuser:     { name: 'Chemical Diffuser',         icon: '⚗️' },
 };
 
 const ALWAYS_SHOW = new Set(['ironOre', 'copperOre', 'coal', 'stone']);
@@ -193,7 +194,7 @@ const PLAYER_RECIPES = {
   greenScience:         { name: 'Logistic Science Pack',    inputs: { transportBelt: 1, inserter: 1 },                       outputs: { greenScience: 1 },         time: 6.0  },
   blackScience:         { name: 'Military Science Pack',    inputs: { grenade: 1, piercingRoundsMag: 1, stoneWall: 2 },      outputs: { blackScience: 2 },         time: 10.0 },
   blueScience:          { name: 'Chemical Science Pack',    inputs: { advancedCircuit: 3, engineUnit: 2, sulfur: 1 },        outputs: { blueScience: 2 },          time: 24.0 },
-  purpleScience:        { name: 'Production Science Pack',  inputs: { concrete: 20, productivityModule: 2, rail: 30, heatPipeItem: 1 }, outputs: { purpleScience: 3 },    time: 21.0 },
+  purpleScience:        { name: 'Production Science Pack',  inputs: { productivityModule: 1, rail: 30, chemicalDiffuser: 1 }, outputs: { purpleScience: 3 },    time: 21.0 },
   yellowScience:        { name: 'Utility Science Pack',     inputs: { processingUnit: 2, flyingRobotFrame: 1, lowDensityStructure: 3 }, outputs: { yellowScience: 3 }, time: 21.0 },
   spaceScience:         { name: 'Space Science Pack',       inputs: { lowDensityStructure: 1000, processingUnit: 1000, rocketFuel: 1000, satellite: 1 }, outputs: { spaceScience: 1000 }, time: 329.0, machinery: 'rocket_silo' },
   rainbowScience:       { name: 'Rainbow Science Pack',     inputs: { redScience: 1, greenScience: 1, blueScience: 1, blackScience: 1, purpleScience: 1, yellowScience: 1, spaceScience: 1 }, outputs: { rainbowScience: 1 }, time: 15.0 },
@@ -314,8 +315,8 @@ const PLAYER_RECIPES = {
   //flamethrowerAmmo:     { name: 'Flamethrower Ammo',        inputs: { steel: 5, lightOil: 100 },                             outputs: { flamethrowerAmmo: 1 },     time: 6.0,  machinery: 'chemical' },
   grenade:              { name: 'Grenade',                  inputs: { ironPlate: 5, coal: 10 },                              outputs: { grenade: 1 },              time: 8.0  },
   //clusterGrenade:       { name: 'Cluster Grenade',          inputs: { steel: 5, explosives: 5, grenade: 7 },                 outputs: { clusterGrenade: 1 },       time: 8.0  },
-  //slowdownCapsule:      { name: 'Slowdown Capsule',         inputs: { coal: 5, electronicCircuit: 2, steel: 2 },             outputs: { slowdownCapsule: 1 },      time: 8.0  },
-  //poisonCapsule:        { name: 'Poison Capsule',           inputs: { coal: 10, electronicCircuit: 3, steel: 3 },            outputs: { poisonCapsule: 1 },        time: 8.0  },
+  slowdownCapsule:      { name: 'Slowdown Capsule',         inputs: { coal: 5, electronicCircuit: 2, steel: 2 },             outputs: { slowdownCapsule: 1 },      time: 8.0  },
+  poisonCapsule:        { name: 'Poison Capsule',           inputs: { coal: 10, electronicCircuit: 3, steel: 3 },            outputs: { poisonCapsule: 1 },        time: 8.0  },
   //defenderCapsule:      { name: 'Defender Capsule',         inputs: { piercingRoundsMag: 3, ironGear: 3, electronicCircuit: 3 }, outputs: { defenderCapsule: 3 }, time: 15.0 },
   //distractorCapsule:    { name: 'Distractor Capsule',       inputs: { advancedCircuit: 3, defenderCapsule: 4 },              outputs: { distractorCapsule: 3 },    time: 15.0 },
   //destroyerCapsule:     { name: 'Destroyer Capsule',        inputs: { speedModule: 1, processingUnit: 1, distractorCapsule: 4 }, outputs: { destroyerCapsule: 3 }, time: 15.0 },
@@ -331,6 +332,7 @@ const PLAYER_RECIPES = {
   artilleryTurretItem:  { name: 'Artillery Turret',         inputs: { steel: 60, concrete: 60, ironGear: 40, advancedCircuit: 20 }, outputs: { artilleryTurretItem: 1 }, time: 40.0 },
   spidertronItem:       { name: 'Spidertron',               inputs: { processingUnit: 506, lowDensityStructure: 150, radarItem: 2, electricEngineUnit: 120, advancedCircuit: 25 }, outputs: { spidertronItem: 1 }, time: 10.0 },
   stoneWall:            { name: 'Stone Wall',               inputs: { stoneBrick: 5 },                                       outputs: { stoneWall: 1 },            time: 0.5  },
+  chemicalDiffuser:     { name: 'Chemical Diffuser',        inputs: { advancedCircuit: 5, steel: 10, stoneBrick: 10 },       outputs: { chemicalDiffuser: 1 },     time: 10.0 },
   //gate:                 { name: 'Gate',                     inputs: { steel: 2, electronicCircuit: 2, stoneWall: 1 },        outputs: { gate: 1 },                 time: 0.5  },
 };
 
@@ -369,5 +371,6 @@ const CRAFT_SECTIONS = [
   { label: 'Military', keys: [
     'firearmMagazine', 'piercingRoundsMag', 'uraniumRoundsMag',
     'grenade', 'stoneWall', 'artilleryShell', 'atomicBomb',
+    'chemicalDiffuser', 'slowdownCapsule', 'poisonCapsule',
   ] },
 ];

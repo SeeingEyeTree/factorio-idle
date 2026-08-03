@@ -64,7 +64,7 @@ const LASER_DPS_PER_TURRET = LASER_SHOTS_PER_SEC * LASER_DMG_PER_SHOT; // 30 bas
 const LASER_KW_PER_TURRET  = LASER_SHOTS_PER_SEC * 800; // 1200 kW (800kJ/shot)
 const BUILDING_TOUGHNESS   = 2000;     // overflow damage to destroy 1 building
 const WALLS_PER_TILE       = 20;  // max stone walls per perimeter tile  → total = 20 * 4 * sideLength
-const TURRETS_PER_TILE     = 5;  // max turrets per perimeter tile
+const TURRETS_PER_TILE     = 4;  // max turrets per perimeter tile
 const ARTILLERY_BASE_DAMAGE     = 3000;    // damage per artillery shell
 const ARTILLERY_FIRE_RATE       = 10;     // seconds between shots per artillery turret
 const ATOMIC_BOMB_DAMAGE        = 1e9;    // damage dealt by one atomic bomb to one section
@@ -72,6 +72,11 @@ const ATOMIC_BOMBS_PER_SPIDER   = 5;      // bombs available per spidertron per 
 const IRRADIATION_SCALING_RATE  = 0.001;  // how much each bomb use increases biter threat scaling
 const MAGAZINE_SIZE      = 50;  // bullets per magazine, all ammo types should be ten but I am ever magnesiums
 const WAVE_GRACE_PERIOD  =  2;  // seconds biters don't damage walls at wave start
+const DIFFUSER_RATIO     = 10;  // 1 diffuser per N perimeter tiles required for capsule effects
+const CAPSULE_RATIO      =  5;  // 1 capsule per N perimeter tiles required per usage
+const SLOWDOWN_GRACE_BONUS = 5; // extra grace seconds granted by slowdown capsules
+const POISON_DPS         = 16;  // damage/sec applied to biters by poison capsules
+const POISON_INTERVAL    = 20;  // seconds between additional poison capsule usage checks
 
 // ── Biter Scaling Constants (0→1 linear scale; >1 = rainbow exponential) ──
 const BITER_POINTS_PRE_RED    = 0.001;  // threat points gained per wave before red science
@@ -377,9 +382,11 @@ const COST_LABEL = Object.fromEntries(
 // low≈50k  medium≈75k  high≈100k total ore
 const DENSITY_MULT = { low: 0.67, medium: 1.0, high: 1.33 }; // obsolete since it is always the same
 
-// Set of item keys that are consumed by BUILDING_COSTS (used for default limit detection)
+// Set of item keys that represent a placeable building (keys ending in 'Item') — used to
+// detect whether an assembler recipe outputs a building, for default-limit assignment.
+// Filtered to *Item keys only so raw material costs (e.g. steel in nuclearReactor) are excluded.
 const BUILDING_ITEM_KEYS = new Set(
-  Object.values(BUILDING_COSTS).flatMap(cost => Object.keys(cost))
+  Object.values(BUILDING_COSTS).flatMap(cost => Object.keys(cost).filter(k => k.endsWith('Item')))
 );
 
 // Maps a building type key to its single inventory item key (the item you craft/hold to place it).
@@ -530,6 +537,8 @@ let metaSubTab = 'buildings';
 let currentSaveFile = null;
 let _pendingScriptRestore = null;
 let lastSaveMs = 0;
+let _placeButtonCacheGen = 0;
+const _placeButtonCache = {}; // `${type}|${count}` → { gen, result }
 
 // ── Tutorial System ───────────────────────────────────────────
 
@@ -704,7 +713,7 @@ const TUTORIAL_GOALS = [
     subGoals: [
       { text: 'Craft productivity modules', check: s => (s.itemsProduced?.productivityModule ?? 0) > 0 },
       { text: 'Craft rails',               check: s => (s.itemsProduced?.rail ?? 0) > 0 },
-      { text: 'Craft heat pipes',          check: s => (s.itemsProduced?.heatPipeItem ?? 0) > 0 },
+      { text: 'Craft chemical diffusers',   check: s => (s.itemsProduced?.chemicalDiffuser ?? 0) > 0 },
     ],
     glowTab: 'research',
   },
@@ -1147,6 +1156,7 @@ function applyStateFromEnvelope(envelope) {
   if (state.perimeter.spidertrons       == null) state.perimeter.spidertrons       = 0;
   if (state.perimeter.atomicBombsUsedThisWave == null) state.perimeter.atomicBombsUsedThisWave = 0;
   if (state.perimeter.irradiationLevel  == null) state.perimeter.irradiationLevel  = 0;
+  if (state.perimeter.chemicalDiffusers == null) state.perimeter.chemicalDiffusers = 0;
   if (state.biterThreatPoints == null || !isFinite(state.biterThreatPoints)) state.biterThreatPoints = 15/3000;
   // Migrate old saves: biterThreatPoints was in 0–500 scale, now 0–1.
   // Skip if rainbow is done — rainbow legitimately pushes points above 5.
@@ -1231,6 +1241,38 @@ function applyStateFromEnvelope(envelope) {
         craftableItems.has(itemKey)
       );
     });
+  }
+  // Remove orphaned prepaid building-item crafts: prepaid crafts for building items
+  // with no corresponding pending placement (arise when a place order is canceled).
+  if (state.craftQueue.some(e => e.prepaid)) {
+    const neededByItem = {};
+    for (const p of state.pendingPlacements) {
+      const itemKey = getBuildingItemKey(p.type);
+      if (itemKey) neededByItem[itemKey] = (neededByItem[itemKey] ?? 0) + 1;
+    }
+    const toRemove = new Set();
+    const countedByItem = {};
+    for (const e of state.craftQueue) {
+      if (!e.prepaid) continue;
+      const r = PLAYER_RECIPES[e.key];
+      if (!r) continue;
+      const outputItem = Object.keys(r.outputs).find(k => BUILDING_ITEM_KEYS.has(k));
+      if (!outputItem) continue;
+      const needed = neededByItem[outputItem] ?? 0;
+      const counted = countedByItem[outputItem] ?? 0;
+      if (counted < needed) {
+        countedByItem[outputItem] = counted + 1;
+      } else {
+        toRemove.add(e);
+        const chainSet = new Set(e.chainOutputs ?? []);
+        for (const [item, amt] of Object.entries(r.inputs)) {
+          if (!chainSet.has(item)) refundItem(item, amt);
+        }
+      }
+    }
+    if (toRemove.size > 0) {
+      state.craftQueue = state.craftQueue.filter(e => !toRemove.has(e));
+    }
   }
   if (!state.scriptMemory) state.scriptMemory = {};
   if (!state.starredItems) state.starredItems = [];
@@ -2041,6 +2083,7 @@ const RATE_WINDOW_TICKS = Math.round(RATE_WINDOW_SECS * 1000 / TICK_MS);
 
 function tick() {
   if (_gamePaused) return;
+  _placeButtonCacheGen++;
   const _tTick = _p0();
   const dt     = TICK_MS / 1000 * (state?.devTickSpeed ?? 1);
 
@@ -2925,6 +2968,78 @@ function resolveEffectiveBuildingType(type) {
   return type;
 }
 
+// Shared core for placeBuilding and addBuildingFromGroup.
+// Places as many as possible directly from inventory, then auto-crafts the shortfall
+// (only if leftover <= 100 to avoid hanging on large counts).
+// Returns the number placed directly.
+function _executeBuildingPlace(type, count, costs, resource, recipe, frontOfQueue) {
+  const safeCosts = costs ?? {};
+
+  // Direct placements from inventory — compute exact count in O(items) rather than O(count)
+  const actualCount = howManyCanAfford(safeCosts, count);
+  if (actualCount > 0) {
+    for (const [k, v] of Object.entries(safeCosts)) state.inventory[k] -= v * actualCount;
+    const entry = { type, count: actualCount };
+    if (resource != null) entry.resource = resource;
+    if (recipe   != null) entry.recipe   = recipe;
+    if (frontOfQueue) _placeEnqueueFront(entry);
+    else placeQueue.push(entry);
+    updatePlacementUI();
+    if (!placing) processNextPlacement();
+  }
+
+  // Auto-craft fallback for the shortfall (skipped for large counts to avoid hang)
+  const leftover = count - actualCount;
+  if (leftover > 0 && Object.keys(safeCosts).length > 0) {
+    if (leftover <= 100) {
+      const result = computeAutoCraftsForPlace(safeCosts, leftover);
+      if (result) {
+        if (result.craftTime >= 60) {
+          notify(`⚠️ Auto-crafting ${result.feasibleCount} ${BUILDING_DEFS[type]?.name ?? type} will take ~${Math.ceil(result.craftTime)}s`, 'warning');
+        }
+        const chainOutputs = [];
+        for (const c of result.crafts) {
+          const r = PLAYER_RECIPES[c.key];
+          if (r) for (const outKey of Object.keys(r.outputs)) {
+            if (!chainOutputs.includes(outKey)) chainOutputs.push(outKey);
+          }
+        }
+        const chainSet = new Set(chainOutputs);
+        for (const [k, startAmt] of Object.entries(result.startInv)) {
+          const consumed = startAmt - (result.finalInv[k] ?? 0);
+          if (consumed > 0 && !chainSet.has(k)) recordConsumed(k, consumed);
+        }
+        for (const c of result.crafts) {
+          if (!PLAYER_RECIPES[c.key]) continue;
+          for (let i = 0; i < c.count; i++) {
+            state.craftQueue.push({ key: c.key, prepaid: true, chainOutputs });
+          }
+        }
+        for (let i = 0; i < result.feasibleCount; i++) {
+          state.pendingPlacements.push({ type, resource, recipe, frontOfQueue });
+        }
+        if (actualCount === 0 && result.craftTime < 60) {
+          notify(`⚙️ Crafting ${result.feasibleCount} ${BUILDING_DEFS[type]?.name ?? type}…`, 'info');
+        }
+      } else if (actualCount === 0) {
+        const missing = Object.entries(safeCosts)
+          .filter(([k, n]) => (state.inventory[k] ?? 0) < n)
+          .map(([k, n]) => `${itemDisplay(k).name}: need ${fmtNum(n)}, have ${fmtNum(Math.floor(state.inventory[k] ?? 0))}`)
+          .join(' · ');
+        notify(missing ? `Missing: ${missing}` : `Need ${COST_LABEL[type] ?? type} — craft it first`, 'warning');
+      }
+    } else if (actualCount === 0) {
+      const missing = Object.entries(safeCosts)
+        .filter(([k, n]) => (state.inventory[k] ?? 0) < n)
+        .map(([k, n]) => `${itemDisplay(k).name}: need ${fmtNum(n)}, have ${fmtNum(Math.floor(state.inventory[k] ?? 0))}`)
+        .join(' · ');
+      notify(missing ? `Missing: ${missing}` : `Need ${COST_LABEL[type] ?? type} — craft it first`, 'warning');
+    }
+  }
+
+  return actualCount;
+}
+
 function placeBuilding(type, triggerEl, ev) {
   const originalType = type;
   type = resolveEffectiveBuildingType(type);
@@ -2943,74 +3058,12 @@ function placeBuilding(type, triggerEl, ev) {
   else if (type === 'pumpjack')      resource = 'crudeOil';
   else if (BUILDING_DEFS[type]?.hasRecipe) recipe = pr[originalType] ?? pr[type] ?? '';
 
-  // Direct placements (items already in inventory)
-  let actualCount = 0;
-  for (let i = 0; i < count; i++) {
-    if (!canAfford(costs)) break;
-    spend(costs);
-    actualCount++;
-  }
+  const actualCount = _executeBuildingPlace(type, count, costs, resource, recipe, frontOfQueue);
 
-  if (actualCount > 0) {
-    const entry = { type, count: actualCount };
-    if (resource != null) entry.resource = resource;
-    if (recipe   != null) entry.recipe   = recipe;
-    if (frontOfQueue) _placeEnqueueFront(entry);
-    else placeQueue.push(entry);
-    updatePlacementUI();
-    if (!placing) processNextPlacement();
-    if (triggerEl) {
-      const btn = triggerEl.closest('.btn-place') ?? triggerEl;
-      btn.classList.add('btn-active-flash');
-      setTimeout(() => btn.classList.remove('btn-active-flash'), 250);
-    }
-  }
-
-  // Auto-craft fallback for remaining buildings
-  const leftover = count - actualCount;
-  if (leftover > 0 && Object.keys(costs).length > 0) {
-    const result = computeAutoCraftsForPlace(costs, leftover);
-    if (result) {
-      if (result.craftTime >= 60) {
-        notify(`⚠️ Auto-crafting ${result.feasibleCount} ${BUILDING_DEFS[type]?.name ?? type} will take ~${Math.ceil(result.craftTime)}s`, 'warning');
-      }
-      // Items produced by the chain (intermediates). Raw materials are anything NOT here.
-      const chainOutputs = [];
-      for (const c of result.crafts) {
-        const r = PLAYER_RECIPES[c.key];
-        if (r) for (const outKey of Object.keys(r.outputs)) {
-          if (!chainOutputs.includes(outKey)) chainOutputs.push(outKey);
-        }
-      }
-      const chainSet = new Set(chainOutputs);
-      // Consume raw materials immediately so production buildings can't steal them.
-      for (const [k, startAmt] of Object.entries(result.startInv)) {
-        const consumed = startAmt - (result.finalInv[k] ?? 0);
-        if (consumed > 0 && !chainSet.has(k)) recordConsumed(k, consumed);
-      }
-      // Queue all needed crafts as prepaid. Each entry carries chainOutputs so the
-      // craft tick knows which inputs were already consumed (raw materials) vs.
-      // which must still be consumed from inventory (intermediates).
-      for (const c of result.crafts) {
-        if (!PLAYER_RECIPES[c.key]) continue;
-        for (let i = 0; i < c.count; i++) {
-          state.craftQueue.push({ key: c.key, prepaid: true, chainOutputs });
-        }
-      }
-      // Register pending placements (processed after crafts complete)
-      for (let i = 0; i < result.feasibleCount; i++) {
-        state.pendingPlacements.push({ type, resource, recipe, frontOfQueue });
-      }
-      if (actualCount === 0 && result.craftTime < 60) {
-        notify(`⚙️ Crafting ${result.feasibleCount} ${BUILDING_DEFS[type]?.name ?? type}…`, 'info');
-      }
-    } else if (actualCount === 0) {
-      const missing = Object.entries(costs)
-        .filter(([k, n]) => (state.inventory[k] ?? 0) < n)
-        .map(([k, n]) => `${itemDisplay(k).name}: need ${fmtNum(n)}, have ${fmtNum(Math.floor(state.inventory[k] ?? 0))}`)
-        .join(' · ');
-      notify(missing ? `Missing: ${missing}` : `Need ${COST_LABEL[type]} — craft it first`, 'warning');
-    }
+  if (actualCount > 0 && triggerEl) {
+    const btn = triggerEl.closest('.btn-place') ?? triggerEl;
+    btn.classList.add('btn-active-flash');
+    setTimeout(() => btn.classList.remove('btn-active-flash'), 250);
   }
 }
 
@@ -3260,6 +3313,30 @@ function cancelCraftQueue(key) {
     if (state.craftActive?.key === key) state.craftActive = null;
   }
   state.craftQueue = state.craftQueue.filter(e => e.key !== key);
+  // Also drop pending placements that needed this recipe's building-item output and
+  // can no longer be fulfilled now that the crafts are gone.
+  if (recipe && state.pendingPlacements?.length > 0) {
+    const outputItem = Object.keys(recipe.outputs ?? {}).find(k => BUILDING_ITEM_KEYS.has(k));
+    if (outputItem) {
+      const stillCraftable = new Set();
+      if (state.craftActive?.key) {
+        const ar = PLAYER_RECIPES[state.craftActive.key];
+        if (ar) Object.keys(ar.outputs).forEach(k => stillCraftable.add(k));
+      }
+      for (const c of state.craftQueue) {
+        const cr = PLAYER_RECIPES[c.key];
+        if (cr) Object.keys(cr.outputs).forEach(k => stillCraftable.add(k));
+      }
+      state.pendingPlacements = state.pendingPlacements.filter(p => {
+        const costs = BUILDING_COSTS[p.type];
+        if (!costs) return false;
+        return Object.keys(costs).every(itemKey =>
+          (state.inventory[itemKey] ?? 0) >= (costs[itemKey] ?? 0) ||
+          stillCraftable.has(itemKey)
+        );
+      });
+    }
+  }
   renderCrafting();
 }
 
@@ -3897,65 +3974,7 @@ function addBuildingFromGroup(key, count, frontOfQueue = false) {
   if (!group) return;
   const type = group.type;
   if (!isUnlocked('building', type)) { notify(`Research required.`, 'warning'); return; }
-  const costs = BUILDING_COSTS[type] ?? {};
-
-  // Direct placements from inventory
-  let actualCount = 0;
-  for (let i = 0; i < count; i++) {
-    if (!canAfford(costs)) break;
-    spend(costs);
-    actualCount++;
-  }
-  if (actualCount > 0) {
-    const entry = { type, count: actualCount };
-    if (group.resource != null) entry.resource = group.resource;
-    if (group.recipe   != null) entry.recipe   = group.recipe;
-    if (frontOfQueue) _placeEnqueueFront(entry);
-    else placeQueue.push(entry);
-    updatePlacementUI();
-    if (!placing) processNextPlacement();
-  }
-
-  // Auto-craft fallback for the remaining count
-  const leftover = count - actualCount;
-  if (leftover > 0 && Object.keys(costs).length > 0) {
-    const result = computeAutoCraftsForPlace(costs, leftover);
-    if (result) {
-      if (result.craftTime >= 60) {
-        notify(`⚠️ Auto-crafting ${result.feasibleCount} ${BUILDING_DEFS[type]?.name ?? type} will take ~${Math.ceil(result.craftTime)}s`, 'warning');
-      }
-      const chainOutputs2 = [];
-      for (const c of result.crafts) {
-        const r = PLAYER_RECIPES[c.key];
-        if (r) for (const outKey of Object.keys(r.outputs)) {
-          if (!chainOutputs2.includes(outKey)) chainOutputs2.push(outKey);
-        }
-      }
-      const chainSet2 = new Set(chainOutputs2);
-      for (const [k, startAmt] of Object.entries(result.startInv)) {
-        const consumed = startAmt - (result.finalInv[k] ?? 0);
-        if (consumed > 0 && !chainSet2.has(k)) recordConsumed(k, consumed);
-      }
-      for (const c of result.crafts) {
-        if (!PLAYER_RECIPES[c.key]) continue;
-        for (let i = 0; i < c.count; i++) {
-          state.craftQueue.push({ key: c.key, prepaid: true, chainOutputs: chainOutputs2 });
-        }
-      }
-      for (let i = 0; i < result.feasibleCount; i++) {
-        state.pendingPlacements.push({ type, resource: group.resource ?? null, recipe: group.recipe ?? null, frontOfQueue });
-      }
-      if (actualCount === 0 && result.craftTime < 60) {
-        notify(`⚙️ Crafting ${result.feasibleCount} ${BUILDING_DEFS[type]?.name ?? type}…`, 'info');
-      }
-    } else if (actualCount === 0) {
-      const missing = Object.entries(costs)
-        .filter(([k, n]) => (state.inventory[k] ?? 0) < n)
-        .map(([k, n]) => `${itemDisplay(k).name}: need ${fmtNum(n)}, have ${fmtNum(Math.floor(state.inventory[k] ?? 0))}`)
-        .join(' · ');
-      notify(missing ? `Missing: ${missing}` : `Need ${COST_LABEL[type] ?? type} — craft it first`, 'warning');
-    }
-  }
+  _executeBuildingPlace(type, count, BUILDING_COSTS[type], group.resource ?? null, group.recipe ?? null, frontOfQueue);
 }
 
 // ── Settings ──────────────────────────────────────────────────
@@ -4591,7 +4610,13 @@ function buildingCard(type, count, meta, statusTxt, isActive, barFill, key, extr
         .filter(([k]) => k.startsWith('speed') || isProdAllowed)
         .map(([k, d]) => `<option value="${k}"${k === selectedType ? ' selected' : ''}>${d.name}</option>`)
         .join('');
-      moduleRow = `<div class="module-row">
+      const fillFraction = totalSlots > 0 ? usedSlots / totalSlots : 0;
+      const slotSquares = Array.from({ length: slotsPerBuilding }, (_, i) => {
+        const pct = Math.round(Math.max(0, Math.min(1, fillFraction * slotsPerBuilding - i)) * 100);
+        return `<div class="module-slot"><div class="module-slot-fill" style="width:${pct}%"></div></div>`;
+      }).join('');
+      moduleRow = `<div class="module-slot-viz">${slotSquares}</div>
+      <div class="module-row">
         <span class="module-slots-info">${usedSlots}/${totalSlots} slots</span>
         <select class="module-type-sel" data-mod-sel="${key}">${options}</select>
         <button class="mod-btn mod-add" data-mod-add="${key}" title="+1 module">+1</button>
@@ -4631,7 +4656,7 @@ function buildingCard(type, count, meta, statusTxt, isActive, barFill, key, extr
         <span class="building-name">${_outKey ? _outName : name}</span>
         ${_outKey ? '' : `<span class="building-count">×${count}</span>`}
       </div>
-      ${_outKey ? '' : extra}${limitRow}${moduleRow}
+      ${_outKey ? '' : extra}${limitRow}
       <div class="building-meta">${meta}</div>
       <div class="building-status ${stClass}">${statusTxt}</div>
       ${barHtml}
@@ -4644,6 +4669,7 @@ function buildingCard(type, count, meta, statusTxt, isActive, barFill, key, extr
         <input type="text" class="remove-count-input" data-remove-count="${key}" value="${buildingRemoveCounts[key] ?? 1}" onchange="setBuildingRemoveCount('${key}', this.value)">
       </div>
     </div>
+    ${moduleRow ? `<div class="building-module-panel">${moduleRow}</div>` : ''}
     ${_bldgImgHtml}
     <div class="building-actions">
       ${showPriority ? `<button class="btn-priority ${gs.priority ? 'priority-on' : ''}" data-priority="${key}" title="${gs.priority ? 'Remove priority' : 'Set high priority'}">★</button>` : ''}
@@ -5128,6 +5154,15 @@ function perimeterMaxArtillery() {
   return total;
 }
 
+function perimeterMaxDiffusers() {
+  return perimeterTiles();
+}
+
+function hasDiffuserCoverage() {
+  const threshold = Math.ceil(perimeterTiles() / DIFFUSER_RATIO);
+  return (state.perimeter.chemicalDiffusers ?? 0) >= threshold;
+}
+
 // Returns the player's science tier (0–3) based on highest non-rainbow pack crafted/researched.
 function getPlayerScienceTier() {
   const nonRainbow = SCIENCE_PACKS.filter(p => p !== 'rainbowScience');
@@ -5337,6 +5372,24 @@ function fightBiterWave() {
   const totalBiterHP     = actualCount * actualHP;
   const remainingBiterHP = Math.max(0, totalBiterHP - artPreDamage);
 
+  // ── Chemical diffuser / capsule effects ──────────────────────
+  const capThreshold  = Math.ceil(perimeterTiles() / CAPSULE_RATIO);
+  const diffCovered   = hasDiffuserCoverage();
+
+  let slowdownActive = false;
+  let graceBonus     = 0;
+  if (diffCovered && (state.inventory.slowdownCapsule ?? 0) >= capThreshold) {
+    slowdownActive = true;
+    graceBonus     = SLOWDOWN_GRACE_BONUS;
+    recordConsumed('slowdownCapsule', capThreshold);
+  }
+
+  let poisonActive = false;
+  if (diffCovered && (state.inventory.poisonCapsule ?? 0) >= capThreshold) {
+    poisonActive = true;
+    recordConsumed('poisonCapsule', capThreshold);
+  }
+
   // ── Start time-based wave simulation ──────────────────────
   // biterHP may be 0 if artillery pre-killed the wave; tickActiveWave resolves it instantly
   state.activeWave = {
@@ -5352,6 +5405,7 @@ function fightBiterWave() {
     numSections,
     wallHP:        (totalWallHP / numSections) * sectionsAttacked,
     graceTimer:    0,
+    graceBonus,
     overflow:      0,
     bulletsUsed:   0,
     ammoType,
@@ -5360,6 +5414,9 @@ function fightBiterWave() {
     phase:         'grace',
     artPreDamage,
     artShellsUsed,
+    slowdownActive,
+    poisonActive,
+    poisonChecks:  0,
   };
   lastPerimeterHtml = ''; lastWavePreviewHash = '';
 }
@@ -5381,12 +5438,27 @@ function tickActiveWave(dt) {
   // Turrets fire at biters every tick
   w.biterHP = Math.max(0, w.biterHP - totalDPS * dt);
 
+  // Poison capsule DPS
+  if (w.poisonActive) {
+    w.biterHP = Math.max(0, w.biterHP - POISON_DPS * dt);
+    const intervals = Math.floor(w.waveTimer / POISON_INTERVAL);
+    if (intervals > (w.poisonChecks ?? 0)) {
+      w.poisonChecks = intervals;
+      const capThreshold = Math.ceil(perimeterTiles() / CAPSULE_RATIO);
+      if ((state.inventory.poisonCapsule ?? 0) >= capThreshold) {
+        recordConsumed('poisonCapsule', capThreshold);
+      } else {
+        w.poisonActive = false;
+      }
+    }
+  }
+
   // Gun ammo: shots this tick → bullets accumulated
   w.bulletsUsed += p.gunTurrets * (stats?.shotsPerSec ?? 5) * fireRateMult * dt;
 
   if (w.phase === 'grace') {
     w.graceTimer += dt;
-    if (w.graceTimer >= WAVE_GRACE_PERIOD) w.phase = 'combat';
+    if (w.graceTimer >= WAVE_GRACE_PERIOD + (w.graceBonus ?? 0)) w.phase = 'combat';
   } else if (w.phase === 'combat') {
     w.wallHP -= currentBiterDPS * dt;
     if (w.wallHP <= 0) { w.wallHP = 0; w.phase = 'overflow'; }
@@ -5481,6 +5553,9 @@ function finalizeWave(w, forced) {
     artKilled,
     bombsUsed,
     hadAtomicAssist: bombsUsed > 0,
+    slowdownActive: w.slowdownActive ?? false,
+    poisonActive:   w.poisonActive  ?? false,
+    graceBonus:     w.graceBonus    ?? 0,
     result: artKilled ? 'art_killed' : (buildingsLost > 0 ? 'buildings_lost' : 'repelled'),
   };
 
@@ -5548,6 +5623,12 @@ function addPerimeterDefense(type, amount) {
     if (toAdd <= 0) { notify('Not enough Spidertrons in inventory', 'warning'); return; }
     recordConsumed('spidertronItem', toAdd);
     p.spidertrons = (p.spidertrons ?? 0) + toAdd;
+  } else if (type === 'chemicalDiffusers') {
+    const max   = perimeterMaxDiffusers();
+    const toAdd = Math.min(amount, max - (p.chemicalDiffusers ?? 0), state.inventory.chemicalDiffuser ?? 0);
+    if (toAdd <= 0) { notify('Not enough Chemical Diffusers or perimeter is full', 'warning'); return; }
+    recordConsumed('chemicalDiffuser', toAdd);
+    p.chemicalDiffusers = (p.chemicalDiffusers ?? 0) + toAdd;
   }
 }
 
@@ -5573,6 +5654,10 @@ function removePerimeterDefense(type, amount) {
     const n = Math.min(amount, p.spidertrons ?? 0);
     p.spidertrons = (p.spidertrons ?? 0) - n;
     refundItem('spidertronItem', n);
+  } else if (type === 'chemicalDiffusers') {
+    const n = Math.min(amount, p.chemicalDiffusers ?? 0);
+    p.chemicalDiffusers = (p.chemicalDiffusers ?? 0) - n;
+    refundItem('chemicalDiffuser', n);
   }
 }
 
@@ -5917,6 +6002,48 @@ function renderPerimeter() {
     ${lastWave?.bombsUsed > 0 ? `<div class="perimeter-stat-row" style="margin-top:.5rem"><span>Last wave bombs used</span><strong>${lastWave.bombsUsed}</strong></div>` : ''}
   </div>` : ''}
 
+  ${!!state.research?.done?.military3 ? (() => {
+    const maxDiffusers  = perimeterMaxDiffusers();
+    const diffThreshold = Math.ceil(tiles / DIFFUSER_RATIO);
+    const capThreshold  = Math.ceil(tiles / CAPSULE_RATIO);
+    const diffCovered   = hasDiffuserCoverage();
+    const slowInv       = Math.floor(state.inventory.slowdownCapsule ?? 0);
+    const poisonInv     = Math.floor(state.inventory.poisonCapsule   ?? 0);
+    const slowReady     = diffCovered && slowInv >= capThreshold;
+    const poisonReady   = diffCovered && poisonInv >= capThreshold;
+    return `<div class="perimeter-card">
+    <div class="perimeter-card-title">⚗️ Chemical Diffuser</div>
+    <div class="perimeter-stat-row">
+      <span>Placed / Max</span><strong>${p.chemicalDiffusers ?? 0} / ${maxDiffusers}</strong>
+    </div>
+    <div class="perimeter-stat-row">
+      <span>Coverage threshold</span><strong>${diffThreshold} needed — ${diffCovered ? '✅ Met' : `❌ Need ${diffThreshold - (p.chemicalDiffusers ?? 0)} more`}</strong>
+    </div>
+    <div class="perimeter-stat-row">
+      <span>In inventory</span><strong>${Math.floor(state.inventory.chemicalDiffuser ?? 0)}</strong>
+    </div>
+    <div class="perimeter-btn-row">
+      <button class="btn-sm" onclick="addPerimeterDefense('chemicalDiffusers',1)">+1</button>
+      <button class="btn-sm" onclick="addPerimeterDefense('chemicalDiffusers',10)">+10</button>
+      <button class="btn-sm" onclick="addPerimeterDefense('chemicalDiffusers',999999)">Max</button>
+      <button class="btn-sm btn-danger-sm" onclick="removePerimeterDefense('chemicalDiffusers',1)">−1</button>
+      <button class="btn-sm btn-danger-sm" onclick="removePerimeterDefense('chemicalDiffusers',10)">−10</button>
+    </div>
+    <div class="perimeter-stat-row" style="margin-top:.5rem">
+      <span>${itemDisplay('slowdownCapsule').icon} Slowdown capsules</span><strong>${slowInv} / ${capThreshold} needed — ${slowReady ? '✅ Active next wave' : (diffCovered ? `❌ Need ${capThreshold - slowInv} more` : '❌ Need coverage first')}</strong>
+    </div>
+    <div class="perimeter-stat-row">
+      <span>Effect</span><strong>+${SLOWDOWN_GRACE_BONUS}s grace period</strong>
+    </div>
+    <div class="perimeter-stat-row" style="margin-top:.25rem">
+      <span>${itemDisplay('poisonCapsule').icon} Poison capsules</span><strong>${poisonInv} / ${capThreshold} needed — ${poisonReady ? '✅ Active next wave' : (diffCovered ? `❌ Need ${capThreshold - poisonInv} more` : '❌ Need coverage first')}</strong>
+    </div>
+    <div class="perimeter-stat-row">
+      <span>Effect</span><strong>${POISON_DPS} DPS · recheck every ${POISON_INTERVAL}s</strong>
+    </div>
+  </div>`;
+  })() : ''}
+
   ${(function() {
     // Live combat card — no caching, re-renders every frame
     if (state.activeWave) {
@@ -5925,8 +6052,9 @@ function renderPerimeter() {
       const hpPct      = w.biterMaxHP > 0 ? Math.max(0, w.biterHP / w.biterMaxHP * 100) : 0;
       const wallPct    = w.wallHP > 0 && w.phase !== 'overflow' ? Math.min(100, w.wallHP / (w.biterMaxHP > 0 ? w.wallHP + w.overflow : 1) * 100) : 0;
       const { totalDPS } = calcDefenseDPS(w.armor, state.powerRatio ?? 1);
+      const totalGrace  = WAVE_GRACE_PERIOD + (w.graceBonus ?? 0);
       const phaseLabel  = w.phase === 'grace'
-        ? `⏳ Grace period — ${Math.max(0, WAVE_GRACE_PERIOD - w.graceTimer).toFixed(1)}s remaining`
+        ? `⏳ Grace period — ${Math.max(0, totalGrace - w.graceTimer).toFixed(1)}s remaining${w.graceBonus ? ` (+${w.graceBonus}s slowdown)` : ''}`
         : w.phase === 'combat' ? '⚔ Combat'
         : '🔴 BREACH — Overflow';
       return `<div class="perimeter-card perimeter-card-wide" style="border-color:${w.phase === 'overflow' ? 'var(--red)' : w.phase === 'combat' ? 'var(--yellow)' : 'var(--blue)'}">
@@ -6477,15 +6605,19 @@ function updatePlaceButtonStates() {
     if (directAvail >= count) {
       // All count items are in inventory
       btn.classList.remove('cant-afford', 'can-craft');
+    } else if (count > 100) {
+      btn.classList.remove('cant-afford', 'can-craft');
     } else {
       const leftover = count - directAvail;
-      const craft    = computeAutoCraftsForPlace(costs, leftover);
+      const cacheKey = `${type}|${count}`;
+      if (_placeButtonCache[cacheKey]?.gen !== _placeButtonCacheGen) {
+        _placeButtonCache[cacheKey] = { gen: _placeButtonCacheGen, result: computeAutoCraftsForPlace(costs, leftover) };
+      }
+      const craft = _placeButtonCache[cacheKey].result;
       if (craft !== null && craft.feasibleCount >= leftover) {
-        // Can craft the shortfall — yellow
         btn.classList.remove('cant-afford');
         btn.classList.add('can-craft');
       } else {
-        // Can't fulfill count even with crafting — gray
         btn.classList.remove('can-craft');
         btn.classList.add('cant-afford');
       }

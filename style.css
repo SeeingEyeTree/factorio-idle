@@ -631,7 +631,7 @@ button {
 
 .buildings-layout {
   display: grid;
-  grid-template-columns: 44% 1fr;
+  grid-template-columns: 39% 1fr;
   gap: 1.25rem;
   align-items: start;
 }
@@ -1047,17 +1047,30 @@ button {
 }
 .dev-close-btn:hover { color: var(--red); border-color: var(--red); }
 
+/* ── Module Panel ────────────────────────────────────────────── */
+
+.building-module-panel {
+  display: flex; flex-direction: column; justify-content: center;
+  gap: .4rem; flex-shrink: 0; min-width: 120px; max-width: 160px;
+  padding: .4rem .55rem;
+  background: var(--surf); border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+.module-slot-viz  { display: flex; gap: 3px; align-items: center; }
+.module-slot      { width: 12px; height: 12px; border: 1px solid var(--border2);
+                    border-radius: 2px; overflow: hidden; background: var(--surf2); flex-shrink: 0; }
+.module-slot-fill { height: 100%; background: var(--accent); }
+
 /* ── Module Row ─────────────────────────────────────────────── */
 
 .module-row {
   display: flex; align-items: center; gap: .3rem;
-  padding: .3rem 0; flex-wrap: wrap;
-  border-top: 1px solid var(--border);
-  margin-top: .2rem;
+  padding: .2rem 0; flex-wrap: wrap;
 }
 .module-slots-info {
   font-size: .7rem; color: var(--dim);
-  min-width: 3.5rem; text-align: right;
+  min-width: 3.5rem;
 }
 .module-type-sel {
   font-size: .72rem;

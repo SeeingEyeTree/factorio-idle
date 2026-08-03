@@ -263,3 +263,114 @@ test('regression: no references to non-existent state.biterWaveCount', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'game.js'), 'utf8');
   assert.ok(!src.includes('biterWaveCount'), 'use state.biterWaveNumber instead');
 });
+
+// ── Chemical Diffuser / Capsule mechanics ─────────────────────────────────
+// Default perimeter: sideLength=14 → tiles=56 → diffThreshold=ceil(56/10)=6
+//                                               capThreshold=ceil(56/5)=12
+
+test('slowdown capsules extend grace period by 5s when diffuser+capsule thresholds met', () => {
+  const g = loadGame();
+  const st = g.newGame();
+  st.perimeter.walls = 560;
+  st.perimeter.chemicalDiffusers = 6;   // meets diffThreshold (ceil(56/10)=6)
+  st.inventory.slowdownCapsule   = 12;  // meets capThreshold  (ceil(56/5)=12)
+
+  g.get('fightBiterWave')();
+  const w = st.activeWave;
+
+  assert.strictEqual(w.graceBonus, 5, 'graceBonus should be 5');
+  assert.strictEqual(w.slowdownActive, true);
+  assert.strictEqual(st.inventory.slowdownCapsule, 0, 'capsules consumed at wave start');
+
+  const tick = g.get('tickActiveWave');
+
+  // 6.9s elapsed: still grace (total grace = 2+5 = 7s)
+  for (let i = 0; i < 69; i++) tick(0.1);
+  assert.strictEqual(w.phase, 'grace', 'should still be in grace at 6.9s');
+
+  // 0.2s more (7.1s total) → transitions to combat
+  tick(0.2);
+  assert.strictEqual(w.phase, 'combat', 'should enter combat after 7s grace');
+});
+
+test('slowdown capsules are NOT active when diffuser threshold is not met', () => {
+  const g = loadGame();
+  const st = g.newGame();
+  st.perimeter.walls = 560;
+  st.perimeter.chemicalDiffusers = 0;   // below diffThreshold
+  st.inventory.slowdownCapsule   = 12;  // plenty of capsules, but no coverage
+
+  g.get('fightBiterWave')();
+  const w = st.activeWave;
+
+  assert.strictEqual(w.graceBonus, 0, 'no grace bonus without diffuser coverage');
+  assert.strictEqual(w.slowdownActive, false);
+  assert.strictEqual(st.inventory.slowdownCapsule, 12, 'capsules NOT consumed');
+
+  const tick = g.get('tickActiveWave');
+
+  // Tick past 2s → should be in combat (normal grace, not 7s)
+  for (let i = 0; i < 21; i++) tick(0.1);
+  assert.strictEqual(w.phase, 'combat', 'should enter combat after normal 2s grace');
+});
+
+test('poison capsules are consumed at wave start and deal 16 DPS', () => {
+  const g = loadGame();
+  const st = g.newGame();
+  // Use enough walls to survive, no turrets so only poison reduces biterHP
+  st.perimeter.walls             = 560;
+  st.perimeter.chemicalDiffusers = 6;
+  st.inventory.poisonCapsule     = 12;
+
+  g.get('fightBiterWave')();
+  const w = st.activeWave;
+
+  assert.strictEqual(w.poisonActive, true);
+  assert.strictEqual(st.inventory.poisonCapsule, 0, 'capsules consumed at wave start');
+
+  const initialHP = w.biterHP;
+  const tick = g.get('tickActiveWave');
+
+  // Tick 1s — only poison DPS (no turrets) should reduce biterHP by ~16
+  tick(1.0);
+  const hpLost = initialHP - w.biterHP;
+  assert.ok(Math.abs(hpLost - 16) < 0.01, `expected ~16 HP lost, got ${hpLost}`);
+});
+
+test('poison capsules are consumed again at the 20-second mark', () => {
+  const g = loadGame();
+  const st = g.newGame();
+  st.biterThreatPoints           = 1.0;  // large wave so it survives 20s
+  st.perimeter.walls             = 100000;
+  st.perimeter.chemicalDiffusers = 6;
+  st.inventory.poisonCapsule     = 24;   // enough for 2 intervals (12 each)
+
+  g.get('fightBiterWave')();
+  assert.strictEqual(st.inventory.poisonCapsule, 12, 'first batch consumed at wave start');
+
+  const tick = g.get('tickActiveWave');
+  // Advance past the 20s mark in one big step
+  tick(21.0);
+
+  assert.strictEqual(st.inventory.poisonCapsule, 0, 'second batch consumed at 20s interval');
+});
+
+test('poison stops when capsules run out at an interval check', () => {
+  const g = loadGame();
+  const st = g.newGame();
+  st.biterThreatPoints           = 1.0;  // large wave so it survives 40s
+  st.perimeter.walls             = 100000;
+  st.perimeter.chemicalDiffusers = 6;
+  st.inventory.poisonCapsule     = 12;   // only enough for the initial batch
+
+  g.get('fightBiterWave')();
+  const w = st.activeWave;
+  assert.strictEqual(w.poisonActive, true);
+  assert.strictEqual(st.inventory.poisonCapsule, 0);
+
+  const tick = g.get('tickActiveWave');
+  // Advance past the 20s check — no capsules left, so poisonActive should turn off
+  tick(21.0);
+
+  assert.strictEqual(w.poisonActive, false, 'poison deactivated when capsules ran out');
+});

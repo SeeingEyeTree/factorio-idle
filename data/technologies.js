@@ -240,7 +240,7 @@ const TECHNOLOGIES = {
     cost: { redScience: 100, greenScience: 100, blueScience: 100, blackScience: 100 }, timePerPack: 30,
     prereqs: ['militarySciencePack', 'chemicalSciencePack'],
     description: 'Here for reasons',
-    unlockRecipes: ['slowdownCapsule','poisonCapsule'], unlockBuildings: [],
+    unlockRecipes: ['slowdownCapsule', 'poisonCapsule', 'chemicalDiffuser'], unlockBuildings: [],
   }),
   military4: new Technology({
     name: 'Military 4', icon: '⚙️',
@@ -266,7 +266,7 @@ const TECHNOLOGIES = {
   }),*/
   electricFurnaceTech: new Technology({
     name: 'Electric Furnace', icon: '⚡', iconImg: 'data/icon_imgs/electric_furnace.png',
-    cost: { redScience: 250, greenScience: 250, blueScience: 250 }, timePerPack: 30,
+    cost: { redScience: 500, greenScience: 500, blueScience: 500 }, timePerPack: 30,
     prereqs: ['advancedMaterialProcessing', 'chemicalSciencePack'],
     description: 'Upgrades all Furnaces → Electric (2× speed, 180 kW, no coal needed)',
     upgradeBuildings: { steelFurnace: 'electricFurnace' }, unlockRecipes: [], unlockBuildings: [],
@@ -346,7 +346,7 @@ const TECHNOLOGIES = {
   productionSciencePack: new Technology({
     name: 'Production Science Pack', icon: '🟣', iconImg: 'data/icon_imgs/production_science_pack.png',
     cost: { redScience: 100, greenScience: 100, blueScience: 100 }, timePerPack: 30,
-    prereqs: ['electricFurnaceTech', 'railTech', 'productionModuleTech1'],
+    prereqs: ['electricFurnaceTech', 'railTech', 'productionModuleTech1', 'military3'],
     description: 'Unlocks Production Science Pack and productivity modules',
     unlockRecipes: ['purpleScience'], unlockBuildings: [],
   }),
