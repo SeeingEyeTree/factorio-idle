@@ -95,7 +95,7 @@ const THEMES = {
       productivityModule3:{ name: 'Annual Review',       img: 'data/icon_imgs/caffactory/perf_review_3.png' },
 
       // Building items → Caff-Infinite corporate machinery
-      labItem:             { name: 'Unpaid Intern',              img: 'data/icon_imgs/caffactory/unpaid_intern.png' },
+      labItem:             { name: 'Taste Tester',               img: 'data/icon_imgs/caffactory/unpaid_intern.png' },
       stoneFurnaceItem:    { name: 'Blast Furnace',                  img: 'data/icon_imgs/caffactory/stone_furnace.png' },
       steelFurnaceItem:    { name: 'Pressure Forge',       img: 'data/icon_imgs/caffactory/steel_furnace.png' },
       electricFurnaceItem: { name: 'Vacume Furnace', img: 'data/icon_imgs/caffactory/electric_furnace.png' },
@@ -199,7 +199,7 @@ const THEMES = {
       assembly:       { name: 'Junior Intern Pod' },
       assembly2:      { name: 'Mid-Level Intern Pod', iconImg: 'data/icon_imgs/caffactory/intern_pod_2.png' },
       assembly3:      { name: 'Senior Intern Pod',   iconImg: 'data/icon_imgs/caffactory/intern_pod_3.png' },
-      lab:           { name: 'Unpaid Intern' },
+      lab:           { name: 'Taste Testers' },
       boiler:        { name: 'Coffee Boiler' },
       steamEngine:   { name: 'Coffee Generator' },
       offshoreP:     { name: 'Water Cooler' },

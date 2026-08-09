@@ -122,6 +122,9 @@ function registerIpcHandlers() {
   });
   ipcMain.on('window-close',    () => BrowserWindow.getFocusedWindow()?.close());
 
+  // Re-assert renderer keyboard focus after internal screen transitions (fixes Electron focus bug)
+  ipcMain.on('refocus-renderer', (event) => { event.sender.focus(); });
+
   ipcMain.handle('save-meta', (_, json) => {
     const p = path.join(app.getPath('userData'), 'meta.json');
     fs.writeFileSync(p, json, 'utf8');

@@ -278,13 +278,13 @@ button {
 
 /* ── Game Layout ────────────────────────────────────────────── */
 
-#game-screen { display: flex; flex-direction: column; min-height: 100vh; }
+#game-screen { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
 
 .game-layout {
   display: flex;
   flex-direction: row-reverse;
   flex: 1;
-  min-height: 100vh;
+  min-height: 0;
 }
 
 .game-main {
@@ -292,13 +292,38 @@ button {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 0;
   overflow: hidden;
+}
+
+.game-topbar {
+  display: flex;
+  align-items: stretch;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+}
+.game-topbar .starred-bar {
+  flex: 1;
+  border-bottom: none;
+  border-right: 1px solid var(--border);
+  min-width: 0;
+}
+.game-topbar .power-bar {
+  border-bottom: none;
+  flex-direction: column;
+  align-items: flex-start;
+  flex-wrap: nowrap;
+  padding: .3rem .6rem;
+  gap: .2rem;
+  font-size: .72rem;
+  flex-shrink: 0;
+  width: 190px;
 }
 
 /* ── Side Navigation ─────────────────────────────────────────── */
 
 .side-nav {
-  width: 150px;
+  width: 90px;
   background: linear-gradient(180deg, #1a2030 0%, #141923 100%);
   border-left: 1px solid var(--border);
   display: flex;
@@ -309,34 +334,6 @@ button {
   scrollbar-width: none;
 }
 .side-nav::-webkit-scrollbar { display: none; }
-
-/* Power bar inside the side-nav — vertical layout */
-.side-nav .power-bar {
-  display: flex;
-  flex-direction: column;
-  padding: .5rem .55rem;
-  gap: .25rem;
-  border-bottom: 1px solid var(--border);
-  border-right: none;
-  font-size: .67rem;
-  background: rgba(0,0,0,.25);
-  flex-shrink: 0;
-}
-.side-nav .fluid-cell {
-  display: flex;
-  align-items: center;
-  gap: .3rem;
-  width: 100%;
-  min-width: 0;
-}
-.side-nav .fluid-track {
-  flex: 1;
-  min-width: 0;
-}
-.side-nav .fluid-sep { display: none; }
-.side-nav .fluid-val { font-size: .65rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.side-nav .fluid-icon { font-size: .8rem; flex-shrink: 0; }
-.side-nav .power-cell { margin-left: 0; }
 
 /* Biter indicator inside side-nav */
 .side-nav .biter-indicator {
@@ -451,7 +448,7 @@ button {
 .fluid-icon { font-size: .9rem; }
 
 .fluid-track {
-  width: 70px; height: 5px;
+  width: 30px; height: 5px;
   background: rgba(255,255,255,.06);
   border-radius: 3px;
   overflow: hidden;
@@ -474,8 +471,8 @@ button {
 
 /* ── Tabs ───────────────────────────────────────────────────── */
 
-.tab-content { padding: 1.25rem; flex: 1; overflow-y: auto; }
-.tab-panel { display: block; }
+.tab-content { padding: 1.25rem; flex: 1; min-height: 0; overflow: hidden; }
+.tab-panel { display: block; height: 100%; overflow-y: auto; min-height: 0; }
 
 .section-label {
   font-size: .65rem;
@@ -508,18 +505,21 @@ button {
 
 .craft-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-  gap: .6rem;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 160px));
+  gap: .5rem;
 }
 
 .craft-card {
-  padding: .85rem 1rem;
+  position: relative;
+  padding: .35rem;
   background: linear-gradient(180deg, var(--surf2) 0%, var(--surf) 100%);
   border: 1px solid var(--border);
   border-radius: 6px;
-  display: flex; flex-direction: column; gap: .38rem;
+  display: flex; flex-direction: column; align-items: center; gap: .2rem;
   transition: border-color .15s, box-shadow .15s;
   box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  user-select: none;
 }
 .craft-card:hover { border-color: var(--border2); box-shadow: var(--shadow); }
 .craft-card.craft-active {
@@ -527,48 +527,27 @@ button {
   box-shadow: var(--shadow), 0 0 0 1px rgba(76,175,80,.2) inset;
   background: linear-gradient(180deg, rgba(76,175,80,.06) 0%, var(--surf) 100%);
 }
+.craft-card.cant-afford { opacity: 0.4; cursor: not-allowed; }
 
-.craft-header { display: flex; align-items: center; gap: .55rem; }
-.craft-icon   { font-size: 2rem; flex-shrink: 0; }
-.craft-name   { font-weight: 700; font-size: .92rem; color: var(--text2); flex: 1; }
-.craft-time-label { font-size: .68rem; color: var(--dim); white-space: nowrap; }
-
-.craft-queue-count       { font-size: .72rem; color: var(--green); }
-.craft-queue-count.waiting { color: var(--dim); }
-.craft-q-num             { font-weight: 700; }
-
-.craft-bar { margin: .15rem 0; }
-
-.craft-actions { display: flex; gap: .4rem; margin-top: .2rem; }
-
-.btn-craft {
-  flex: 1;
-  background: linear-gradient(180deg, #f9b94a 0%, var(--accent2) 100%);
-  color: #111;
-  padding: .42rem .7rem;
-  border-radius: 4px; border: none;
-  font-size: .8rem; font-weight: 700;
-  cursor: pointer; font-family: var(--font);
-  display: flex; align-items: center; justify-content: center; gap: .4rem;
-  box-shadow: var(--shadow-sm);
+.craft-icon-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 4.2rem;
+  line-height: 1;
 }
-.btn-craft:hover:not(.cant-afford) {
-  background: linear-gradient(180deg, #ffc55e 0%, #f0a030 100%);
-  box-shadow: 0 2px 8px rgba(244,168,58,.3);
-}
-.btn-craft.cant-afford { background: var(--surf2); color: var(--dim); cursor: not-allowed; box-shadow: none; }
+.craft-icon-wrap .item-icon { width: 108px; height: 108px; }
 
-.craft-shift-hint {
-  font-size: .62rem; font-weight: 400; opacity: .65;
+.craft-q-badge {
+  position: absolute; top: -5px; right: -7px;
+  background: var(--accent); color: #111;
+  border-radius: 999px; font-size: .6rem; font-weight: 700;
+  padding: 1px 4px; min-width: 16px; text-align: center;
+  pointer-events: none; line-height: 1.4;
 }
 
-.btn-craft-cancel {
-  background: transparent; color: var(--dim);
-  border: 1px solid var(--border);
-  border-radius: 4px; padding: .4rem .55rem;
-  font-size: .75rem; cursor: pointer; font-family: var(--font);
-}
-.btn-craft-cancel:hover { background: var(--red); color: #fff; border-color: var(--red); }
+.craft-bar { margin: 0; width: 100%; }
 
 /* ── Mining Tab ─────────────────────────────────────────────── */
 
@@ -629,9 +608,12 @@ button {
 
 /* ── Buildings Tab ──────────────────────────────────────────── */
 
+#tab-buildings { overflow: hidden; }
+
 .buildings-layout {
   display: grid;
   grid-template-columns: 39% 1fr;
+  height: 100%;
   gap: 1.25rem;
   align-items: start;
 }
@@ -639,7 +621,7 @@ button {
 
 .placement-col {
   display: flex; flex-direction: column;
-  max-height: calc(100vh - 80px);
+  height: 100%;
   overflow: hidden;
 }
 .placement-col-header { flex-shrink: 0; display: flex; flex-direction: column; gap: 0; padding-bottom: .4rem; }
@@ -655,7 +637,7 @@ button {
 
 .active-col {
   display: flex; flex-direction: column;
-  max-height: calc(100vh - 80px);
+  height: 100%;
   overflow: hidden;
 }
 .active-col-header { display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
@@ -902,8 +884,7 @@ button {
 
 /* ── Instant hover transitions for dynamically-replaced elements ── */
 #resource-patches .btn-mine,
-#craft-recipes .btn-craft,
-#craft-recipes .btn-craft-cancel,
+#craft-recipes .craft-card,
 #active-buildings .btn-toggle,
 #active-buildings .btn-remove-building {
   transition: background 0s, color 0s, border-color 0s, opacity 0s;
@@ -1579,7 +1560,7 @@ button {
 }
 .recipe-icon-btn .item-icon { width: 48px; height: 48px; }
 .recipe-ingredient .item-icon { width: 20px; height: 20px; padding: 0; background: none; }
-.craft-icon .item-icon { width: 36px; height: 36px; vertical-align: middle; }
+.craft-icon-wrap .item-icon { width: 108px; height: 108px; vertical-align: middle; }
 .tech-node-icon .item-icon, .tech-icon-img { width: 34px; height: 34px; padding: 0; background: none; }
 .research-name .item-icon { width: 20px; height: 20px; vertical-align: middle; padding: 0; background: none; }
 
@@ -2306,19 +2287,24 @@ button {
   background: var(--surf2);
   border: 1px solid var(--border2);
   border-radius: 6px;
-  padding: .45rem .55rem;
+  padding: .72rem .88rem;
   z-index: 9999;
   pointer-events: none;
-  box-shadow: 0 3px 10px rgba(0,0,0,.55);
+  box-shadow: 0 5px 16px rgba(0,0,0,.55);
 }
-.ctip-icons { display: flex; gap: .35rem; align-items: center; }
+.ctip-header { display: flex; align-items: center; gap: .64rem; font-size: 1.36rem; white-space: nowrap; }
+.ctip-qty    { font-size: 1.2rem; color: var(--dim); }
+.ctip-time   { margin-left: auto; font-size: 1.15rem; color: var(--dim); }
+.ctip-divider { border-top: 1px solid var(--border2); margin: .48rem 0; }
+.ctip-hint   { font-size: 1rem; color: var(--dim); margin-top: .56rem; text-align: center; }
+.ctip-icons { display: flex; gap: .56rem; align-items: center; }
 .ctip-ing {
-  display: flex; flex-direction: column; align-items: center; gap: .15rem;
-  padding: .3rem .35rem;
+  display: flex; flex-direction: column; align-items: center; gap: .24rem;
+  padding: .48rem .56rem;
   border-radius: 4px;
   background: rgba(255,255,255,.05);
-  min-width: 40px;
+  min-width: 64px;
 }
 .ctip-ing.ctip-missing { background: rgba(220,50,50,.28); }
-.ctip-amt { font-size: .65rem; color: var(--dim); font-weight: 700; line-height: 1; }
-.ctip-ing .item-icon { width: 30px; height: 30px; }
+.ctip-amt { font-size: 1.04rem; color: var(--dim); font-weight: 700; line-height: 1; }
+.ctip-ing .item-icon { width: 48px; height: 48px; }

@@ -570,7 +570,7 @@ const TUTORIAL_GOALS = [
   },
   // 2
   {
-    text: () => `Now scale up — place 10 ${itemDisplay('burnerMinerItem').name} on iron ore and 8 ${itemDisplay('stoneFurnaceItem').name} smelting ${itemDisplay('ironPlate').name}. Don't forget coal and stone miners too!`,
+    text: () => `Now scale up — place 10 ${itemDisplay('burnerMinerItem').name} on ${itemDisplay('ironOre').name} and 8 ${itemDisplay('stoneFurnaceItem').name} smelting ${itemDisplay('ironPlate').name}. Don't forget to place miners for ${itemDisplay('coal').name} and ${itemDisplay('stone').name} too!`,
     check: s => {
       const ironMiners   = Object.values(s.buildings).filter(g => (g.type==='miner'||g.type==='electricMiner') && g.resource==='ironOre').reduce((n,g)=>n+g.count,0);
       const ironFurnaces = Object.values(s.buildings).filter(g => g.type==='furnace' && g.recipe==='ironPlate').reduce((n,g)=>n+g.count,0);
@@ -579,13 +579,13 @@ const TUTORIAL_GOALS = [
     progress: s => {
       const ironMiners   = Object.values(s.buildings).filter(g => (g.type==='miner'||g.type==='electricMiner') && g.resource==='ironOre').reduce((n,g)=>n+g.count,0);
       const ironFurnaces = Object.values(s.buildings).filter(g => g.type==='furnace' && g.recipe==='ironPlate').reduce((n,g)=>n+g.count,0);
-      return `${Math.min(ironMiners,10)}/10 iron miners · ${Math.min(ironFurnaces,8)}/8 iron furnaces`;
+      return `${Math.min(ironMiners,10)}/10 miners · ${Math.min(ironFurnaces,8)}/8 iron ${itemDisplay('stoneFurnaceItem').name}`;
     },
     glowTab: 'buildings',
   },
   // 3
   {
-    text: () => `Place 5 ${itemDisplay('burnerMinerItem').name} on copper ore and 4 ${itemDisplay('stoneFurnaceItem').name} smelting ${itemDisplay('copperPlate').name}.`,
+    text: () => `Place 5 ${itemDisplay('burnerMinerItem').name} on ${itemDisplay('copperOre').name} and 4 ${itemDisplay('stoneFurnaceItem').name} smelting ${itemDisplay('copperPlate').name}.`,
     check: s => {
       const copperMiners   = Object.values(s.buildings).filter(g => (g.type==='miner'||g.type==='electricMiner') && g.resource==='copperOre').reduce((n,g)=>n+g.count,0);
       const copperFurnaces = Object.values(s.buildings).filter(g => g.type==='furnace' && g.recipe==='copperPlate').reduce((n,g)=>n+g.count,0);
@@ -594,7 +594,7 @@ const TUTORIAL_GOALS = [
     progress: s => {
       const copperMiners   = Object.values(s.buildings).filter(g => (g.type==='miner'||g.type==='electricMiner') && g.resource==='copperOre').reduce((n,g)=>n+g.count,0);
       const copperFurnaces = Object.values(s.buildings).filter(g => g.type==='furnace' && g.recipe==='copperPlate').reduce((n,g)=>n+g.count,0);
-      return `${Math.min(copperMiners,5)}/5 copper miners · ${Math.min(copperFurnaces,4)}/4 copper furnaces`;
+      return `${Math.min(copperMiners,5)}/5 miners · ${Math.min(copperFurnaces,4)}/4 copper ${itemDisplay('stoneFurnaceItem').name}`;
     },
   },
   // 4
@@ -621,72 +621,72 @@ const TUTORIAL_GOALS = [
   },
   // 4
   {
-    text: 'Research Automation technology',
+    text: () => `Research ${techDisplay('automation').name} technology`,
     check: s => !!s.research.done['automation'],
     glowTab: 'research',
     unlockTab: 'recipes',
   },
   // 5 — research defense techs
   {
-    text: 'Research Gun Turret and Stone Wall technologies in the Research tab',
+    text: () => `Research ${techDisplay('gunTurret').name} and ${techDisplay('stoneWallTech').name} technologies in the Research tab`,
     check: s => !!s.research.done['gunTurret'] && !!s.research.done['stoneWallTech'],
   },
   // 6 — build defenses
   {
-    text: 'Place 20 stone walls, 10 gun turrets, and have 100 Firearm Magazines in your inventory (Defense tab). Tip: you can upgrade ammo type later for more damage!',
+    text: () => `Place 20 ${itemDisplay('stoneWall').name}, 10 ${itemDisplay('gunTurretItem').name}, and have 100 ${itemDisplay('firearmMagazine').name} in your inventory (Defense tab). Tip: you can upgrade ammo type later for more damage!`,
     check: s => (s.perimeter?.walls ?? 0) >= 20 && (s.perimeter?.gunTurrets ?? 0) >= 10 && (s.inventory?.firearmMagazine ?? 0) >= 100,
     progress: s => {
       const w = Math.min(s.perimeter?.walls ?? 0, 20);
       const t = Math.min(s.perimeter?.gunTurrets ?? 0, 10);
       const a = Math.min(Math.floor(s.inventory?.firearmMagazine ?? 0), 100);
-      return `${w}/20 walls · ${t}/10 turrets · ${a}/100 magazines`;
+      return `${w}/20 ${itemDisplay('stoneWall').name} · ${t}/10 ${itemDisplay('gunTurretItem').name} · ${a}/100 ${itemDisplay('firearmMagazine').name}`;
     },
     glowTab: 'defense',
   },
   // 7 — radar
   {
-    text: 'Place 10 Radars — they discover new ore patches to mine and add to the number of resources you can extract. They will also occasionally find chests with rewards, so it\'s worth building a few of them!',
+    text: () => `Place 10 ${buildingDisplay('radar').name} — they discover new ore patches to mine and add to the number of resources you can extract. You can soft lock your self if you don't explore enough so stay on top of that.`,
     check: s => (s.buildings['radar']?.count ?? 0) >= 10,
-    progress: s => `${Math.min(s.buildings['radar']?.count ?? 0, 10)}/10 radars`,
+    progress: s => `${Math.min(s.buildings['radar']?.count ?? 0, 10)}/10 ${buildingDisplay('radar').name}`,
     glowCraft: ['radarItem'],
   },
   // 8 — logistics research
   {
-    text: 'Research Logistics — reduces building placement time by 0.5 seconds',
+    text: () => `Research ${techDisplay('logistics').name} — reduces building placement time by 0.5 seconds`,
     check: s => !!s.research.done['logistics'],
   },
   // 9 — green science (was goal 5)
   {
-    text: 'Research the Logistic Science Pack (green science)',
+    text: () => `Research the ${techDisplay('logisticSciencePack').name}`,
     check: s => !!s.research.done['logisticSciencePack'],
     unlockTab: 'graph',
   },
   // 10 — concrete + expand
   {
-    text: 'Research Concrete, craft 1000 concrete, then expand your perimeter in the Defense tab',
+    text: () => `Research ${techDisplay('concrete').name}, craft 1000 ${itemDisplay('concrete').name}, then expand your perimeter in the Defense tab`,
     check: s => (s.itemsProduced?.concrete ?? 0) >= 1000 && (s.perimeter?.sideLength ?? 14) > 14,
     progress: s => {
       const c       = Math.min(Math.floor(s.itemsProduced?.concrete ?? 0), 1000);
       const expanded = (s.perimeter?.sideLength ?? 14) > 14;
-      if (!expanded) return `${c}/1000 concrete · then expand in Defense tab`;
-      return `✓ 1000 concrete · ✓ perimeter expanded`;
+      if (!expanded) return `${c}/1000 ${itemDisplay('concrete').name} · then expand in Defense tab`;
+      return `✓ 1000 ${itemDisplay('concrete').name} · ✓ perimeter expanded`;
     },
     glowTab: 'defense',
   },
   // 11 — military science (was goal 6)
   {
-    text: 'Research the Military Science Pack',
+    text: () => `Research the ${techDisplay('militarySciencePack').name}`,
     check: s => !!s.research.done['militarySciencePack'],
   },
   // 12 — blue science with sub-goals
   {
-    text: 'Craft 200 BLUE 40 drinks. You will need to craft three new indtermediate items to make these.',
+    text: () => `Craft 200 ${itemDisplay('blueScience').name}. You will need to craft three new intermediate items to make these.`,
     check: s => (s.itemsProduced?.blueScience ?? 0) >= 200,
-    progress: s => `${Math.min(Math.floor(s.itemsProduced?.blueScience ?? 0), 200)}/200 blue science`,
+    progress: s => `${Math.min(Math.floor(s.itemsProduced?.blueScience ?? 0), 200)}/200 ${itemDisplay('blueScience').name}`,
     subGoals: [
-      { text: 'Craft Coffee Maker Motor',      check: s => (s.itemsProduced?.engineUnit ?? 0) > 0 },
-      { text: 'Process sulfur',          check: s => (s.itemsProduced?.sulfur ?? 0) > 0 },
-      { text: 'Craft UM 200', check: s => (s.itemsProduced?.advancedCircuit ?? 0) > 0 },
+      { text: () => `Craft ${itemDisplay('engineUnit').name}`,      check: s => (s.itemsProduced?.engineUnit ?? 0) > 0 },
+      { text: () => `Process ${itemDisplay('sulfur').name}`,        check: s => (s.itemsProduced?.sulfur ?? 0) > 0 },
+      { text: () => `Craft ${itemDisplay('advancedCircuit').name}`, check: s => (s.itemsProduced?.advancedCircuit ?? 0) > 0 },
     ],
   },
   // 13 — laser turrets
@@ -700,44 +700,44 @@ const TUTORIAL_GOALS = [
   */
   // 14 — construction robots
   {
-    text: 'Craft 100 drone swarms — they speed up building placement dramatically. If your playing the game correctly this will help remove your limitating factor.',
+    text: () => `Craft 100 ${itemDisplay('constructionRobotItem').name} — they speed up building placement dramatically. If your playing the game correctly this will help remove your limitating factor.`,
     check: s => (s.itemsProduced?.constructionRobotItem ?? 0) >= 100,
-    progress: s => `${Math.min(Math.floor(s.itemsProduced?.constructionRobotItem ?? 0), 100)}/100 construction robots`,
+    progress: s => `${Math.min(Math.floor(s.itemsProduced?.constructionRobotItem ?? 0), 100)}/100 ${itemDisplay('constructionRobotItem').name}`,
     glowCraft: ['constructionRobotItem'],
   },
   // 15 — purple science with sub-goals
   {
-    text: 'Craft 200 purple science packs (Production Science Pack)',
+    text: () => `Craft 200 ${itemDisplay('purpleScience').name}`,
     check: s => (s.itemsProduced?.purpleScience ?? 0) >= 200,
-    progress: s => `${Math.min(Math.floor(s.itemsProduced?.purpleScience ?? 0), 200)}/200 purple science`,
+    progress: s => `${Math.min(Math.floor(s.itemsProduced?.purpleScience ?? 0), 200)}/200 ${itemDisplay('purpleScience').name}`,
     subGoals: [
-      { text: 'Craft productivity modules', check: s => (s.itemsProduced?.productivityModule ?? 0) > 0 },
-      { text: 'Craft rails',               check: s => (s.itemsProduced?.rail ?? 0) > 0 },
-      { text: 'Craft chemical diffusers',   check: s => (s.itemsProduced?.chemicalDiffuser ?? 0) > 0 },
+      { text: () => `Craft ${itemDisplay('productivityModule').name}`, check: s => (s.itemsProduced?.productivityModule ?? 0) > 0 },
+      { text: () => `Craft ${itemDisplay('rail').name}`,               check: s => (s.itemsProduced?.rail ?? 0) > 0 },
+      { text: () => `Craft ${itemDisplay('chemicalDiffuser').name}`,   check: s => (s.itemsProduced?.chemicalDiffuser ?? 0) > 0 },
     ],
     glowTab: 'research',
   },
   // 16 — yellow science with sub-goals
   {
-    text: 'Craft 200 yellow science packs (Utility Science Pack)',
+    text: () => `Craft 200 ${itemDisplay('yellowScience').name}`,
     check: s => (s.itemsProduced?.yellowScience ?? 0) >= 200,
-    progress: s => `${Math.min(Math.floor(s.itemsProduced?.yellowScience ?? 0), 200)}/200 yellow science`,
+    progress: s => `${Math.min(Math.floor(s.itemsProduced?.yellowScience ?? 0), 200)}/200 ${itemDisplay('yellowScience').name}`,
     subGoals: [
-      { text: 'Craft low density structures',       check: s => (s.itemsProduced?.lowDensityStructure ?? 0) > 0 },
-      { text: 'Craft flying robot frames',          check: s => (s.itemsProduced?.flyingRobotFrame ?? 0) > 0 },
-      { text: 'Craft processing units (blue chips)', check: s => (s.itemsProduced?.processingUnit ?? 0) > 0 },
+      { text: () => `Craft ${itemDisplay('lowDensityStructure').name}`,  check: s => (s.itemsProduced?.lowDensityStructure ?? 0) > 0 },
+      { text: () => `Craft ${itemDisplay('flyingRobotFrame').name}`,     check: s => (s.itemsProduced?.flyingRobotFrame ?? 0) > 0 },
+      { text: () => `Craft ${itemDisplay('processingUnit').name}`,       check: s => (s.itemsProduced?.processingUnit ?? 0) > 0 },
     ],
     glowTab: 'research',
   },
   // 17 — artillery
   // 18 — space + rainbow (was goal 10)
   {
-    text: 'Research Space Science and Rainbow Science to complete the tech tree. The enemy threat is currently capped. After you carft your first Zero-G can the threat will start scailing exponitially unitl you die, and OSHA always wins.',
+    text: () => `Research ${techDisplay('rocketSiloTech').name} and ${techDisplay('rainbowSciencePack').name} to complete the tech tree. The enemy threat is currently capped. After you craft your first ${itemDisplay('spaceScience').name} the threat will start scaling exponentially until you die, and OSHA always wins.`,
     check: s => !!s.research.done['spaceSciencePack'] && !!s.research.done['rainbowSciencePack'],
     glowTab: 'research',
   },
   {
-    text: 'Research PR howitzer and add it to your perimeter — it kills the catchus journlists befor they can get the scoupe.',
+    text: () => `Research ${techDisplay('artillery').name} and add it to your perimeter — it kills journlists befor they can get the scoupe.`,
     check: s => !!s.research.done['artillery'] && (s.perimeter?.artillery ?? 0) >= 1,
     glowTab: 'research',
   },
@@ -905,13 +905,13 @@ const INFINITE_TECHS = {
   'artillery:range': new InfiniteTech({
     displayName: 'Artillery Range',
     stateField:  'artilleryRangeLevel',
-    prereq:      null,
+    prereq:      'artillery',
     getData:     (level) => getArtilleryRangeTechData(level),
   }),
   'artillery:damage': new InfiniteTech({
     displayName: 'Artillery Damage',
     stateField:  'artilleryDamageLevel',
-    prereq:      null,
+    prereq:      'artillery',
     getData:     (level) => getArtilleryDamageTechData(level),
   }),
   'wall:hp': new InfiniteTech({
@@ -1033,8 +1033,7 @@ function createState(settings) {
       current:           null,
       totalConsumed:     0,
       queue:             [],
-      savedKey:          null,
-      savedProgress:     0,
+      progressMap:       {},
       robotSpeedLevel:      0,
       robotCargoLevel:      0,
       miningProdLevel:      0,
@@ -1196,8 +1195,15 @@ function applyStateFromEnvelope(envelope) {
   if (!state.research) state.research = { done: {}, current: null, totalConsumed: 0 };
   if (state.research.totalConsumed == null)    state.research.totalConsumed    = 0;
   if (!state.research.queue)                   state.research.queue            = [];
-  if (state.research.savedKey      == null)    state.research.savedKey         = null;
-  if (state.research.savedProgress == null)    state.research.savedProgress    = 0;
+  if (!state.research.progressMap) {
+    state.research.progressMap = {};
+    // Migrate old single-slot saved progress from saves that used savedKey/savedProgress.
+    if (state.research.savedKey != null) {
+      state.research.progressMap[state.research.savedKey] = state.research.savedProgress ?? 0;
+    }
+    delete state.research.savedKey;
+    delete state.research.savedProgress;
+  }
   if (state.research.robotSpeedLevel  == null) state.research.robotSpeedLevel  = 0;
   if (state.research.robotCargoLevel  == null) state.research.robotCargoLevel  = 0;
   if (state.research.miningProdLevel  == null) state.research.miningProdLevel  = 0;
@@ -1537,11 +1543,12 @@ function updateSaveFilenameDisplay() {
   if (el) el.textContent = currentSaveFile ? currentSaveFile.replace(/\.json$/, '') : '';
 }
 
-function fmtNum(n) {
-  const v = Math.floor(n);
-  if (v >= 1_000_000) return v.toExponential(2);
-  return v.toLocaleString();
+function fmtN(n, decimals = 0) {
+  if (Math.abs(n) >= 1e6) return n.toExponential(2);
+  if (decimals > 0) return n.toFixed(decimals);
+  return Math.round(n).toLocaleString();
 }
+function fmtNum(n) { return fmtN(Math.floor(n)); }
 
 function formatDuration(seconds) {
   if (seconds < 60) return `${Math.ceil(seconds)}s`;
@@ -1806,14 +1813,10 @@ function startResearch(key) {
     return;
   }
 
-  // If nothing is active, start immediately (resume saved progress if same tech)
+  // If nothing is active, start immediately (resume saved progress if any)
   if (!state.research.current) {
     state.research.current = key;
-    if (state.research.savedKey === key) {
-      state.research.totalConsumed = state.research.savedProgress ?? 0;
-    } else {
-      state.research.totalConsumed = 0;
-    }
+    state.research.totalConsumed = (state.research.progressMap ?? {})[key] ?? 0;
     const gs = getGS('lab');
     gs.packAcc = 0;
     gs.starved = false;
@@ -1828,8 +1831,8 @@ function startResearch(key) {
 
 function cancelResearch() {
   if (state.research.current) {
-    state.research.savedKey      = state.research.current;
-    state.research.savedProgress = state.research.totalConsumed;
+    state.research.progressMap = state.research.progressMap ?? {};
+    state.research.progressMap[state.research.current] = state.research.totalConsumed;
   }
   state.research.current      = null;
   state.research.totalConsumed = 0;
@@ -1847,6 +1850,7 @@ function completeResearch(key) {
   state.research.done[key] = true;
   state.research.current = null;
   state.research.totalConsumed = 0;
+  if (state.research.progressMap) delete state.research.progressMap[key];
   getGS('lab').packAcc = 0;
 
   notify(`✅ Researched: ${techDisplay(key).name}!`, 'info');
@@ -1861,11 +1865,7 @@ function completeResearch(key) {
     const next = queue.shift();
     if (!state.research.done[next]) {
       state.research.current = next;
-      if (state.research.savedKey === next) {
-        state.research.totalConsumed = state.research.savedProgress ?? 0;
-      } else {
-        state.research.totalConsumed = 0;
-      }
+      state.research.totalConsumed = (state.research.progressMap ?? {})[next] ?? 0;
       getGS('lab').starved = false;
       notify(`🔬 Auto-started: ${TECHNOLOGIES[next]?.name ?? next}`, 'info');
       break;
@@ -1877,8 +1877,7 @@ function completeResearch(key) {
   if (!state.research.current && state.research.infiniteAutoStart) {
     const ias = state.research.infiniteAutoStart;
     state.research.current = ias;
-    state.research.totalConsumed = (state.research.savedKey === ias ? state.research.savedProgress : 0) ?? 0;
-    if (state.research.savedKey === ias) { state.research.savedKey = null; state.research.savedProgress = 0; }
+    state.research.totalConsumed = (state.research.progressMap ?? {})[ias] ?? 0;
     getGS('lab').starved = false;
   }
 
@@ -1913,9 +1912,7 @@ function startInfiniteTech(type) {
   // Start immediately if nothing active, else queue
   if (!state.research.current) {
     state.research.current = type;
-    state.research.totalConsumed = (state.research.savedKey === type ? state.research.savedProgress : 0) ?? 0;
-    state.research.savedKey = null;
-    state.research.savedProgress = 0;
+    state.research.totalConsumed = (state.research.progressMap ?? {})[type] ?? 0;
     const gs = getGS('lab');
     gs.packAcc = 0;
     gs.starved = false;
@@ -1947,6 +1944,7 @@ function completeRobotResearch(type) {
   if (type === 'artillery:damage' && state.perimeter) state.perimeter.artilleryDamageLevel = level;
   state.research.current = null;
   state.research.totalConsumed = 0;
+  if (state.research.progressMap) delete state.research.progressMap[type];
   getGS('lab').packAcc = 0;
   lastTechHash = '';
   lastRobotTechHtml = '';
@@ -1957,17 +1955,13 @@ function completeRobotResearch(type) {
     const next = queue.shift();
     if (next.includes(':')) {
       state.research.current = next;
-      state.research.totalConsumed = 0;
+      state.research.totalConsumed = (state.research.progressMap ?? {})[next] ?? 0;
       getGS('lab').starved = false;
       notify(`🔬 Auto-started: ${INFINITE_TECHS[next]?.displayName ?? next}`, 'info');
       break;
     } else if (!state.research.done[next]) {
       state.research.current = next;
-      if (state.research.savedKey === next) {
-        state.research.totalConsumed = state.research.savedProgress ?? 0;
-      } else {
-        state.research.totalConsumed = 0;
-      }
+      state.research.totalConsumed = (state.research.progressMap ?? {})[next] ?? 0;
       getGS('lab').starved = false;
       notify(`🔬 Auto-started: ${TECHNOLOGIES[next]?.name ?? next}`, 'info');
       break;
@@ -1979,8 +1973,7 @@ function completeRobotResearch(type) {
   if (!state.research.current && state.research.infiniteAutoStart) {
     const ias = state.research.infiniteAutoStart;
     state.research.current = ias;
-    state.research.totalConsumed = (state.research.savedKey === ias ? state.research.savedProgress : 0) ?? 0;
-    if (state.research.savedKey === ias) { state.research.savedKey = null; state.research.savedProgress = 0; }
+    state.research.totalConsumed = (state.research.progressMap ?? {})[ias] ?? 0;
     getGS('lab').starved = false;
   }
 
@@ -2745,8 +2738,10 @@ function tick() {
     if (recipe) {
       state.craftActive.progress += dt / recipe.time;
       if (state.craftActive.progress >= 1) {
-        for (const [item, amt] of Object.entries(recipe.outputs))
+        for (const [item, amt] of Object.entries(recipe.outputs)) {
           recordProduced(item, amt);
+          state.baseProduced[item] = (state.baseProduced[item] ?? 0) + amt;
+        }
         state.craftActive = null;
         _tryProcessPendingPlacements();
       }
@@ -3172,10 +3167,10 @@ function updatePlacementUI(placeBatch) {
       const ticksNeeded = Math.ceil(totalQueued / batch);
       const progressTicks = placing ? (_placeElapsedMs / (time * 1000)) : 0;
       const etaSec = Math.max(0, (ticksNeeded - progressTicks) * time);
-      etaRow.style.display = '';
+      etaRow.style.visibility = 'visible';
       etaInfo.textContent = `ETA: ${formatDuration(etaSec)}`;
     } else {
-      etaRow.style.display = 'none';
+      etaRow.style.visibility = 'hidden';
     }
   }
 }
@@ -3673,12 +3668,12 @@ function renderPower() {
     <div class="fluid-cell">
       <span class="fluid-icon">💧</span>
       <div class="fluid-track"><div class="fluid-fill water-fill" style="width:${waterPct}%"></div></div>
-      <span class="fluid-val">${Math.floor(state.water).toLocaleString()} / ${(effectiveWaterMax() / 1000).toFixed(0)}k</span>
+      <span class="fluid-val">${fmtN(Math.floor(state.water))} / ${fmtN(effectiveWaterMax())}</span>
     </div>
     <div class="fluid-cell">
       <span class="fluid-icon">♨️</span>
       <div class="fluid-track"><div class="fluid-fill steam-fill" style="width:${steamPct}%"></div></div>
-      <span class="fluid-val">${Math.floor(state.steam).toLocaleString()} / ${(effectiveSteamMax() / 1000).toFixed(0)}k</span>
+      <span class="fluid-val">${fmtN(Math.floor(state.steam))} / ${fmtN(effectiveSteamMax())}</span>
     </div>
     <div class="fluid-cell power-cell">
       <span class="fluid-icon">⚡</span>
@@ -3709,6 +3704,7 @@ function renderMining() {
   }
 
   const container = document.getElementById('resource-patches');
+  if (!container) return;
 
   // Rebuild cards if patch set changed (new patches discovered)
   const patchKeys = Object.keys(state.patches).filter(k => {
@@ -3778,32 +3774,16 @@ function renderCrafting() {
         const canStart = canAfford(recipe.inputs);
         const outKey   = Object.keys(recipe.outputs)[0];
         const outIcon  = itemIcon(outKey);
-        const outAmt   = recipe.outputs[outKey] ?? 1;
-        const outLabel = outAmt > 1 ? `×${outAmt} ` : '';
-
-        const statusLine = isActive
-          ? `<div class="craft-queue-count">Crafting… <span class="craft-q-num">${queued} queued</span></div>`
-          : total > 0
-          ? `<div class="craft-queue-count waiting">⏳ Waiting <span class="craft-q-num">${total} queued</span></div>`
-          : `<div class="craft-queue-count waiting" style="visibility:hidden">​</div>`;
-
-        const cancelBtn = total > 0
-          ? `<button class="btn-craft-cancel" data-cancel="${key}" title="Cancel queue">✕</button>` : '';
-
         const tutGlowClass = (_tutGlowOn && state.settings.tutorialEnabled &&
           (state.tutorial?.goalIndex ?? 0) < 13 &&
           TUTORIAL_GOALS[state.tutorial?.goalIndex]?.glowCraft?.includes(key))
           ? ' tutorial-glow' : '';
-        return `<div class="craft-card ${isActive ? 'craft-active' : ''}${tutGlowClass}">
-          <div class="craft-header"><span class="craft-icon">${outIcon}</span><span class="craft-name">${outLabel}${itemDisplay(outKey).name}</span><span class="craft-time-label">${recipe.time}s</span></div>
-          ${statusLine}
-          <div class="mini-bar craft-bar"><div class="mini-fill ${isActive ? 'fill-active' : ''}" style="width:${(progress * 100).toFixed(1)}%"></div></div>
-          <div class="craft-actions">
-            <button class="btn-craft ${!canStart ? 'cant-afford' : ''}" data-craft="${key}">
-              Craft <span class="craft-shift-hint">shift:×5</span>
-            </button>
-            ${cancelBtn}
+        return `<div class="craft-card ${isActive ? 'craft-active' : ''}${!canStart ? ' cant-afford' : ''}${tutGlowClass}" data-craft="${key}" data-cancel="${key}">
+          <div class="craft-icon-wrap">
+            ${outIcon}
+            ${total > 0 ? `<span class="craft-q-badge">${total}</span>` : ''}
           </div>
+          <div class="mini-bar craft-bar"><div class="mini-fill ${isActive ? 'fill-active' : ''}" style="width:${(progress * 100).toFixed(1)}%"></div></div>
         </div>`;
       }).join('');
 
@@ -4936,10 +4916,12 @@ function renderResearchStatus() {
   const gs   = getGS('lab');
 
   if (!res.current) {
-    const _savedDef = res.savedKey && (TECHNOLOGIES[res.savedKey] || INFINITE_TECHS[res.savedKey]);
-    const _savedName = res.savedKey ? (INFINITE_TECHS[res.savedKey]?.displayName ?? techDisplay(res.savedKey).name) : '';
-    const savedNote = _savedDef
-      ? `<span class="research-idle-note">Saved progress: ${_savedName} (${res.savedProgress ?? 0} packs)</span>`
+    const progressEntries = Object.entries(res.progressMap ?? {}).filter(([, v]) => v > 0);
+    const savedNote = progressEntries.length > 0
+      ? `<span class="research-idle-note">Saved progress: ${progressEntries.map(([k, v]) => {
+          const name = INFINITE_TECHS[k]?.displayName ?? techDisplay(k).name;
+          return `${name} (${v} packs)`;
+        }).join(', ')}</span>`
       : '';
     el.innerHTML = `<p class="research-idle">No research in progress. Click a technology node below to start.${savedNote ? '<br>' + savedNote : ''}</p>`;
     return;
@@ -5104,20 +5086,16 @@ function renderRobotTechs() {
     getWallHpTechData,
     lvl => `+${(lvl * 15).toFixed(0)}% wall HP`,
   );
-  if (metaState.skillPerks?.scl_arty_range_unlock) {
-    html += infiniteTechGroup(
-      'artillery:range', 'Artillery Range', null, 'artilleryRangeLevel',
-      getArtilleryRangeTechData,
-      lvl => `${lvl} extra ring${lvl !== 1 ? 's' : ''} of coverage`,
-    );
-  }
-  if (metaState.skillPerks?.scl_arty_damage_unlock) {
-    html += infiniteTechGroup(
-      'artillery:damage', 'Artillery Damage', null, 'artilleryDamageLevel',
-      getArtilleryDamageTechData,
-      lvl => `+${(lvl * 25).toFixed(0)}% shell damage`,
-    );
-  }
+  html += infiniteTechGroup(
+    'artillery:range', 'Artillery Range', 'artillery', 'artilleryRangeLevel',
+    getArtilleryRangeTechData,
+    lvl => `${lvl} extra ring${lvl !== 1 ? 's' : ''} of coverage`,
+  );
+  html += infiniteTechGroup(
+    'artillery:damage', 'Artillery Damage', 'artillery', 'artilleryDamageLevel',
+    getArtilleryDamageTechData,
+    lvl => `+${(lvl * 25).toFixed(0)}% shell damage`,
+  );
 
   if (html === lastRobotTechHtml) return;
   lastRobotTechHtml = html;
@@ -5696,11 +5674,6 @@ function expandPerimeter() {
 
 function setPerimeterAmmo(ammoType) {
   state.perimeter.ammoType = ammoType;
-}
-
-function fmtN(n) {
-  if (Math.abs(n) >= 1e6) return n.toExponential(2);
-  return Math.round(n).toLocaleString();
 }
 
 function renderPerimeter() {
@@ -6576,6 +6549,8 @@ function returnToMainMenu() {
   const unsaved = lastSaveMs === 0 || (Date.now() - lastSaveMs > 30000);
   if (unsaved && !confirm('You have unsaved progress. Return to main menu anyway?')) return;
   if (gameLoopId) { clearInterval(gameLoopId); gameLoopId = null; }
+  stopRenderLoop();
+  state = null;
   document.getElementById('game-screen').classList.add('hidden');
   document.getElementById('start-screen').classList.remove('hidden');
   refreshSaveList();
@@ -6755,13 +6730,17 @@ function startNewGame() {
 function showGame() {
   document.getElementById('start-screen').classList.add('hidden');
   document.getElementById('game-screen').classList.remove('hidden');
+  window.fileAPI?.refocusRenderer?.();
   if (gameLoopId) clearInterval(gameLoopId);
   gameLoopId = setInterval(tick, TICK_MS);
   startRenderLoop();
   _lastTickTime = Date.now();
   buildingSearchQuery = '';
   mouseHeld          = false;
+  _gamePaused        = false;
   biterWaveWarned    = false;
+  const _pauseBtn = document.getElementById('pause-btn');
+  if (_pauseBtn) _pauseBtn.textContent = '⏸ Pause';
   lastTechHash       = '';
   lastInventoryHtml  = '';
   lastStarredBarHtml = '';
@@ -6844,7 +6823,8 @@ function setupEventDelegation() {
     if (e.target.classList.contains('place-count')) updatePlaceButtonStates();
   });
 
-  document.getElementById('resource-patches').addEventListener('click', e => {
+  const patchesEl = document.getElementById('resource-patches');
+  if (patchesEl) patchesEl.addEventListener('click', e => {
     const btn = e.target.closest('[data-mine]');
     if (btn && !btn.disabled) manualMine(btn.dataset.mine);
   });
@@ -6855,12 +6835,16 @@ function setupEventDelegation() {
   });
 
   document.getElementById('craft-recipes').addEventListener('click', e => {
-    const craftBtn = e.target.closest('[data-craft]');
-    if (craftBtn && !craftBtn.classList.contains('cant-afford')) {
-      queueCraft(craftBtn.dataset.craft, e.shiftKey); return;
+    const card = e.target.closest('[data-craft]');
+    if (card && !card.classList.contains('cant-afford')) {
+      queueCraft(card.dataset.craft, e.shiftKey);
     }
-    const cancelBtn = e.target.closest('[data-cancel]');
-    if (cancelBtn) cancelCraftQueue(cancelBtn.dataset.cancel);
+  });
+  document.getElementById('craft-recipes').addEventListener('contextmenu', e => {
+    const card = e.target.closest('[data-cancel]');
+    if (!card) return;
+    e.preventDefault();
+    cancelCraftQueue(card.dataset.cancel);
   });
 
   document.getElementById('active-buildings').addEventListener('click', e => {
@@ -8371,12 +8355,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const craftTab = document.getElementById('tab-crafting');
     craftTab.addEventListener('mouseover', e => {
-      const btn = e.target.closest('.btn-craft');
-      if (!btn) return;
-      const key = btn.dataset.craft;
+      const card = e.target.closest('.craft-card[data-craft]');
+      if (!card) return;
+      const key = card.dataset.craft;
       if (!key) return;
       const recipe = PLAYER_RECIPES[key];
       if (!recipe) return;
+      const outKey  = Object.keys(recipe.outputs)[0];
+      const outAmt  = recipe.outputs[outKey] ?? 1;
+      const name    = itemDisplay(outKey).name;
+      const queued  = state.craftQueue.filter(e => e.key === key).length;
+      const total   = queued + (state.craftActive?.key === key ? 1 : 0);
       const iconsHtml = Object.entries(recipe.inputs).map(([k, v]) => {
         const have    = state?.inventory?.[k] ?? 0;
         const enough  = have >= v;
@@ -8385,9 +8374,18 @@ document.addEventListener('DOMContentLoaded', async () => {
           <span class="ctip-amt">${v}×</span>${itemIcon(k)}
         </span>`;
       }).join('');
-      ctip.innerHTML = `<div class="ctip-icons">${iconsHtml}</div>`;
+      ctip.innerHTML = `
+        <div class="ctip-header">
+          <strong>${name}</strong>
+          ${outAmt > 1 ? `<span class="ctip-qty">×${outAmt}</span>` : ''}
+          <span class="ctip-time">${recipe.time}s</span>
+        </div>
+        <div class="ctip-divider"></div>
+        <div class="ctip-icons">${iconsHtml}</div>
+        ${total > 0 ? `<div class="ctip-hint">Right-click to cancel queue</div>` : ''}
+      `;
       ctip.style.display = 'block';
-      const r   = btn.getBoundingClientRect();
+      const r   = card.getBoundingClientRect();
       const tipH = ctip.offsetHeight;
       const tipW = ctip.offsetWidth;
       const top  = r.top - tipH - 8;
@@ -8395,7 +8393,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       ctip.style.top  = `${top < 4 ? r.bottom + 8 : top}px`;
     });
     craftTab.addEventListener('mouseout', e => {
-      if (!e.target.closest('.btn-craft') || !e.relatedTarget?.closest?.('.btn-craft'))
+      if (!e.target.closest('.craft-card[data-craft]') || !e.relatedTarget?.closest?.('.craft-card[data-craft]'))
         ctip.style.display = 'none';
     });
   }

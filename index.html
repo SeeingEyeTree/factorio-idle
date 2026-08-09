@@ -122,7 +122,6 @@
   <div class="game-layout">
 
     <nav class="side-nav">
-      <div class="power-bar" id="power-bar"></div>
       <div id="biter-indicator" class="biter-indicator hidden"></div>
       <button class="side-nav-btn active"  onclick="switchTab('mining', this)"    data-tab="mining"><span class="side-nav-icon">🏠</span><span class="side-nav-label">Base</span></button>
       <button class="side-nav-btn"        onclick="switchTab('inventory', this)"  data-tab="inventory"><span class="side-nav-icon">🎒</span><span class="side-nav-label">Inventory</span></button>
@@ -137,7 +136,10 @@
     </nav>
 
     <div class="game-main">
-      <div id="starred-bar" class="starred-bar hidden"></div>
+      <div class="game-topbar">
+        <div id="starred-bar" class="starred-bar hidden"></div>
+        <div class="power-bar" id="power-bar"></div>
+      </div>
 
       <div id="dev-panel" class="dev-panel hidden"></div>
       <div id="tutorial-goal-bar" style="display:none"></div>
@@ -190,9 +192,6 @@
         <div id="tutorial-goal-panel"></div>
       </div>
       </div>
-      <h3 class="section-label">Resource Patches</h3>
-      <p id="chunk-info"></p>
-      <div id="resource-patches" class="patch-grid"></div>
     </section>
 
     <!-- Inventory Tab -->
@@ -226,7 +225,7 @@
                 <span id="place-queue-info" class="place-queue-info">empty</span>
                 <button id="clear-queue-btn" class="btn-sm btn-secondary" onclick="clearPlaceQueue()" title="Clear build queue" style="display:none;margin-left:auto;font-size:.7rem;padding:.1rem .45rem">Clear</button>
               </div>
-              <div id="place-eta-row" style="display:none;font-size:.68rem;color:var(--dim);margin-bottom:.3rem">
+              <div id="place-eta-row" style="visibility:hidden;font-size:.68rem;color:var(--dim);margin-bottom:.3rem">
                 <span id="place-eta-info"></span>
               </div>
               <div class="progress-bar">

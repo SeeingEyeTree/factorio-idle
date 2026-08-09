@@ -422,10 +422,14 @@ function renderCalcPicker() {
   let entries = Object.entries(allRecipes)
     .map(([key, r]) => {
       const outKey = Object.keys(r.outputs)[0];
-      return [key, r.name, itemIcon(outKey)];
+      return [key, r.name, itemIcon(outKey), outKey];
     })
     .sort((a, b) => a[1].localeCompare(b[1]));
-  if (search) entries = entries.filter(([, name]) => name.toLowerCase().includes(search));
+  if (search) entries = entries.filter(([key, name, , outKey]) =>
+    name.toLowerCase().includes(search) ||
+    itemDisplay(outKey).name.toLowerCase().includes(search) ||
+    key.toLowerCase().includes(search)
+  );
   if (!entries.length) {
     host.innerHTML = `<div class="recipe-picker"><span style="font-size:.75rem;color:var(--dim)">No recipes match</span></div>`;
     return;
